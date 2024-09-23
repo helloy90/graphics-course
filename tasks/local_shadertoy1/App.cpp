@@ -1,4 +1,6 @@
 #include "App.hpp"
+#include "GLFW/glfw3.h"
+#include "render_utils/shaders/cpp_glsl_compat.h"
 
 #include <cstddef>
 #include <etna/Etna.hpp>
@@ -196,10 +198,22 @@ void App::drawFrame()
         0,
         nullptr);
 
+      // Getting mouse coords
+      double mouseX = 0;
+      double mouseY = 0;
+      glfwGetCursorPos(osWindow->native(), &mouseX, &mouseY);
+
+      pushConst.iResolution = resolution;
+      pushConst.mouseX = mouseX;
+      pushConst.mouseY = mouseY;
+
+      currentCmdBuf.pushConstants<PushConstants>(
+        compPipeline.getVkPipelineLayout(), vk::ShaderStageFlagBits::eCompute, 0, {pushConst});
+
       etna::flush_barriers(currentCmdBuf);
 
       // Launch shader
-      currentCmdBuf.dispatch(1000, 1000, 1);
+      currentCmdBuf.dispatch((resolution.x / 32) + 1, (resolution.y / 32) + 1, 1);
 
       etna::set_state(
         currentCmdBuf,

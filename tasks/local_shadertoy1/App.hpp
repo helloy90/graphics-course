@@ -6,6 +6,7 @@
 #include <etna/Image.hpp>
 
 #include "etna/Sampler.hpp"
+#include "render_utils/shaders/cpp_glsl_compat.h"
 
 #include "wsi/OsWindowingManager.hpp"
 
@@ -17,6 +18,12 @@ public:
   ~App();
 
   void run();
+
+  struct PushConstants {
+    shader_uvec2 iResolution;
+    float mouseX;
+    float mouseY;
+  } pushConst;
 
 private:
   void drawFrame();
