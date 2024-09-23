@@ -5,6 +5,8 @@
 #include <etna/ComputePipeline.hpp>
 #include <etna/Image.hpp>
 
+#include "etna/Sampler.hpp"
+
 #include "wsi/OsWindowingManager.hpp"
 
 
@@ -22,6 +24,16 @@ private:
 private:
   OsWindowingManager windowing;
   std::unique_ptr<OsWindow> osWindow;
+
+  // -----------------
+
+  etna::ComputePipeline compPipeline;
+  etna::Image storage;
+  
+  etna::Sampler sampler;
+
+  void initComputeSystems();
+  // -----------------
 
   glm::uvec2 resolution;
   bool useVsync;
