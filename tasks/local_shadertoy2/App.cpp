@@ -143,7 +143,7 @@ void App::loadSwordTexture()
   // Load image
   int width, height, channels;
   unsigned char* swordTextureData = stbi_load(
-    "D:/Projects/VSCode/graphics-course/resources/textures/test_tex_1.png",
+    LOCAL_SHADERTOY2_TEXTURES "test_tex_1.png",
     &width,
     &height,
     &channels,
