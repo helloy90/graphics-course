@@ -55,7 +55,7 @@ private:
 
   void preparePipelines();
   void loadTextures();
-  void loadCubemap();
+  // void loadCubemap();
   void initShading();
   // -----------------
 
