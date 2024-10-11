@@ -28,6 +28,8 @@ public:
 private:
   void drawFrame();
 
+  void processInput();
+
 private:
   OsWindowingManager windowing;
   std::unique_ptr<OsWindow> osWindow;

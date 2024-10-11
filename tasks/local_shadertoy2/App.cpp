@@ -97,7 +97,9 @@ void App::initShading()
 
   oneShotCommands = etna::get_context().createOneShotCmdMgr();
 
-  loadSwordTexture();
+  loadTextures();
+
+  loadCubemap();
 }
 
 void App::preparePipelines()
@@ -138,7 +140,7 @@ void App::preparePipelines()
   sampler = etna::Sampler({.name = "sampler"});
 }
 
-void App::loadSwordTexture()
+void App::loadTextures()
 {
   // Load image
   int width, height, channels;
@@ -241,12 +243,32 @@ void App::run()
   {
     windowing.poll();
 
+    processInput();
+
     drawFrame();
   }
 
   // We need to wait for the GPU to execute the last frame before destroying
   // all resources and closing the application.
   ETNA_CHECK_VK_RESULT(etna::get_context().getDevice().waitIdle());
+}
+
+
+void App::processInput() {
+  auto& keyboard = osWindow->keyboard;
+  if (keyboard[KeyboardKey::kB] == ButtonState::Falling) {
+    const int retval = std::system("cd " GRAPHICS_COURSE_ROOT "/build"
+                                   " && cmake --build . --target local_shadertoy_shaders");
+
+    if (retval != 0)
+      spdlog::warn("Shader recompilation returned a non-zero return code!");
+    else
+    {
+      ETNA_CHECK_VK_RESULT(etna::get_context().getDevice().waitIdle());
+      etna::reload_shaders();
+      spdlog::info("Successfully reloaded shaders!");
+    }
+  }
 }
 
 void App::drawFrame()
