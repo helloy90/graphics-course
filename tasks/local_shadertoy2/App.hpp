@@ -6,6 +6,7 @@
 #include <etna/Image.hpp>
 
 #include "etna/BlockingTransferHelper.hpp"
+#include "etna/Buffer.hpp"
 #include "etna/GraphicsPipeline.hpp"
 #include "etna/OneShotCmdMgr.hpp"
 #include "etna/Sampler.hpp"
@@ -32,6 +33,8 @@ public:
 private:
   void drawFrame();
 
+  void processInput();
+
 private:
   OsWindowingManager windowing;
   std::unique_ptr<OsWindow> osWindow;
@@ -44,12 +47,15 @@ private:
   etna::Image generatedTexture;
 
   etna::Image swordTexture;
+
+  etna::Buffer cubemap;
   
   std::unique_ptr<etna::OneShotCmdMgr> oneShotCommands;
   std::unique_ptr<etna::BlockingTransferHelper> transferHelper;
 
   void preparePipelines();
-  void loadSwordTexture();
+  void loadTextures();
+  // void loadCubemap();
   void initShading();
   // -----------------
 
