@@ -9,9 +9,11 @@ layout(push_constant) uniform params {
   float mouseY;
 } pushConstant;
 
-layout(binding = 0) uniform sampler2D iChannel1; //generated
+layout(binding = 0) uniform sampler2D generatedTexture; //generated
 
-layout(binding = 1) uniform sampler2D iChannel2; //loaded
+layout(binding = 1) uniform sampler2D swordTexture; //loaded
+
+layout(binding = 2) uniform samplerCube cubemapTexture; //cubemap
 
 // --------- Constants ---------
 
@@ -79,7 +81,7 @@ Material mBlade() {
   vec3 aCol = 1.5 * vec3(0.7, 0, 0);
   vec3 dCol = 0.6 * vec3(0.7, 0, 0);
   vec3 sCol = 1.0 * vec3(1, 1, 1);
-  float ref = 1.5;
+  float ref = 1.0;
   float a = 50.;
   int tex_id = 0;
 
@@ -90,7 +92,7 @@ Material mPlane(vec3 p) {
   vec3 aCol = 0.4 * vec3(0.835, 1, 1);
   vec3 dCol = 0.3 * vec3(1.0);
   vec3 sCol = 0.0 * vec3(1.0);
-  float ref = 0.1;
+  float ref = 0.2;
   float a = 1.0;
   int tex_id = -1;
 
@@ -326,7 +328,7 @@ vec3 transformTexture(in vec3 pos, in sampler2D channel, in vec3 normal, float c
 
 vec3 applyTextures(in vec3 pos, in vec3 normal, in Material material) {
   if (material.texture_id == 0) { // blade
-    return transformTexture(pos, iChannel2, normal, 5.0, vec3(0.1)) * transformTexture(pos, iChannel1, normal, 10.0, vec3(0.01)); //changed to fit texture
+    return normalize(transformTexture(pos, swordTexture, normal, 5.0, vec3(1))) * normalize(transformTexture(pos, generatedTexture, normal, 10.0, vec3(0.05)));
   }
   if (material.texture_id == 1) { // handle 
     //return 2.0 * transformTexture(pos, iChannel3, normal, 1.0, vec3(1));
@@ -356,12 +358,12 @@ float softShadow(in vec3 ray_origin, in vec3 ray_direction, in float mint, in fl
 }
 
 vec3 lightCalc(vec3 pos, vec3 normal, vec3 ray_dir, vec3 ray_origin, Light light, Material material) {
-  //vec3 cubemap_reflection = texture(iChannel0, reflect(ray_dir, normal)).rgb; no cubemap - no reflection
+  vec3 cubemap_reflection = texture(cubemapTexture, reflect(ray_dir, normal)).rgb;
 
   vec3 light_dir = normalize(light.pos - pos);
-  vec3 ambient = material.ambient_color * applyTextures(pos, normal, material);
+  vec3 ambient = material.ambient_color * normalize(applyTextures(pos, normal, material));
   if (material.reflection > 0.001) {
-    ambient *= material.reflection;// * cubemap_reflection;
+    ambient *= material.reflection * normalize(cubemap_reflection);
   }
   vec3 new_ray_origin = pos + normal * kPresicion * 2.0;
   float shadow_ray_length = trace(new_ray_origin, light_dir).sd; // hard shadows
@@ -385,9 +387,9 @@ vec3 lightCalc(vec3 pos, vec3 normal, vec3 ray_dir, vec3 ray_origin, Light light
 // --- Render call ---
 
 vec3 render(in vec3 ray_origin, in vec3 ray_dir) {
-  vec3 color = vec3(1, 0.58, 0.58);//texture(iChannel0, ray_dir).rgb; // default color - cubemap - for now just color
+  vec3 color = texture(cubemapTexture, ray_dir).rgb;
     
-    // Set up lights
+  // Set up lights
   Light light = Light(vec3(2, 0.1, 0), 0.9);
     
   Surface closest_object = trace(ray_origin, ray_dir);

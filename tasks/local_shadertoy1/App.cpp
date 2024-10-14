@@ -91,7 +91,7 @@ void App::initComputeSystems()
 {
 
   // Create shader program
-  etna::create_program("local_shadertoy", {LOCAL_SHADERTOY_SHADERS_ROOT "toy.comp.spv"});
+  etna::create_program("local_shadertoy", {LOCAL_SHADERTOY1_SHADERS_ROOT "toy.comp.spv"});
 
   // Create pipeline
   compPipeline =

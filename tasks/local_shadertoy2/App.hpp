@@ -6,7 +6,6 @@
 #include <etna/Image.hpp>
 
 #include "etna/BlockingTransferHelper.hpp"
-#include "etna/Buffer.hpp"
 #include "etna/GraphicsPipeline.hpp"
 #include "etna/OneShotCmdMgr.hpp"
 #include "etna/Sampler.hpp"
@@ -43,20 +42,24 @@ private:
   etna::GraphicsPipeline graphicsPipeline;
   etna::GraphicsPipeline textureGenPipeline;
 
-  etna::Sampler sampler;
+  etna::Sampler textureSampler;
+  etna::Sampler cubemapSampler;
   etna::Image generatedTexture;
 
   etna::Image swordTexture;
 
-  etna::Buffer cubemap;
+  etna::Image cubemapTexture;
   
   std::unique_ptr<etna::OneShotCmdMgr> oneShotCommands;
   std::unique_ptr<etna::BlockingTransferHelper> transferHelper;
 
-  void preparePipelines();
+  void preparePrimitives();
   void loadTextures();
-  // void loadCubemap();
+  void loadCubemap();
   void initShading();
+
+  void localCopyBufferToImage(const etna::Buffer& buffer, const etna::Image& image, uint32_t layer_count);
+  void generateMipmaps(const etna::Image& image, uint32_t mip_levels, uint32_t layer_count);
   // -----------------
 
   glm::uvec2 resolution;
