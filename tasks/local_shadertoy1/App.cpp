@@ -226,8 +226,8 @@ void App::drawFrame()
       glfwGetCursorPos(osWindow->native(), &mouseX, &mouseY);
 
       pushConst.iResolution = resolution;
-      pushConst.mouseX = mouseX;
-      pushConst.mouseY = mouseY;
+        pushConst.mouseX = static_cast<float>(mouseX);
+        pushConst.mouseY = static_cast<float>(mouseY);
 
       currentCmdBuf.pushConstants<PushConstants>(
         compPipeline.getVkPipelineLayout(), vk::ShaderStageFlagBits::eCompute, 0, {pushConst});

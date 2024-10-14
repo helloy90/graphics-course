@@ -203,8 +203,8 @@ void App::drawFrame()
         glfwGetCursorPos(osWindow->native(), &mouseX, &mouseY);
 
         pushConst.iResolution = resolution;
-        pushConst.mouseX = mouseX;
-        pushConst.mouseY = mouseY;
+        pushConst.mouseX = static_cast<float>(mouseX);
+        pushConst.mouseY = static_cast<float>(mouseY);
 
         currentCmdBuf.pushConstants<PushConstants>(
           textureGenPipeline.getVkPipelineLayout(),
@@ -282,8 +282,8 @@ void App::drawFrame()
         glfwGetCursorPos(osWindow->native(), &mouseX, &mouseY);
 
         pushConst.iResolution = resolution;
-        pushConst.mouseX = mouseX;
-        pushConst.mouseY = mouseY;
+        pushConst.mouseX = static_cast<float>(mouseX);
+        pushConst.mouseY = static_cast<float>(mouseY);
 
         currentCmdBuf.pushConstants<PushConstants>(
           graphicsPipeline.getVkPipelineLayout(),
@@ -485,7 +485,7 @@ void App::loadCubemap()
   {
     auto source = std::span<unsigned char>(textures[i], layerSize);
     transferHelper->uploadBuffer(
-      *oneShotCommands, cubemapBuffer, layerSize * i, std::as_bytes(source));
+      *oneShotCommands, cubemapBuffer, static_cast<uint32_t>(layerSize * i), std::as_bytes(source));
   }
 
   // Create cubemap Image
