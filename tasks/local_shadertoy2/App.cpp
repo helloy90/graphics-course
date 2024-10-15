@@ -567,16 +567,6 @@ void App::generateMipmaps(const etna::Image& image, uint32_t mip_levels, uint32_
 
   auto commandBuffer = oneShotCommands->start();
 
-  auto tempImage = etna::get_context().createImage(etna::Image::CreateInfo{
-    .extent = extent,
-    .name = "cubemap_image",
-    .format = vk::Format::eR8G8B8A8Srgb,
-    .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst |
-      vk::ImageUsageFlagBits::eTransferSrc,
-    .layers = layer_count,
-    .mipLevels = mip_levels,
-  });
-
   ETNA_CHECK_VK_RESULT(commandBuffer.begin(vk::CommandBufferBeginInfo{}));
   {
 
