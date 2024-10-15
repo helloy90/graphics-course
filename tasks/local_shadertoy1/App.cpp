@@ -1,6 +1,9 @@
 #include "App.hpp"
 #include "GLFW/glfw3.h"
 #include "render_utils/shaders/cpp_glsl_compat.h"
+#include "spdlog/spdlog.h"
+#include "wsi/ButtonState.hpp"
+#include "wsi/KeyboardKey.hpp"
 
 #include <cstddef>
 #include <etna/Etna.hpp>
@@ -88,7 +91,7 @@ void App::initComputeSystems()
 {
 
   // Create shader program
-  etna::create_program("local_shadertoy", {LOCAL_SHADERTOY_SHADERS_ROOT "toy.comp.spv"});
+  etna::create_program("local_shadertoy", {LOCAL_SHADERTOY1_SHADERS_ROOT "toy.comp.spv"});
 
   // Create pipeline
   compPipeline =
@@ -98,10 +101,8 @@ void App::initComputeSystems()
   storage = etna::get_context().createImage(etna::Image::CreateInfo{
     .extent = vk::Extent3D{resolution.x, resolution.y, 1},
     .name = "storage_image",
-    .format = vk::Format::eR8G8B8A8Snorm,
-    .imageUsage = vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eTransferSrc |
-      vk::ImageUsageFlagBits::eSampled,
-  });
+    .format = vk::Format::eR8G8B8A8Unorm,
+    .imageUsage = vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eTransferSrc});
 
   sampler = etna::Sampler({.name = "sampler"});
 }
@@ -117,12 +118,33 @@ void App::run()
   {
     windowing.poll();
 
+    processInput();
+
     drawFrame();
   }
 
   // We need to wait for the GPU to execute the last frame before destroying
   // all resources and closing the application.
   ETNA_CHECK_VK_RESULT(etna::get_context().getDevice().waitIdle());
+}
+
+void App::processInput()
+{
+  auto& keyboard = osWindow->keyboard;
+  if (keyboard[KeyboardKey::kB] == ButtonState::Falling)
+  {
+    const int retval = std::system("cd " GRAPHICS_COURSE_ROOT "/build"
+                                   " && cmake --build . --target local_shadertoy_shaders");
+
+    if (retval != 0)
+      spdlog::warn("Shader recompilation returned a non-zero return code!");
+    else
+    {
+      ETNA_CHECK_VK_RESULT(etna::get_context().getDevice().waitIdle());
+      etna::reload_shaders();
+      spdlog::info("Successfully reloaded shaders!");
+    }
+  }
 }
 
 void App::drawFrame()
@@ -185,7 +207,8 @@ void App::drawFrame()
       auto set = etna::create_descriptor_set(
         computeShaderInfo.getDescriptorLayoutId(0),
         currentCmdBuf,
-        {etna::Binding{0, storage.genBinding(sampler.get(), vk::ImageLayout::eGeneral)}});
+        {etna::Binding{
+          0, storage.genBinding(sampler.get(), vk::ImageLayout::eTransferSrcOptimal)}});
 
       auto vkSet = set.getVkSet();
       currentCmdBuf.bindPipeline(vk::PipelineBindPoint::eCompute, compPipeline.getVkPipeline());
@@ -204,8 +227,8 @@ void App::drawFrame()
       glfwGetCursorPos(osWindow->native(), &mouseX, &mouseY);
 
       pushConst.iResolution = resolution;
-      pushConst.mouseX = mouseX;
-      pushConst.mouseY = mouseY;
+      pushConst.mouseX = static_cast<float>(mouseX);
+      pushConst.mouseY = static_cast<float>(mouseY);
 
       currentCmdBuf.pushConstants<PushConstants>(
         compPipeline.getVkPipelineLayout(), vk::ShaderStageFlagBits::eCompute, 0, {pushConst});
@@ -213,9 +236,9 @@ void App::drawFrame()
       etna::flush_barriers(currentCmdBuf);
 
       // Launch shader
-      currentCmdBuf.dispatch((resolution.x / 32) + 1, (resolution.y / 32) + 1, 1);
+      currentCmdBuf.dispatch((resolution.x + 31) / 32, (resolution.y + 31) / 32, 1);
 
-      etna::set_state(
+      etna::set_state( 
         currentCmdBuf,
         storage.get(),
         vk::PipelineStageFlagBits2::eBlit,

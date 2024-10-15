@@ -19,7 +19,8 @@ public:
 
   void run();
 
-  struct PushConstants {
+  struct PushConstants
+  {
     shader_uvec2 iResolution;
     float mouseX;
     float mouseY;
@@ -27,6 +28,8 @@ public:
 
 private:
   void drawFrame();
+
+  void processInput();
 
 private:
   OsWindowingManager windowing;
@@ -36,7 +39,7 @@ private:
 
   etna::ComputePipeline compPipeline;
   etna::Image storage;
-  
+
   etna::Sampler sampler;
 
   void initComputeSystems();
