@@ -11,7 +11,8 @@
 #include <etna/Sampler.hpp>
 
 #include "wsi/OsWindowingManager.hpp"
-#include "render_utils/shaders/cpp_glsl_compat.h"
+
+#include "shaders/UniformParams.h"
 
 class App
 {
@@ -21,15 +22,10 @@ public:
 
   void run();
 
-  struct PushConstants
-  {
-    shader_uvec2 iResolution;
-    float mouseX;
-    float mouseY;
-  };
-
 private:
   void drawFrame();
+
+  void update();
 
   void processInput();
 
@@ -38,16 +34,20 @@ private:
   std::unique_ptr<OsWindow> osWindow;
 
   // -----------------
+  glm::uvec2 maxTextureResolution;
+
+  UniformParams uniformParams;
 
   etna::GraphicsPipeline graphicsPipeline;
   etna::GraphicsPipeline textureGenPipeline;
 
   etna::Sampler textureSampler;
   etna::Sampler cubemapSampler;
+
+  etna::Buffer constants;
+
   etna::Image generatedTexture;
-
   etna::Image swordTexture;
-
   etna::Image cubemapTexture;
 
   std::unique_ptr<etna::OneShotCmdMgr> oneShotCommands;

@@ -18,7 +18,8 @@
 #include <tracy/Tracy.hpp>
 
 App::App()
-  : resolution{1280, 720}
+  : maxTextureResolution{3840, 2160}
+  , resolution{1280, 720}
   , useVsync{false}
 {
   {
@@ -68,8 +69,6 @@ void App::initShading()
 {
   preparePrimitives();
 
-  oneShotCommands = etna::get_context().createOneShotCmdMgr();
-
   loadTextures();
 
   loadCubemap();
@@ -85,13 +84,15 @@ void App::run()
   while (!osWindow->isBeingClosed())
   {
     ZoneScopedN("Frame");
-    
+
     {
       ZoneScopedN("Poll OS Events");
       windowing.poll();
     }
 
     processInput();
+
+    update();
 
     drawFrame();
 
@@ -117,6 +118,22 @@ void App::processInput()
       etna::reload_shaders();
       spdlog::info("Successfully reloaded shaders!");
     }
+  }
+}
+
+void App::update()
+{
+  ZoneScoped;
+
+  {
+    double mouseX = 0;
+    double mouseY = 0;
+    glfwGetCursorPos(osWindow->native(), &mouseX, &mouseY);
+
+    uniformParams.mouseX = static_cast<float>(mouseX);
+    uniformParams.mouseY = static_cast<float>(mouseY);
+
+    std::memcpy(constants.data(), &uniformParams, sizeof(uniformParams));
   }
 }
 
@@ -166,32 +183,31 @@ void App::drawFrame()
           {{generatedTexture.get(), generatedTexture.getView({})}},
           {});
 
+        auto generatorShaderInfo = etna::get_shader_program("texture_generation");
+
+        auto set = etna::create_descriptor_set(
+          generatorShaderInfo.getDescriptorLayoutId(0),
+          currentCmdBuf,
+          {etna::Binding{0, constants.genBinding()}});
+
+        auto vkSet = set.getVkSet();
         currentCmdBuf.bindPipeline(
           vk::PipelineBindPoint::eGraphics, textureGenPipeline.getVkPipeline());
 
-
-        double mouseX = 0;
-        double mouseY = 0;
-        glfwGetCursorPos(osWindow->native(), &mouseX, &mouseY);
-
-        PushConstants pushConst{
-          .iResolution = resolution,
-          .mouseX = static_cast<float>(mouseX),
-          .mouseY = static_cast<float>(mouseY)};
-
-        currentCmdBuf.pushConstants<PushConstants>(
+        currentCmdBuf.bindDescriptorSets(
+          vk::PipelineBindPoint::eGraphics,
           textureGenPipeline.getVkPipelineLayout(),
-          vk::ShaderStageFlagBits::eFragment,
           0,
-          {pushConst});
-
-        
+          1,
+          &vkSet,
+          0,
+          nullptr);
 
         currentCmdBuf.draw(3, 1, 0, 0);
       }
       // End generated texture render pass
 
-      std::this_thread::sleep_for(std::chrono::milliseconds(7)); //heavy work imitation
+      std::this_thread::sleep_for(std::chrono::milliseconds(7)); // heavy work imitation
 
       etna::set_state(
         currentCmdBuf,
@@ -235,12 +251,8 @@ void App::drawFrame()
              cubemapTexture.genBinding(
                cubemapSampler.get(),
                vk::ImageLayout::eShaderReadOnlyOptimal,
-               {0,
-                VK_REMAINING_MIP_LEVELS,
-                0,
-                VK_REMAINING_ARRAY_LAYERS,
-                {},
-                vk::ImageViewType::eCube})}});
+               {.type = vk::ImageViewType::eCube})},
+           etna::Binding{3, constants.genBinding()}});
 
         auto vkSet = set.getVkSet();
         currentCmdBuf.bindPipeline(
@@ -253,21 +265,6 @@ void App::drawFrame()
           &vkSet,
           0,
           nullptr);
-
-        double mouseX = 0;
-        double mouseY = 0;
-        glfwGetCursorPos(osWindow->native(), &mouseX, &mouseY);
-
-        PushConstants pushConst{
-          .iResolution = resolution,
-          .mouseX = static_cast<float>(mouseX),
-          .mouseY = static_cast<float>(mouseY)};
-
-        currentCmdBuf.pushConstants<PushConstants>(
-          graphicsPipeline.getVkPipelineLayout(),
-          vk::ShaderStageFlagBits::eFragment,
-          0,
-          {pushConst});
 
         currentCmdBuf.draw(3, 1, 0, 0);
       }
@@ -312,6 +309,9 @@ void App::drawFrame()
 
 void App::preparePrimitives()
 {
+  uniformParams = {.iResolution = resolution, .mouseX = 0, .mouseY = 0};
+
+  auto& context = etna::get_context();
 
   etna::create_program(
     "graphic_shadertoy",
@@ -322,22 +322,29 @@ void App::preparePrimitives()
     {INFLIGHT_FRAMES_SHADERS_ROOT "texture_gen.frag.spv",
      INFLIGHT_FRAMES_SHADERS_ROOT "decoy.vert.spv"});
 
-
-  graphicsPipeline = etna::get_context().getPipelineManager().createGraphicsPipeline(
+  graphicsPipeline = context.getPipelineManager().createGraphicsPipeline(
     "graphic_shadertoy",
     etna::GraphicsPipeline::CreateInfo{
       .fragmentShaderOutput = {
         .colorAttachmentFormats = {vk::Format::eB8G8R8A8Srgb},
       }});
 
-  textureGenPipeline = etna::get_context().getPipelineManager().createGraphicsPipeline(
+  textureGenPipeline = context.getPipelineManager().createGraphicsPipeline(
     "texture_generation",
     etna::GraphicsPipeline::CreateInfo{
       .fragmentShaderOutput = {
         .colorAttachmentFormats = {vk::Format::eB8G8R8A8Srgb},
       }});
 
-  generatedTexture = etna::get_context().createImage(etna::Image::CreateInfo{
+  constants = context.createBuffer(etna::Buffer::CreateInfo{
+    .size = sizeof(UniformParams),
+    .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
+    .name = "constants"});
+
+  constants.map();
+
+  generatedTexture = context.createImage(etna::Image::CreateInfo{
     .extent = vk::Extent3D{resolution.x, resolution.y, 1},
     .name = "generated_texture_image",
     .format = vk::Format::eB8G8R8A8Srgb,
@@ -345,14 +352,17 @@ void App::preparePrimitives()
 
   textureSampler =
     etna::Sampler({.addressMode = vk::SamplerAddressMode::eRepeat, .name = "sampler"});
+
   cubemapSampler = etna::Sampler(
     {.filter = vk::Filter::eLinear,
      .addressMode = vk::SamplerAddressMode::eRepeat,
      .name = "sampler"});
 
-    transferHelper =
+  oneShotCommands = context.createOneShotCmdMgr();
+
+  transferHelper =
     std::make_unique<etna::BlockingTransferHelper>(etna::BlockingTransferHelper::CreateInfo{
-      .stagingSize = resolution.x * resolution.y * 4 * 6,
+      .stagingSize = maxTextureResolution.x * maxTextureResolution.y * 4 * 6,
     });
 }
 
@@ -542,8 +552,7 @@ void App::generateMipmaps(const etna::Image& image, uint32_t mip_levels, uint32_
 
       etna::flush_barriers(commandBuffer);
 
-      std::array srcOffset = {
-        vk::Offset3D{}, vk::Offset3D{mipWidth, mipHeight, 1}};
+      std::array srcOffset = {vk::Offset3D{}, vk::Offset3D{mipWidth, mipHeight, 1}};
       auto srdImageSubrecourceLayers = vk::ImageSubresourceLayers{
         .aspectMask = vk::ImageAspectFlagBits::eColor,
         .mipLevel = i - 1,

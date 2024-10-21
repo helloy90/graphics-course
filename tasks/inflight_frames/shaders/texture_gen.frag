@@ -1,21 +1,28 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
+#extension GL_GOOGLE_include_directive : require
+
+#include "UniformParams.h"
 
 layout(location = 0) out vec4 fragColor;
 
-layout(push_constant) uniform params {
-  uvec2 iResolution;
-  float mouseX;
-  float mouseY;
-} pushConstant;
+// layout(push_constant) uniform params {
+//   uvec2 iResolution;
+//   float mouseX;
+//   float mouseY;
+// } pushConstant;
+
+layout(binding = 0) uniform params {
+  UniformParams uniformParams;
+};
 
 float rand(vec2 co){
   return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);
 }
 
 void main() {
-  vec2 iResolution = pushConstant.iResolution;
-  vec2 iMouse = {pushConstant.mouseX, -pushConstant.mouseY + iResolution.y}; // flipped mouse y coord
+  vec2 iResolution = uniformParams.iResolution;
+  vec2 iMouse = {uniformParams.mouseX, -uniformParams.mouseY + iResolution.y}; // flipped mouse y coord
   vec2 fragCoord = vec2(gl_FragCoord.x, iResolution.y - gl_FragCoord.y); // flipped screen y coord
 
   vec2 uv_coord = fragCoord/iResolution.xy;

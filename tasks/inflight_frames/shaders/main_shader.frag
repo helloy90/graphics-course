@@ -1,13 +1,17 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
+#extension GL_GOOGLE_include_directive : require
+
+#include "sdf_objects.glsl"
+#include "UniformParams.h"
 
 layout(location = 0) out vec4 fragColor;
 
-layout(push_constant) uniform params {
-  uvec2 iResolution;
-  float mouseX;
-  float mouseY;
-} pushConstant;
+// layout(push_constant) uniform params {
+//   uvec2 iResolution;
+//   float mouseX;
+//   float mouseY;
+// } pushConstant;
 
 layout(binding = 0) uniform sampler2D generatedTexture; //generated
 
@@ -15,9 +19,11 @@ layout(binding = 1) uniform sampler2D swordTexture; //loaded
 
 layout(binding = 2) uniform samplerCube cubemapTexture; //cubemap
 
-// --------- Constants ---------
+layout(binding = 3) uniform params {
+  UniformParams uniformParams;
+};
 
-const float kPi = 3.14159265359;
+// --------- Constants ---------
 
 const int kMaxSteps = 4096; //256
 const int kMaxShadowSteps = 256; //32
@@ -25,198 +31,10 @@ const float kPresicion = 0.0000015; //0.001
 const float kMinDist = 0.0;
 const float kMaxDist = 10000.0; //100
 
-const mat3 kIdentityMat = mat3(
-    vec3(1, 0, 0),
-    vec3(0, 1, 0),
-    vec3(0, 0, 1)
-);
-
-// --------- Structs ---------
-
-struct Material {
-  vec3 ambient_color; // ambient reflection * ambient lighting
-  vec3 diffuse_color; // diffuse reflection * light intensity
-  vec3 specular_color; // specular reflection * specular light
-  float reflection;
-  float shininess;
-  int texture_id; // if -1 then no texture
-};
-
-struct Surface {
-  int id;
-  float sd;
-  Material material;
-};
-
 struct Light {
   vec3 pos;
   float intensity;
 };
-
-// --------- Materials ---------
-
-Material mGuard() {
-  vec3 aCol = 0.4 * vec3(0.8);
-  vec3 dCol = 0.3 * vec3(0.7);
-  vec3 sCol = 0.2 * vec3(1, 1, 1);
-  float ref = 0.01;
-  float a = 1.;
-  int tex_id = 1;
-
-  return Material(aCol, dCol, sCol, ref, a, tex_id);
-}
-
-Material mHandle() {
-  vec3 aCol = 0.5 * vec3(0.1);
-  vec3 dCol = 0.5 * vec3(0.4);
-  vec3 sCol = 0.6 * vec3(0);
-  float ref = 0.0;
-  float a = 1.;
-  int tex_id = 1;
-
-  return Material(aCol, dCol, sCol, ref, a, tex_id);
-}
-
-Material mBlade() {
-  vec3 aCol = 1.5 * vec3(0.7, 0, 0);
-  vec3 dCol = 0.6 * vec3(0.7, 0, 0);
-  vec3 sCol = 1.0 * vec3(1, 1, 1);
-  float ref = 1.0;
-  float a = 50.;
-  int tex_id = 0;
-
-  return Material(aCol, dCol, sCol, ref, a, tex_id);
-}
-
-Material mPlane(vec3 p) {
-  vec3 aCol = 0.4 * vec3(0.835, 1, 1);
-  vec3 dCol = 0.3 * vec3(1.0);
-  vec3 sCol = 0.0 * vec3(1.0);
-  float ref = 0.2;
-  float a = 1.0;
-  int tex_id = -1;
-
-  return Material(aCol, dCol, sCol, ref, a, tex_id);
-}
-
-// --------- Utils ---------
-
-// --- Rotations ---
-
-mat3 rotateX(in float angle) {
-  float angle_cos = cos(angle);
-  float angle_sin = sin(angle);
-  return mat3(
-      vec3(1, 0, 0),
-      vec3(0, angle_cos, -angle_sin),
-      vec3(0, angle_sin, angle_cos)
-  );
-}
-
-mat3 rotateY(in float angle) {
-  float angle_cos = cos(angle);
-  float angle_sin = sin(angle);
-  return mat3(
-      vec3(angle_cos, 0, angle_sin),
-      vec3(0, 1, 0),
-      vec3(-angle_sin, 0, angle_cos)
-  );
-}
-
-mat3 rotateZ(in float angle) {
-  float angle_cos = cos(angle);
-  float angle_sin = sin(angle);
-  return mat3(
-      vec3(angle_cos, -angle_sin, 0),
-      vec3(angle_sin, angle_cos, 0),
-      vec3(0, 0, 1)
-  );
-}
-
-mat2 rotate2d(in float angle) {
-  float angle_cos = cos(angle);
-  float angle_sin = sin(angle);
-  return mat2(
-      vec2(angle_cos, angle_sin),
-      vec2(-angle_sin, angle_cos)
-  );
-}
-
-// --- SDF operations ---
-
-Surface opUnion(Surface first_sur, Surface second_sur) {
-  if (second_sur.sd < first_sur.sd) {
-      return second_sur;
-  }
-  return first_sur;
-}
-
-Surface opSmoothUnion(Surface first_sur, Surface second_sur, in float coeff) {
-  float h = clamp( 0.5 + 0.5 * (second_sur.sd - first_sur.sd) / coeff, 0.0, 1.0 );
-  return Surface(second_sur.id, mix(second_sur.sd, first_sur.sd, h) - coeff * h * (1.0 - h), second_sur.material);
-}
-
-Surface opIntersection(Surface first_sur, Surface second_sur) {
-  if (second_sur.sd < first_sur.sd) {
-    return first_sur;
-  }
-  return second_sur;
-}
-
-Surface opSmoothIntersection(Surface first_sur, Surface second_sur, in float coeff) {
-  float h = clamp( 0.5 - 0.5 * (second_sur.sd - first_sur.sd) / coeff, 0.0, 1.0 );
-  return Surface(second_sur.id, mix(second_sur.sd, first_sur.sd, h) + coeff * h * (1.0 - h), second_sur.material);
-}
-
-Surface opSubtraction(Surface first_sur, Surface second_sur) {
-  if (second_sur.sd > -first_sur.sd) {
-    return second_sur;
-  }
-  return first_sur;
-}
-
-
-float opRound(in float sdf, in float rad) {
-  return sdf - rad;
-}
-
-// --------- Metrics ---------
-
-float lengthInf(in vec2 vector) {
-  return max(abs(vector.x), abs(vector.y));
-}
-
-float lengthInf(in vec3 vector) {
-  return max(abs(vector.x), max(abs(vector.y), abs(vector.z)));
-}
-
-// --------- Primitives ---------
-
-float sdTriPrism(in vec3 pos, in vec2 h, in vec3 offset, in vec3 params, mat3 rotation, mat3 rotation_offset) {
-  pos = pos * rotation;
-  pos = (pos - offset) * rotation_offset;
-  vec3 q = abs(pos);
-  return max(q.z - h.y, max(q.x * params.x + pos.y * params.y, -pos.y) - h.x * params.z);
-}
-
-float sdPlane(in vec3 pos, in vec3 normal, in float offset) {
-  return dot(pos, normal) + offset;
-}
-
-float sdSphere(in vec3 pos, in vec3 center, in float radius) {
-  return length(pos - center) - radius;
-}
-
-float sdTor(in vec3 p, in vec2 t, in vec3 offset, mat3 rotation, mat3 scale) {
-  p = (p - offset) * scale * rotation;
-  vec2 q = vec2(length(p.xz) - t.x, p.y);
-  return lengthInf(q) - t.y;
-}
-
-float sdBox(in vec3 pos, in vec3 size, in vec3 offset, mat3 rotation) {
-  vec3 adj_pos = abs((pos - offset) * rotation) - size;
-  return length(max(adj_pos, 0.0)) + min(max(adj_pos.x, max(adj_pos.y, adj_pos.z)), 0.0);
-}
 
 // --------- Camera ---------
 
@@ -229,40 +47,6 @@ mat3 camera(in vec3 camera_pos, in vec3 look_at_point) {
 }
 
 // --------- Render ---------
-
-// --- Separate Objects ---
-
-Surface sdOuterShell(in vec3 pos) { // unused
-  Surface outer_shell = Surface(1, sdPlane(pos, vec3(0.0, 0.0, 1.0), 20.0), mPlane(pos));
-  outer_shell = opSmoothUnion(Surface(1, sdPlane(pos, vec3(0.0, 1.0, 0.0), 1.0), mPlane(pos)), outer_shell, 0.9); // floor plane
-  outer_shell = opSmoothUnion(Surface(1, sdPlane(pos, vec3(1.0, 0.0, 0.0), 20.0), mPlane(pos)), outer_shell, 0.9);
-  outer_shell = opSmoothUnion(Surface(1, sdPlane(pos, vec3(0.0, 0.0, -1.0), 20.0), mPlane(pos)), outer_shell, 0.9);
-  outer_shell = opSmoothUnion(Surface(1, sdPlane(pos, vec3(0.0, -1.0, 0.0), 20.0), mPlane(pos)), outer_shell, 0.9);
-  outer_shell = opSmoothUnion(Surface(1, sdPlane(pos, vec3(-1.0, 0.0, 0.0), 20.0), mPlane(pos)), outer_shell, 0.9);
-  return outer_shell;
-}
-
-Surface sdBlade(in vec3 pos) { 
-  Surface upper_blade = Surface(2, sdBox(pos, vec3(0.03, 3, 0.05), vec3(0, 0.07, 3), rotateX(kPi/2.0)), mBlade());
-  Surface lower_blade = Surface(2, sdTriPrism(pos, vec2(0.5, 3), vec3(0, 0.005, 3), vec3(1.1, 0.4, 0.05), rotateZ(kPi), kIdentityMat), mBlade());
-  Surface tip = Surface(2, sdTriPrism(pos, vec2(0.5, 0.1), vec3(0, -0.023, 6.0), vec3(1, 0.4, 0.05), rotateZ(kPi), rotateX(-kPi/ 2.0)), mBlade());
-  Surface intersector = Surface(2, sdSphere(pos, vec3(0, 4, 0), 7.15), mBlade());
-  Surface blade_full = opSmoothUnion(upper_blade, lower_blade, 0.003);
-  blade_full = opSmoothUnion(blade_full, tip, 0.005);
-  blade_full = opIntersection(intersector, blade_full);
-  return blade_full;
-}
-
-Surface sdGuardHandle(in vec3 pos) {
-  mat3 guard_scale = mat3(
-      vec3(1, 0, 0),
-      vec3(0, 1, 0),
-      vec3(0, 0, 1.5)
-  );
-  Surface guard = Surface(2, sdTor(pos, vec2(0.3, 0.1), vec3(0), rotateX(kPi / 2.0), guard_scale), mGuard());
-  Surface handle = Surface(2, opRound(sdBox(pos, vec3(0.07, 0.8, 0.07), vec3(0, 0, -0.8), rotateX(kPi / 2.0)), 0.05), mHandle());
-  return opSmoothUnion(guard, handle, 0.2);
-}
 
 // --- Full Scene ---
 
@@ -413,8 +197,8 @@ vec3 postfx(vec3 color) {
 
 void main()
 {
-  vec2 iResolution = pushConstant.iResolution;
-  vec2 iMouse = {pushConstant.mouseX, -pushConstant.mouseY + iResolution.y}; // flipped mouse y coord
+  vec2 iResolution = uniformParams.iResolution;
+  vec2 iMouse = {uniformParams.mouseX, -uniformParams.mouseY + iResolution.y}; // flipped mouse y coord
   vec2 fragCoord = vec2(gl_FragCoord.x, iResolution.y - gl_FragCoord.y); // flipped screen y coord
 
   vec3 camera_origin = vec3(0.0, 4.0, 0.0);
