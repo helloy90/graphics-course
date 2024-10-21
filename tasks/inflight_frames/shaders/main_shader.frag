@@ -7,12 +7,6 @@
 
 layout(location = 0) out vec4 fragColor;
 
-// layout(push_constant) uniform params {
-//   uvec2 iResolution;
-//   float mouseX;
-//   float mouseY;
-// } pushConstant;
-
 layout(binding = 0) uniform sampler2D generatedTexture; //generated
 
 layout(binding = 1) uniform sampler2D swordTexture; //loaded
@@ -25,11 +19,13 @@ layout(binding = 3) uniform params {
 
 // --------- Constants ---------
 
-const int kMaxSteps = 4096; //256
-const int kMaxShadowSteps = 256; //32
-const float kPresicion = 0.0000015; //0.001
+const int kMaxSteps = 256;
+const int kMaxShadowSteps = 32;
+const float kPresicion = 0.001;
 const float kMinDist = 0.0;
-const float kMaxDist = 10000.0; //100
+const float kMaxDist = 100.0;
+
+// --------- Structs ---------
 
 struct Light {
   vec3 pos;

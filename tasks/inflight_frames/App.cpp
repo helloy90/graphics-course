@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cstdint>
 #include <chrono>
+#include <fmt/core.h>
+#include <optional>
 #include <thread>
 
 #include <stb_image.h>
@@ -18,7 +20,9 @@
 #include <tracy/Tracy.hpp>
 
 App::App()
-  : maxTextureResolution{3840, 2160}
+  : numFramesInFlight{3}
+  , constants{std::nullopt}
+  , maxTextureResolution{3840, 2160}
   , resolution{1280, 720}
   , useVsync{false}
 {
@@ -36,7 +40,7 @@ App::App()
       .deviceExtensions = deviceExtensions,
       // Replace with an index if etna detects your preferred GPU incorrectly
       .physicalDeviceIndexOverride = {},
-      .numFramesInFlight = 1,
+      .numFramesInFlight = numFramesInFlight,
     });
   }
 
@@ -92,8 +96,6 @@ void App::run()
 
     processInput();
 
-    update();
-
     drawFrame();
 
     FrameMark;
@@ -121,11 +123,13 @@ void App::processInput()
   }
 }
 
-void App::update()
+void App::updateUniformParams(etna::Buffer& params)
 {
   ZoneScoped;
 
   {
+    params.map();
+
     double mouseX = 0;
     double mouseY = 0;
     glfwGetCursorPos(osWindow->native(), &mouseX, &mouseY);
@@ -133,7 +137,9 @@ void App::update()
     uniformParams.mouseX = static_cast<float>(mouseX);
     uniformParams.mouseY = static_cast<float>(mouseY);
 
-    std::memcpy(constants.data(), &uniformParams, sizeof(uniformParams));
+    std::memcpy(params.data(), &uniformParams, sizeof(uniformParams));
+
+    params.unmap();
   }
 }
 
@@ -154,6 +160,9 @@ void App::drawFrame()
     ETNA_CHECK_VK_RESULT(currentCmdBuf.begin(vk::CommandBufferBeginInfo{}));
     {
       ETNA_PROFILE_GPU(currentCmdBuf, "Render Frame");
+
+      auto& uniformParams = constants->get();
+      updateUniformParams(uniformParams);
 
       etna::set_state(
         currentCmdBuf,
@@ -188,7 +197,7 @@ void App::drawFrame()
         auto set = etna::create_descriptor_set(
           generatorShaderInfo.getDescriptorLayoutId(0),
           currentCmdBuf,
-          {etna::Binding{0, constants.genBinding()}});
+          {etna::Binding{0, uniformParams.genBinding()}});
 
         auto vkSet = set.getVkSet();
         currentCmdBuf.bindPipeline(
@@ -252,7 +261,7 @@ void App::drawFrame()
                cubemapSampler.get(),
                vk::ImageLayout::eShaderReadOnlyOptimal,
                {.type = vk::ImageViewType::eCube})},
-           etna::Binding{3, constants.genBinding()}});
+           etna::Binding{3, uniformParams.genBinding()}});
 
         auto vkSet = set.getVkSet();
         currentCmdBuf.bindPipeline(
@@ -336,13 +345,13 @@ void App::preparePrimitives()
         .colorAttachmentFormats = {vk::Format::eB8G8R8A8Srgb},
       }});
 
-  constants = context.createBuffer(etna::Buffer::CreateInfo{
-    .size = sizeof(UniformParams),
-    .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
-    .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
-    .name = "constants"});
-
-  constants.map();
+  constants.emplace(context.getMainWorkCount(), [&context](std::size_t i){
+    return context.createBuffer(etna::Buffer::CreateInfo{
+      .size = sizeof(UniformParams),
+      .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
+      .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
+      .name = fmt::format("constants_buffer{}", i)});
+  });
 
   generatedTexture = context.createImage(etna::Image::CreateInfo{
     .extent = vk::Extent3D{resolution.x, resolution.y, 1},

@@ -5,13 +5,6 @@
 #include "UniformParams.h"
 
 layout(location = 0) out vec4 fragColor;
-
-// layout(push_constant) uniform params {
-//   uvec2 iResolution;
-//   float mouseX;
-//   float mouseY;
-// } pushConstant;
-
 layout(binding = 0) uniform params {
   UniformParams uniformParams;
 };
@@ -33,5 +26,5 @@ void main() {
   float ref = abs(y - sin(cos(rand(uv_coord) * 40.0) * 20.0) + 0.0);
     
   color = vec3(0.1) + ref * color;
-  fragColor = vec4(color, 1.0); // Output to screen
+  fragColor = vec4(color, 1.0);
 }

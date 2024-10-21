@@ -25,7 +25,7 @@ public:
 private:
   void drawFrame();
 
-  void update();
+  void updateUniformParams(etna::Buffer& params);
 
   void processInput();
 
@@ -34,7 +34,7 @@ private:
   std::unique_ptr<OsWindow> osWindow;
 
   // -----------------
-  glm::uvec2 maxTextureResolution;
+  uint32_t numFramesInFlight;
 
   UniformParams uniformParams;
 
@@ -44,7 +44,7 @@ private:
   etna::Sampler textureSampler;
   etna::Sampler cubemapSampler;
 
-  etna::Buffer constants;
+  std::optional<etna::GpuSharedResource<etna::Buffer>> constants;
 
   etna::Image generatedTexture;
   etna::Image swordTexture;
@@ -52,6 +52,8 @@ private:
 
   std::unique_ptr<etna::OneShotCmdMgr> oneShotCommands;
   std::unique_ptr<etna::BlockingTransferHelper> transferHelper;
+
+  glm::uvec2 maxTextureResolution;
 
   void preparePrimitives();
   void loadTextures();
