@@ -1,14 +1,15 @@
 #pragma once
 
-#include <etna/Window.hpp>
-#include <etna/PerFrameCmdMgr.hpp>
 #include <etna/ComputePipeline.hpp>
+#include <etna/GraphicsPipeline.hpp>
+#include <etna/Sampler.hpp>
 #include <etna/Image.hpp>
 
 #include <etna/BlockingTransferHelper.hpp>
-#include <etna/GraphicsPipeline.hpp>
 #include <etna/OneShotCmdMgr.hpp>
-#include <etna/Sampler.hpp>
+#include <etna/PerFrameCmdMgr.hpp>
+#include <etna/Window.hpp>
+
 
 #include "wsi/OsWindowingManager.hpp"
 

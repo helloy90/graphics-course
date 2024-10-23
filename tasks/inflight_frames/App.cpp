@@ -1,7 +1,5 @@
 #include "App.hpp"
 
-#include <algorithm>
-#include <cstdint>
 #include <chrono>
 #include <fmt/core.h>
 #include <optional>
@@ -18,9 +16,6 @@
 #include <etna/Profiling.hpp>
 
 #include <tracy/Tracy.hpp>
-#include <vulkan/vulkan_enums.hpp>
-#include <vulkan/vulkan_handles.hpp>
-#include <vulkan/vulkan_structs.hpp>
 
 App::App()
   : numFramesInFlight{3}
