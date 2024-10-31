@@ -1,13 +1,25 @@
-#include "etna/Assert.hpp"
+#include "Baker.hpp"
 
-#include <string>
+#include <cstdlib>
+#include <etna/Assert.hpp>
 
 int main(int argc, char* argv[])
 {
-  if (argc != 1) {
-    ETNA_PANIC("Arguments amount is not correct! Expected 1 argument - path to .gltf file.");
+  if (argc != 2) {
+    spdlog::error("Arguments amount is not correct! Expected 1 argument - path to .gltf file.");
+    return EXIT_FAILURE;
   }
 
-  auto path = std::string(argv[1]);
-  return 0;
+  auto path = std::filesystem::path(argv[1]);
+  if (!std::filesystem::exists(path))
+  {
+    spdlog::error("Such file does not exist!");
+    return EXIT_FAILURE;
+  }
+
+  auto baker = Baker(path);
+
+  baker.run();
+
+  return EXIT_SUCCESS;
 }

@@ -350,6 +350,79 @@ SceneManager::ProcessedMeshes SceneManager::processMeshes(const tinygltf::Model&
   return result;
 }
 
+SceneManager::ProcessedMeshes SceneManager::processBakedMeshes(const tinygltf::Model& model) const
+{
+
+  ProcessedMeshes result;
+
+  {
+    std::size_t vertexBytes = 0;
+    std::size_t toVertexOffset = 0;
+    std::size_t indexBytes = 0;
+    for (const auto& bufView : model.bufferViews)
+    {
+      switch (bufView.target)
+      {
+      case TINYGLTF_TARGET_ARRAY_BUFFER:
+        vertexBytes = bufView.byteLength;
+        toVertexOffset = bufView.byteOffset;
+        break;
+      case TINYGLTF_TARGET_ELEMENT_ARRAY_BUFFER:
+        indexBytes = bufView.byteLength;
+        break;
+      default:
+        break;
+      }
+    }
+    result.vertices.reserve(vertexBytes / sizeof(Vertex));
+    result.indices.reserve(indexBytes / sizeof(std::uint32_t));
+    std::memcpy(result.indices.data(), model.buffers.back().data.data(), indexBytes);
+    std::memcpy(
+      result.vertices.data(), model.buffers.back().data.data() + toVertexOffset, vertexBytes);
+  }
+
+  {
+    std::size_t totalPrimitives = 0;
+    for (const auto& mesh : model.meshes)
+      totalPrimitives += mesh.primitives.size();
+    result.relems.reserve(totalPrimitives);
+  }
+
+  result.meshes.reserve(model.meshes.size());
+
+  std::size_t indexOffset = 0;
+  std::size_t  vertexOffset = 0;
+  for (const auto& mesh : model.meshes)
+  {
+    result.meshes.push_back(Mesh{
+      .firstRelem = static_cast<std::uint32_t>(result.relems.size()),
+      .relemCount = static_cast<std::uint32_t>(mesh.primitives.size()),
+    });
+
+    for (const auto& prim : mesh.primitives)
+    {
+      if (prim.mode != TINYGLTF_MODE_TRIANGLES)
+      {
+        spdlog::warn(
+          "Encountered a non-triangles primitive, these are not supported for now, skipping it!");
+        --result.meshes.back().relemCount;
+        continue;
+      }
+
+      result.relems.push_back(RenderElement{
+        .vertexOffset = static_cast<uint32_t>(vertexOffset),
+        .indexOffset = static_cast<uint32_t>(indexOffset),
+        .indexCount = static_cast<uint32_t>(model.accessors[prim.indices].count)
+      });
+
+      indexOffset += model.accessors[prim.indices].count;
+      vertexOffset += model.accessors[prim.attributes.at("POSITION")].count;
+    }
+  }
+
+  return result;
+}
+
 void SceneManager::uploadData(
   std::span<const Vertex> vertices, std::span<const std::uint32_t> indices)
 {
@@ -389,6 +462,26 @@ void SceneManager::selectScene(std::filesystem::path path)
   instanceMeshes = std::move(instMeshes);
 
   auto [verts, inds, relems, meshs] = processMeshes(model);
+
+  renderElements = std::move(relems);
+  meshes = std::move(meshs);
+
+  uploadData(verts, inds);
+}
+
+void SceneManager::selectBakedScene(std::filesystem::path path)
+{
+  auto maybeModel = loadModel(path);
+  if (!maybeModel.has_value())
+    return;
+
+  auto model = std::move(*maybeModel);
+
+  auto [instMats, instMeshes] = processInstances(model);
+  instanceMatrices = std::move(instMats);
+  instanceMeshes = std::move(instMeshes);
+
+  auto [verts, inds, relems, meshs] = processBakedMeshes(model);
 
   renderElements = std::move(relems);
   meshes = std::move(meshs);
