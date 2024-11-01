@@ -35,6 +35,8 @@ private:
     std::uint32_t vertexOffset;
     std::uint32_t indexOffset;
     std::uint32_t indexCount;
+
+    
     // Not implemented!
     // Material* material;
   };
@@ -64,6 +66,7 @@ private:
 
   void changeBuffer(tinygltf::Model& model, BakedMeshes& baked_meshes);
   void changeBufferViews(tinygltf::Model& model, BakedMeshes& baked_meshes);
+  void modifyBufferViews(tinygltf::Model& model, BakedMeshes& baked_meshes);
   void modifyAccessors(tinygltf::Model& model, BakedMeshes& baked_meshes);
   void saveFormatted(tinygltf::Model& model);
 
