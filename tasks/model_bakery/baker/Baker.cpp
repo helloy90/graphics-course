@@ -18,6 +18,11 @@ void Baker::run()
 
   auto model = *maybeModel;
 
+  if (!checkModelSuitability(model)) {
+    spdlog::error("Aborting bakery.");
+    return;
+  }
+
   auto bakedMeshes = processMeshes(model);
 
   changeBuffer(model, bakedMeshes);
@@ -25,6 +30,17 @@ void Baker::run()
   changeAccessors(model, bakedMeshes);
 
   saveFormatted(model);
+}
+
+bool Baker::checkModelSuitability(tinygltf::Model& model) {
+  // Check images
+  for (auto& image : model.images) {
+    if (std::filesystem::path(image.uri).extension() == ".jpeg") {
+      spdlog::error("Tinygltf does not support jpeg images!");
+      return false;
+    }
+  }
+  return true;
 }
 
 std::optional<tinygltf::Model> Baker::loadFile()

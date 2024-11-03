@@ -70,6 +70,8 @@ private:
 
   BakedMeshes processMeshes(const tinygltf::Model& model) const;
 
+  bool checkModelSuitability(tinygltf::Model& model);
+
   void changeBuffer(tinygltf::Model& model, BakedMeshes& baked_meshes);
   void changeBufferViews(tinygltf::Model& model, BakedMeshes& baked_meshes);
   void changeAccessors(tinygltf::Model& model, BakedMeshes& baked_meshes);
