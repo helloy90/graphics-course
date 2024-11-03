@@ -387,7 +387,7 @@ void Baker::changeAccessors(tinygltf::Model& model, BakedMeshes& baked_meshes)
 
       auto& renderElement = baked_meshes.relems[baked_meshes.meshes[i].firstRelem + j];
 
-      primitive.indices = model.accessors.size();
+      primitive.indices = static_cast<int>(model.accessors.size());
       auto& currentIndicesAccessor = model.accessors.emplace_back(indicesAccessor);
       currentIndicesAccessor.byteOffset += renderElement.indexOffset * sizeof(uint32_t);
       currentIndicesAccessor.count = renderElement.indexCount;
@@ -406,7 +406,7 @@ void Baker::changeAccessors(tinygltf::Model& model, BakedMeshes& baked_meshes)
         {
           continue;
         }
-        primitive.attributes[accessor.first] = model.accessors.size();
+        primitive.attributes[accessor.first] = static_cast<int>(model.accessors.size());
         auto& currentAccessor = model.accessors.emplace_back(accessor.second);
         currentAccessor.byteOffset += renderElement.vertexOffset * sizeof(Vertex);
         currentAccessor.count = renderElement.vertexCount;
