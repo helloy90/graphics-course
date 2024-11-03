@@ -82,7 +82,15 @@ private:
     std::vector<Mesh> meshes;
   };
   ProcessedMeshes processMeshes(const tinygltf::Model& model) const;
-  // ProcessedMeshes processBakedMeshes(const tinygltf::Model& model) const;
+
+  struct BakedMeshes
+  {
+    std::span<const Vertex> vertices;
+    std::span<const std::uint32_t> indices;
+    std::vector<RenderElement> relems;
+    std::vector<Mesh> meshes;
+  };
+  BakedMeshes processBakedMeshes(const tinygltf::Model& model) const;
   void uploadData(std::span<const Vertex> vertices, std::span<const std::uint32_t>);
 
 private:

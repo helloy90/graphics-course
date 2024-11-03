@@ -1,11 +1,12 @@
 #include "Baker.hpp"
 
 #include <cstdlib>
-#include <etna/Assert.hpp>
+#include <spdlog/spdlog.h>
 
 int main(int argc, char* argv[])
 {
-  if (argc != 2) {
+  if (argc != 2)
+  {
     spdlog::error("Arguments amount is not correct! Expected 1 argument - path to .gltf file.");
     return EXIT_FAILURE;
   }

@@ -1,6 +1,9 @@
 #pragma once
 
+#include <array>
 #include <filesystem>
+#include <optional>
+#include <vector>
 
 #include <glm/glm.hpp>
 #include <tiny_gltf.h>
@@ -33,10 +36,13 @@ private:
   struct RenderElement
   {
     std::uint32_t vertexOffset;
+    std::uint32_t vertexCount;
     std::uint32_t indexOffset;
     std::uint32_t indexCount;
+    // std::array<std::optional<std::array<std::vector<double>, 2>>, 4> accessorsMinMaxArray;
+    std::optional<std::array<std::vector<double>, 2>> positionMinMax;
+    std::optional<std::array<std::vector<double>, 2>> texcoordMinMax;
 
-    
     // Not implemented!
     // Material* material;
   };
@@ -66,8 +72,7 @@ private:
 
   void changeBuffer(tinygltf::Model& model, BakedMeshes& baked_meshes);
   void changeBufferViews(tinygltf::Model& model, BakedMeshes& baked_meshes);
-  void modifyBufferViews(tinygltf::Model& model, BakedMeshes& baked_meshes);
-  void modifyAccessors(tinygltf::Model& model, BakedMeshes& baked_meshes);
+  void changeAccessors(tinygltf::Model& model, BakedMeshes& baked_meshes);
   void saveFormatted(tinygltf::Model& model);
 
   uint32_t encodeNormalized(glm::vec4 vector) const;
