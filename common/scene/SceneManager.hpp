@@ -26,7 +26,6 @@ struct RenderElement
 
 
   auto operator<=>(const RenderElement& other) const = default;
-  // Bounds bounds;
   // Not implemented!
   // Material* material;
 };

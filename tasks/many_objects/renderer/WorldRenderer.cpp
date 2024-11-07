@@ -37,7 +37,7 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
         .name = fmt::format("sameInstanceMatrices{}", i)});
     });
 
-  // instancesAmount.reserve(maxInstancesInScene);
+  instancesAmount.reserve(maxInstancesInScene);
 }
 
 void WorldRenderer::loadScene(std::filesystem::path path)

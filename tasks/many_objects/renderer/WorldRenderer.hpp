@@ -51,7 +51,6 @@ private:
   struct PushConstants
   {
     glm::mat4x4 projView;
-    // glm::mat4x4 model;
   } pushConst2M;
 
   std::size_t maxInstancesInScene;
