@@ -1,6 +1,5 @@
 #include "SceneManager.hpp"
 
-#include <limits>
 #include <stack>
 
 #include <spdlog/spdlog.h>
