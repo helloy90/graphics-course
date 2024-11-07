@@ -5,7 +5,6 @@
 #include <etna/RenderTargetStates.hpp>
 #include <etna/Profiling.hpp>
 #include <glm/ext.hpp>
-#include <vulkan/vulkan_enums.hpp>
 
 
 WorldRenderer::WorldRenderer()
@@ -32,8 +31,8 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
     ctx.getMainWorkCount(), [&ctx, maxInstancesInScene = this->maxInstancesInScene](std::size_t i) {
       return ctx.createBuffer(etna::Buffer::CreateInfo{
         .size = sizeof(glm::mat4x4) * maxInstancesInScene,
-        .bufferUsage =
-          vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
+        .bufferUsage = vk::BufferUsageFlagBits::eVertexBuffer |
+          vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
         .memoryUsage = VMA_MEMORY_USAGE_CPU_TO_GPU,
         .name = fmt::format("sameInstanceMatrices{}", i)});
     });
@@ -125,12 +124,6 @@ void WorldRenderer::renderScene(
   cmd_buf.bindDescriptorSets(
     vk::PipelineBindPoint::eGraphics, pipeline_layout, 0, 1, &vkSet, 0, nullptr);
 
-  // auto instanceMeshes = sceneMgr->getInstanceMeshes();
-  // auto instanceMatrices = sceneMgr->getInstanceMatrices();
-
-  // auto meshes = sceneMgr->getMeshes();
-  // auto relems = sceneMgr->getRenderElements();
-
   uint32_t offset = 0;
 
   for (const auto& [relem, amount] : instancesAmount)
@@ -140,24 +133,6 @@ void WorldRenderer::renderScene(
   }
 
   instancesAmount.clear();
-
-  // for (std::size_t instIdx = 0; instIdx < instanceMeshes.size(); ++instIdx)
-  // {
-  //   pushConst2M.model = instanceMatrices[instIdx];
-
-  //   cmd_buf.pushConstants<PushConstants>(
-  //     pipeline_layout, vk::ShaderStageFlagBits::eVertex, 0, {pushConst2M});
-
-  //   const auto meshIdx = instanceMeshes[instIdx];
-
-  //   for (std::size_t j = 0; j < meshes[meshIdx].relemCount; ++j)
-  //   {
-  //     const auto relemIdx = meshes[meshIdx].firstRelem + j;
-  //     const auto& relem = relems[relemIdx];
-
-  //     cmd_buf.drawIndexed(relem.indexCount, 1, relem.indexOffset, relem.vertexOffset, 0);
-  //   }
-  // }
 }
 
 void WorldRenderer::parseInstanceInfo(etna::Buffer& current_buffer, const glm::mat4x4& glob_tm)
