@@ -55,7 +55,7 @@ private:
 
   std::size_t maxInstancesInScene;
   std::optional<etna::GpuSharedResource<etna::Buffer>> instanceMatricesBuffer;
-  std::unordered_map<RenderElement, uint32_t, HashRenderElement> instancesAmount;
+  std::map<RenderElement, uint32_t> instancesAmount;
 
   glm::mat4x4 worldViewProj;
   glm::mat4x4 lightMatrix;
