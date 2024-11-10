@@ -1,10 +1,5 @@
 #include "App.hpp"
 #include "GLFW/glfw3.h"
-#include "etna/Assert.hpp"
-#include "etna/Buffer.hpp"
-#include "etna/GraphicsPipeline.hpp"
-#include "etna/Image.hpp"
-#include "render_utils/shaders/cpp_glsl_compat.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -13,15 +8,12 @@
 #include <etna/PipelineManager.hpp>
 #include <etna/RenderTargetStates.hpp>
 #include <vulkan/vulkan.hpp>
-#include <vulkan/vulkan_core.h>
-#include <vulkan/vulkan_enums.hpp>
-#include <vulkan/vulkan_handles.hpp>
-#include <vulkan/vulkan_structs.hpp>
 
 #include <stb_image.h>
 
 App::App()
-  : resolution{1280, 720}
+  : maxTextureResolution{3840, 2160}
+  , resolution{1280, 720}
   , useVsync{true}
 {
   // First, we need to initialize Vulkan, which is not trivial because
@@ -100,8 +92,6 @@ App::App()
 void App::initShading()
 {
   preparePrimitives();
-
-  oneShotCommands = etna::get_context().createOneShotCmdMgr();
 
   loadTextures();
 
@@ -232,6 +222,22 @@ void App::drawFrame()
         vk::ImageLayout::eShaderReadOnlyOptimal,
         vk::ImageAspectFlagBits::eColor);
 
+      etna::set_state(
+        currentCmdBuf,
+        swordTexture.get(),
+        vk::PipelineStageFlagBits2::eFragmentShader,
+        vk::AccessFlagBits2::eShaderRead,
+        vk::ImageLayout::eShaderReadOnlyOptimal,
+        vk::ImageAspectFlagBits::eColor);
+
+      etna::set_state(
+        currentCmdBuf,
+        cubemapTexture.get(),
+        vk::PipelineStageFlagBits2::eFragmentShader,
+        vk::AccessFlagBits2::eShaderRead,
+        vk::ImageLayout::eShaderReadOnlyOptimal,
+        vk::ImageAspectFlagBits::eColor);
+
       etna::flush_barriers(currentCmdBuf);
 
       // Begin final image render pass
@@ -257,12 +263,7 @@ void App::drawFrame()
              cubemapTexture.genBinding(
                cubemapSampler.get(),
                vk::ImageLayout::eShaderReadOnlyOptimal,
-               {0,
-                VK_REMAINING_MIP_LEVELS,
-                0,
-                VK_REMAINING_ARRAY_LAYERS,
-                {},
-                vk::ImageViewType::eCube})}});
+               {.type = vk::ImageViewType::eCube})}});
 
         auto vkSet = set.getVkSet();
         currentCmdBuf.bindPipeline(
@@ -356,7 +357,7 @@ void App::preparePrimitives()
     "graphic_shadertoy",
     etna::GraphicsPipeline::CreateInfo{
       .fragmentShaderOutput = {
-        .colorAttachmentFormats = {vk::Format::eB8G8R8A8Srgb},
+        .colorAttachmentFormats = {vkWindow->getCurrentFormat()},
       }});
 
   textureGenPipeline = etna::get_context().getPipelineManager().createGraphicsPipeline(
@@ -381,6 +382,14 @@ void App::preparePrimitives()
     {.filter = vk::Filter::eLinear,
      .addressMode = vk::SamplerAddressMode::eRepeat,
      .name = "sampler"});
+
+
+  oneShotCommands = etna::get_context().createOneShotCmdMgr();
+
+  transferHelper =
+    std::make_unique<etna::BlockingTransferHelper>(etna::BlockingTransferHelper::CreateInfo{
+      .stagingSize = maxTextureResolution.x * maxTextureResolution.y * 4 * 6,
+    });
 }
 
 void App::loadTextures()
@@ -400,12 +409,6 @@ void App::loadTextures()
   uint32_t mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1;
 
   const vk::DeviceSize swordTextureSize = width * height * 4;
-
-  // Create uploader
-  transferHelper =
-    std::make_unique<etna::BlockingTransferHelper>(etna::BlockingTransferHelper::CreateInfo{
-      .stagingSize = swordTextureSize,
-    });
 
   etna::Buffer swordTextureBuffer = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
     .size = swordTextureSize,
@@ -428,7 +431,7 @@ void App::loadTextures()
 
   localCopyBufferToImage(swordTextureBuffer, swordTexture, layerCount);
 
-  generateMipmaps(swordTexture, mipLevels, layerCount);
+  generateMipmapsVkStyle(swordTexture, mipLevels, layerCount);
 
   stbi_image_free(swordTextureData);
 }
@@ -467,12 +470,6 @@ void App::loadCubemap()
   const vk::DeviceSize cubemapSize = width * height * 4 * layerCount; // layerCount images
   const vk::DeviceSize layerSize = cubemapSize / layerCount;
 
-  // Create uploader
-  transferHelper =
-    std::make_unique<etna::BlockingTransferHelper>(etna::BlockingTransferHelper::CreateInfo{
-      .stagingSize = layerSize,
-    });
-
   etna::Buffer cubemapBuffer = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
     .size = cubemapSize,
     .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer |
@@ -501,7 +498,7 @@ void App::loadCubemap()
 
   localCopyBufferToImage(cubemapBuffer, cubemapTexture, layerCount);
 
-  generateMipmaps(cubemapTexture, mipLevels, layerCount);
+  generateMipmapsVkStyle(cubemapTexture, mipLevels, layerCount);
 
   for (int i = 0; i < 6; i++)
   {
@@ -545,96 +542,206 @@ void App::localCopyBufferToImage(
 
     commandBuffer.copyBufferToImage(
       buffer.get(), image.get(), vk::ImageLayout::eTransferDstOptimal, 1, &copyRegion);
-
-    etna::set_state(
-      commandBuffer,
-      image.get(),
-      vk::PipelineStageFlagBits2::eFragmentShader,
-      vk::AccessFlagBits2::eShaderRead,
-      vk::ImageLayout::eShaderReadOnlyOptimal,
-      vk::ImageAspectFlagBits::eColor);
-
-    etna::flush_barriers(commandBuffer);
   }
   ETNA_CHECK_VK_RESULT(commandBuffer.end());
 
   oneShotCommands->submitAndWait(commandBuffer);
 }
 
-void App::generateMipmaps(const etna::Image& image, uint32_t mip_levels, uint32_t layer_count)
+// void App::generateMipmaps(const etna::Image& image, uint32_t mip_levels, uint32_t layer_count)
+// {
+//   auto extent = image.getExtent();
+
+//   auto commandBuffer = oneShotCommands->start();
+
+//   ETNA_CHECK_VK_RESULT(commandBuffer.begin(vk::CommandBufferBeginInfo{}));
+//   {
+
+//     int32_t mipWidth = extent.width;
+//     int32_t mipHeight = extent.height;
+
+//     for (uint32_t i = 1; i < mip_levels; i++)
+//     {
+//       // Source info
+//       etna::set_state(
+//         commandBuffer,
+//         image.get(),
+//         vk::PipelineStageFlagBits2::eTransfer,
+//         vk::AccessFlagBits2::eTransferWrite,
+//         vk::ImageLayout::eGeneral,
+//         vk::ImageAspectFlagBits::eColor);
+
+//       etna::flush_barriers(commandBuffer);
+
+//       std::array<vk::Offset3D, 2> srcOffset = {
+//         vk::Offset3D{}, vk::Offset3D{mipWidth, mipHeight, 1}};
+//       auto srdImageSubrecourceLayers = vk::ImageSubresourceLayers{
+//         .aspectMask = vk::ImageAspectFlagBits::eColor,
+//         .mipLevel = i - 1,
+//         .baseArrayLayer = 0,
+//         .layerCount = layer_count};
+//       // Destination info
+//       std::array<vk::Offset3D, 2> dstOffset = {
+//         vk::Offset3D{},
+//         vk::Offset3D{mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, 1}};
+//       auto dstImageSubrecourceLayers = vk::ImageSubresourceLayers{
+//         .aspectMask = vk::ImageAspectFlagBits::eColor,
+//         .mipLevel = i,
+//         .baseArrayLayer = 0,
+//         .layerCount = layer_count};
+
+//       // Create blit info
+//       auto imageBlit = vk::ImageBlit2{
+//         .sType = vk::StructureType::eImageBlit2,
+//         .pNext = nullptr,
+//         .srcSubresource = srdImageSubrecourceLayers,
+//         .srcOffsets = srcOffset,
+//         .dstSubresource = dstImageSubrecourceLayers,
+//         .dstOffsets = dstOffset};
+
+//       auto blitInfo = vk::BlitImageInfo2{
+//         .sType = vk::StructureType::eBlitImageInfo2,
+//         .pNext = nullptr,
+//         .srcImage = image.get(),
+//         .srcImageLayout = vk::ImageLayout::eGeneral,
+//         .dstImage = image.get(),
+//         .dstImageLayout = vk::ImageLayout::eGeneral,
+//         .regionCount = 1,
+//         .pRegions = &imageBlit,
+//         .filter = vk::Filter::eLinear};
+
+//       // Apply blit
+//       commandBuffer.blitImage2(&blitInfo);
+
+//       etna::set_state(
+//         commandBuffer,
+//         image.get(),
+//         vk::PipelineStageFlagBits2::eFragmentShader,
+//         vk::AccessFlagBits2::eShaderRead,
+//         vk::ImageLayout::eShaderReadOnlyOptimal,
+//         vk::ImageAspectFlagBits::eColor);
+
+//       etna::flush_barriers(commandBuffer);
+
+//       if (mipWidth > 1)
+//       {
+//         mipWidth /= 2;
+//       }
+//       if (mipHeight > 1)
+//       {
+//         mipHeight /= 2;
+//       }
+//     }
+
+//     etna::set_state(
+//       commandBuffer,
+//       image.get(),
+//       vk::PipelineStageFlagBits2::eFragmentShader,
+//       vk::AccessFlagBits2::eShaderRead,
+//       vk::ImageLayout::eShaderReadOnlyOptimal,
+//       vk::ImageAspectFlagBits::eColor);
+
+//     etna::flush_barriers(commandBuffer);
+//   }
+
+//   ETNA_CHECK_VK_RESULT(commandBuffer.end());
+
+//   oneShotCommands->submitAndWait(commandBuffer);
+// }
+
+
+void App::generateMipmapsVkStyle(
+  const etna::Image& image, uint32_t mip_levels, uint32_t layer_count)
 {
   auto extent = image.getExtent();
 
   auto commandBuffer = oneShotCommands->start();
 
+  auto vkImage = image.get();
+
   ETNA_CHECK_VK_RESULT(commandBuffer.begin(vk::CommandBufferBeginInfo{}));
   {
-
     int32_t mipWidth = extent.width;
     int32_t mipHeight = extent.height;
 
+    vk::ImageMemoryBarrier barrier{
+      .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
+      .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
+      .image = vkImage,
+      .subresourceRange = {
+        .aspectMask = vk::ImageAspectFlagBits::eColor,
+        .levelCount = 1,
+        .baseArrayLayer = 0,
+        .layerCount = layer_count,
+      }};
+
     for (uint32_t i = 1; i < mip_levels; i++)
     {
-      // Source info
-      etna::set_state(
-        commandBuffer,
-        image.get(),
-        vk::PipelineStageFlagBits2::eTransfer,
-        vk::AccessFlagBits2::eTransferWrite,
-        vk::ImageLayout::eGeneral,
-        vk::ImageAspectFlagBits::eColor);
+      barrier.subresourceRange.baseMipLevel = i - 1;
+      barrier.oldLayout = vk::ImageLayout::eTransferDstOptimal;
+      barrier.newLayout = vk::ImageLayout::eTransferSrcOptimal;
+      barrier.srcAccessMask = vk::AccessFlagBits::eTransferWrite;
+      barrier.dstAccessMask = vk::AccessFlagBits::eTransferRead;
 
-      etna::flush_barriers(commandBuffer);
+      commandBuffer.pipelineBarrier(
+        vk::PipelineStageFlagBits::eTransfer,
+        vk::PipelineStageFlagBits::eTransfer,
+        vk::DependencyFlagBits::eByRegion,
+        0,
+        nullptr,
+        0,
+        nullptr,
+        1,
+        &barrier);
 
-      std::array<vk::Offset3D, 2> srcOffset = {
-        vk::Offset3D{}, vk::Offset3D{mipWidth, mipHeight, 1}};
-      auto srdImageSubrecourceLayers = vk::ImageSubresourceLayers{
+      std::array srcOffset = {vk::Offset3D{0, 0, 0}, vk::Offset3D{mipWidth, mipHeight, 1}};
+
+      auto srcImageSubrecourceLayers = vk::ImageSubresourceLayers{
         .aspectMask = vk::ImageAspectFlagBits::eColor,
         .mipLevel = i - 1,
         .baseArrayLayer = 0,
         .layerCount = layer_count};
-      // Destination info
-      std::array<vk::Offset3D, 2> dstOffset = {
-        vk::Offset3D{},
+
+      std::array dstOffset = {
+        vk::Offset3D{0, 0, 0},
         vk::Offset3D{mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, 1}};
+
       auto dstImageSubrecourceLayers = vk::ImageSubresourceLayers{
         .aspectMask = vk::ImageAspectFlagBits::eColor,
         .mipLevel = i,
         .baseArrayLayer = 0,
         .layerCount = layer_count};
 
-      // Create blit info
-      auto imageBlit = vk::ImageBlit2{
-        .sType = vk::StructureType::eImageBlit2,
-        .pNext = nullptr,
-        .srcSubresource = srdImageSubrecourceLayers,
+      auto imageBlit = vk::ImageBlit{
+        .srcSubresource = srcImageSubrecourceLayers,
         .srcOffsets = srcOffset,
         .dstSubresource = dstImageSubrecourceLayers,
         .dstOffsets = dstOffset};
 
-      auto blitInfo = vk::BlitImageInfo2{
-        .sType = vk::StructureType::eBlitImageInfo2,
-        .pNext = nullptr,
-        .srcImage = image.get(),
-        .srcImageLayout = vk::ImageLayout::eGeneral,
-        .dstImage = image.get(),
-        .dstImageLayout = vk::ImageLayout::eGeneral,
-        .regionCount = 1,
-        .pRegions = &imageBlit,
-        .filter = vk::Filter::eLinear};
+      commandBuffer.blitImage(
+        vkImage,
+        vk::ImageLayout::eTransferSrcOptimal,
+        vkImage,
+        vk::ImageLayout::eTransferDstOptimal,
+        1,
+        &imageBlit,
+        vk::Filter::eLinear);
 
-      // Apply blit
-      commandBuffer.blitImage2(&blitInfo);
+      barrier.oldLayout = vk::ImageLayout::eTransferSrcOptimal;
+      barrier.newLayout = vk::ImageLayout::eTransferDstOptimal;
+      barrier.srcAccessMask = vk::AccessFlagBits::eTransferRead;
+      barrier.dstAccessMask = vk::AccessFlagBits::eTransferWrite;
 
-      etna::set_state(
-        commandBuffer,
-        image.get(),
-        vk::PipelineStageFlagBits2::eFragmentShader,
-        vk::AccessFlagBits2::eShaderRead,
-        vk::ImageLayout::eShaderReadOnlyOptimal,
-        vk::ImageAspectFlagBits::eColor);
-
-      etna::flush_barriers(commandBuffer);
+      commandBuffer.pipelineBarrier(
+        vk::PipelineStageFlagBits::eTransfer,
+        vk::PipelineStageFlagBits::eTransfer,
+        vk::DependencyFlagBits::eByRegion,
+        0,
+        nullptr,
+        0,
+        nullptr,
+        1,
+        &barrier);
 
       if (mipWidth > 1)
       {
@@ -645,18 +752,7 @@ void App::generateMipmaps(const etna::Image& image, uint32_t mip_levels, uint32_
         mipHeight /= 2;
       }
     }
-
-    etna::set_state(
-      commandBuffer,
-      image.get(),
-      vk::PipelineStageFlagBits2::eFragmentShader,
-      vk::AccessFlagBits2::eShaderRead,
-      vk::ImageLayout::eShaderReadOnlyOptimal,
-      vk::ImageAspectFlagBits::eColor);
-
-    etna::flush_barriers(commandBuffer);
   }
-
   ETNA_CHECK_VK_RESULT(commandBuffer.end());
 
   oneShotCommands->submitAndWait(commandBuffer);

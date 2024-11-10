@@ -49,17 +49,21 @@ private:
   etna::Image swordTexture;
 
   etna::Image cubemapTexture;
-  
+
   std::unique_ptr<etna::OneShotCmdMgr> oneShotCommands;
   std::unique_ptr<etna::BlockingTransferHelper> transferHelper;
+
+  glm::uvec2 maxTextureResolution;
 
   void preparePrimitives();
   void loadTextures();
   void loadCubemap();
   void initShading();
 
-  void localCopyBufferToImage(const etna::Buffer& buffer, const etna::Image& image, uint32_t layer_count);
-  void generateMipmaps(const etna::Image& image, uint32_t mip_levels, uint32_t layer_count);
+  void localCopyBufferToImage(
+    const etna::Buffer& buffer, const etna::Image& image, uint32_t layer_count);
+  // void generateMipmaps(const etna::Image& image, uint32_t mip_levels, uint32_t layer_count);
+  void generateMipmapsVkStyle(const etna::Image& image, uint32_t mip_levels, uint32_t layer_count);
   // -----------------
 
   glm::uvec2 resolution;
