@@ -1,5 +1,6 @@
 #include "WorldRenderer.hpp"
 
+#include <cstring>
 #include <etna/GlobalContext.hpp>
 #include <etna/PipelineManager.hpp>
 #include <etna/RenderTargetStates.hpp>
@@ -37,7 +38,7 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
         .name = fmt::format("sameInstanceMatrices{}", i)});
     });
 
-  // instancesAmount.reserve(maxInstancesInScene);
+  instancesAmount.resize(maxInstancesInScene, 0);
 }
 
 void WorldRenderer::loadScene(std::filesystem::path path)
@@ -103,6 +104,7 @@ void WorldRenderer::renderScene(
   vk::PipelineLayout pipeline_layout,
   etna::Buffer& current_instance_buffer)
 {
+  ZoneScoped;
   if (!sceneMgr->getVertexBuffer())
     return;
 
@@ -126,13 +128,19 @@ void WorldRenderer::renderScene(
 
   uint32_t offset = 0;
 
-  for (const auto& [relem, amount] : instancesAmount)
+  auto relems = sceneMgr->getRenderElements();
+
+  for (uint32_t i = 0; i < relems.size(); i++)
   {
-    cmd_buf.drawIndexed(relem.indexCount, amount, relem.indexOffset, relem.vertexOffset, offset);
-    offset += amount;
+    if (instancesAmount[i] > 0)
+    {
+      cmd_buf.drawIndexed(relems[i].indexCount, instancesAmount[i], relems[i].indexOffset,
+      relems[i].vertexOffset, offset); offset += instancesAmount[i];
+    }
   }
 
-  instancesAmount.clear();
+  // instancesAmount.clear();
+  std::memset(instancesAmount.data(), 0, relems.size() * sizeof(uint32_t));
 }
 
 void WorldRenderer::parseInstanceInfo(etna::Buffer& current_buffer, const glm::mat4x4& glob_tm)
@@ -142,7 +150,6 @@ void WorldRenderer::parseInstanceInfo(etna::Buffer& current_buffer, const glm::m
   auto instanceMeshes = sceneMgr->getInstanceMeshes();
   auto instanceMatrices = sceneMgr->getInstanceMatrices();
   auto meshes = sceneMgr->getMeshes();
-  auto relems = sceneMgr->getRenderElements();
   auto bounds = sceneMgr->getRenderElementsBounds();
 
   current_buffer.map();
@@ -158,18 +165,11 @@ void WorldRenderer::parseInstanceInfo(etna::Buffer& current_buffer, const glm::m
     for (std::size_t j = 0; j < meshes[meshIdx].relemCount; j++)
     {
       const auto relemIdx = meshes[meshIdx].firstRelem + j;
-      const auto& relem = relems[relemIdx];
       if (!isVisible(bounds[relemIdx], glob_tm, currentMatrix))
       {
         continue;
       }
-
-      if (!instancesAmount.contains(relem))
-      {
-        instancesAmount.emplace(relem, 0);
-      }
-
-      instancesAmount[relem]++;
+      instancesAmount[relemIdx]++;
 
       instanceData[index] = currentMatrix;
       index++;
