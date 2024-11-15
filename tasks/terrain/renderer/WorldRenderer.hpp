@@ -8,7 +8,6 @@
 #include <etna/GraphicsPipeline.hpp>
 #include <etna/GpuSharedResource.hpp>
 #include <glm/glm.hpp>
-
 #include "scene/SceneManager.hpp"
 #include "wsi/Keyboard.hpp"
 
@@ -25,6 +24,7 @@ public:
   void loadShaders();
   void allocateResources(glm::uvec2 swapchain_resolution);
   void setupPipelines(vk::Format swapchain_format);
+  void generateTerrain(vk::Format texture_format, vk::Extent3D extent);
 
   void debugInput(const Keyboard& kb);
   void update(const FramePacket& packet);
@@ -38,6 +38,8 @@ private:
     const glm::mat4x4& glob_tm,
     vk::PipelineLayout pipeline_layout,
     etna::Buffer& current_instance_buffer);
+
+  void renderTerrain(vk::CommandBuffer cmd_buf, const glm::mat4x4& glob_tm, vk::PipelineLayout pipeline_layout);
 
   bool isVisible(const Bounds& bounds, const glm::mat4& proj_view, const glm::mat4& transform);
 
@@ -63,6 +65,8 @@ private:
 
   etna::GraphicsPipeline staticMeshPipeline{};
   etna::GraphicsPipeline terrainGenerationPipeline;
+
+  std::unique_ptr<etna::OneShotCmdMgr> oneShotCommands;
 
   glm::uvec2 resolution;
 };

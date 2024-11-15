@@ -12,4 +12,6 @@ target_link_libraries(terrain_renderer
 target_add_shaders(terrain_renderer
   shaders/static_mesh.frag
   shaders/static_mesh.vert
+  shaders/decoy.vert
+  shaders/generator.frag
 )

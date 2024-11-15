@@ -2,6 +2,7 @@
 #include "etna/Etna.hpp"
 #include "etna/GraphicsPipeline.hpp"
 #include "etna/Image.hpp"
+#include "etna/Vulkan.hpp"
 
 #include <cstring>
 #include <etna/GlobalContext.hpp>
@@ -9,7 +10,10 @@
 #include <etna/Profiling.hpp>
 #include <etna/RenderTargetStates.hpp>
 #include <glm/ext.hpp>
+#include <glm/fwd.hpp>
 #include <vulkan/vulkan_enums.hpp>
+#include <vulkan/vulkan_handles.hpp>
+#include <vulkan/vulkan_structs.hpp>
 
 WorldRenderer::WorldRenderer()
     : sceneMgr{std::make_unique<SceneManager>()}, maxInstancesInScene{4096},
@@ -27,12 +31,6 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution) {
       .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment,
   });
 
-  heightMap = ctx.createImage(etna::Image::CreateInfo{
-      .name = "height_map",
-      .format = vk::Format::eR32Sfloat,
-      .imageUsage = vk::ImageUsageFlagBits::eSampled |
-                    vk::ImageUsageFlagBits::eColorAttachment});
-
   instanceMatricesBuffer.emplace(
       ctx.getMainWorkCount(),
       [&ctx, maxInstancesInScene = this->maxInstancesInScene](std::size_t i) {
@@ -44,6 +42,8 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution) {
             .memoryUsage = VMA_MEMORY_USAGE_CPU_TO_GPU,
             .name = fmt::format("sameInstanceMatrices{}", i)});
       });
+
+  oneShotCommands = ctx.createOneShotCmdMgr();
 
   instancesAmount.resize(maxInstancesInScene, 0);
 }
@@ -58,7 +58,8 @@ void WorldRenderer::loadShaders() {
                         TERRAIN_RENDERER_SHADERS_ROOT "static_mesh.vert.spv"});
   etna::create_program("static_mesh",
                        {TERRAIN_RENDERER_SHADERS_ROOT "static_mesh.vert.spv"});
-  etna::create_program("terrain_generator", {})
+  etna::create_program("terrain_generator", {TERRAIN_RENDERER_SHADERS_ROOT "decoy.vert.spv",
+  TERRAIN_RENDERER_SHADERS_ROOT "generator.frag.spv"});
 }
 
 void WorldRenderer::setupPipelines(vk::Format swapchain_format) {
@@ -88,12 +89,55 @@ void WorldRenderer::setupPipelines(vk::Format swapchain_format) {
                   .depthAttachmentFormat = vk::Format::eD32Sfloat,
               },
       });
+}
 
+void WorldRenderer::generateTerrain(vk::Format texture_format,
+                                    vk::Extent3D extent) {
+  auto &ctx = etna::get_context();
+  auto &pipelineManager = ctx.getPipelineManager();
+  heightMap = ctx.createImage(etna::Image::CreateInfo{
+      .extent = extent,
+      .name = "height_map",
+      .format = texture_format,
+      .imageUsage = vk::ImageUsageFlagBits::eSampled |
+                    vk::ImageUsageFlagBits::eColorAttachment});
   terrainGenerationPipeline = pipelineManager.createGraphicsPipeline(
-      "height_map", etna::GraphicsPipeline::CreateInfo{
+      "terrain_generator", etna::GraphicsPipeline::CreateInfo{
                         .fragmentShaderOutput = {
-                            .colorAttachmentFormats = {vk::Format::eR32Sfloat},
+                            .colorAttachmentFormats = {texture_format},
                         }});
+
+  auto commandBuffer = oneShotCommands->start();
+
+  ETNA_CHECK_VK_RESULT(commandBuffer.begin(vk::CommandBufferBeginInfo{}));
+  {
+    etna::set_state(commandBuffer, heightMap.get(),
+                    vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+                    vk::AccessFlagBits2::eColorAttachmentWrite,
+                    vk::ImageLayout::eColorAttachmentOptimal,
+                    vk::ImageAspectFlagBits::eColor);
+
+    etna::flush_barriers(commandBuffer);
+
+    {
+      auto extent = heightMap.getExtent();
+      glm::uvec2 glmExtent = {extent.width, extent.height};
+      etna::RenderTargetState state(
+          commandBuffer, {{}, {glmExtent.x, glmExtent.y}},
+          {{heightMap.get(), heightMap.getView({})}}, {});
+
+      commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics,
+                                 terrainGenerationPipeline.getVkPipeline());
+      
+
+      commandBuffer.pushConstants<glm::uvec2>(terrainGenerationPipeline.getVkPipelineLayout(), vk::ShaderStageFlagBits::eFragment, 0, {glmExtent});
+      
+      commandBuffer.draw(3, 1, 0, 0);
+    }
+  }
+  ETNA_CHECK_VK_RESULT(commandBuffer.end());
+
+  oneShotCommands->submitAndWait(commandBuffer);
 }
 
 void WorldRenderer::debugInput(const Keyboard &) {}
@@ -184,6 +228,12 @@ void WorldRenderer::parseInstanceInfo(etna::Buffer &current_buffer,
 
   current_buffer.unmap();
 }
+
+// void WorldRenderer::renderTerrain(vk::CommandBuffer cmd_buf,
+//                                   const glm::mat4x4 &glob_tm,
+//                                   vk::PipelineLayout pipeline_layout) {
+//   ZoneScoped;
+// }
 
 void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf,
                                 vk::Image target_image,
