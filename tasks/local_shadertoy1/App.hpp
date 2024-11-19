@@ -24,7 +24,7 @@ public:
     shader_uvec2 iResolution;
     float mouseX;
     float mouseY;
-  } pushConst;
+  };
 
 private:
   void drawFrame();
