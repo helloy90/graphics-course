@@ -8,6 +8,7 @@
 #include <etna/GraphicsPipeline.hpp>
 #include <etna/GpuSharedResource.hpp>
 #include <glm/glm.hpp>
+
 #include "scene/SceneManager.hpp"
 #include "wsi/Keyboard.hpp"
 
@@ -23,8 +24,10 @@ public:
 
   void loadShaders();
   void allocateResources(glm::uvec2 swapchain_resolution);
-  void setupPipelines(vk::Format swapchain_format);
-  void generateTerrain(vk::Format texture_format, vk::Extent3D extent);
+  void setupMeshPipelines(vk::Format swapchain_format);
+  void setupTerrainResources(
+    vk::Format swapchain_format, vk::Format texture_format, vk::Extent3D extent);
+  void generateTerrain();
 
   void debugInput(const Keyboard& kb);
   void update(const FramePacket& packet);
@@ -39,7 +42,8 @@ private:
     vk::PipelineLayout pipeline_layout,
     etna::Buffer& current_instance_buffer);
 
-  void renderTerrain(vk::CommandBuffer cmd_buf, const glm::mat4x4& glob_tm, vk::PipelineLayout pipeline_layout);
+  void renderTerrain(
+    vk::CommandBuffer cmd_buf, const glm::mat4x4& glob_tm, vk::PipelineLayout pipeline_layout);
 
   bool isVisible(const Bounds& bounds, const glm::mat4& proj_view, const glm::mat4& transform);
 
@@ -49,12 +53,13 @@ private:
   std::unique_ptr<SceneManager> sceneMgr;
 
   etna::Image mainViewDepth;
-  etna::Image heightMap;
+  etna::Image terrainMap;
 
-  struct PushConstants
+  struct TesselatorPushConstants
   {
     glm::mat4x4 projView;
-  } pushConst2M;
+    glm::vec3 cameraPosition;
+  };
 
   std::size_t maxInstancesInScene;
   std::optional<etna::GpuSharedResource<etna::Buffer>> instanceMatricesBuffer;
@@ -62,9 +67,14 @@ private:
 
   glm::mat4x4 worldViewProj;
   glm::mat4x4 lightMatrix;
+  glm::vec3 cameraPosition;
 
   etna::GraphicsPipeline staticMeshPipeline{};
   etna::GraphicsPipeline terrainGenerationPipeline;
+  etna::GraphicsPipeline terrainRenderPipeline;
+
+  etna::Sampler terrainSampler;
+  std::uint32_t chunksAmount;
 
   std::unique_ptr<etna::OneShotCmdMgr> oneShotCommands;
 

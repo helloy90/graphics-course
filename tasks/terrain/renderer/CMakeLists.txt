@@ -14,4 +14,8 @@ target_add_shaders(terrain_renderer
   shaders/static_mesh.vert
   shaders/decoy.vert
   shaders/generator.frag
+  shaders/chunk.vert
+  shaders/subdivide_chunk.tesc
+  shaders/process_chunk.tese
+  shaders/terrain.frag
 )

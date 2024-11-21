@@ -57,8 +57,10 @@ void Renderer::initFrameDelivery(vk::UniqueSurfaceKHR a_surface, ResolutionProvi
 
   worldRenderer->allocateResources(resolution);
   worldRenderer->loadShaders();
-  worldRenderer->setupPipelines(window->getCurrentFormat());
-  worldRenderer->generateTerrain(vk::Format::eR32Sfloat, {4096, 4096, 1});
+  worldRenderer->setupMeshPipelines(window->getCurrentFormat());
+  worldRenderer->setupTerrainResources(
+    window->getCurrentFormat(), vk::Format::eR32Sfloat, {4096, 4096, 1});
+  worldRenderer->generateTerrain();
 }
 
 void Renderer::loadScene(std::filesystem::path path)

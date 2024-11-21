@@ -1,7 +1,7 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
-layout(location = 0) out vec4 fragColor;
+layout(location = 0) out float fragColor;
 
 layout(push_constant) uniform params {
   uvec2 iResolution;
@@ -32,9 +32,12 @@ vec2 randomGradient(int ix, int iy) {
     // No precomputed gradients mean this works for any number of grid coordinates
     const uint w = 8 * 4; // 4
     const uint s = w / 2; // rotation width
-    uint a = ix, b = iy;
-    a *= 3284157443; b ^= a << s | a >> w-s;
-    b *= 1911520717; a ^= b << s | b >> w-s;
+    uint a = ix;
+    uint b = iy;
+    a *= 3284157443;
+    b ^= a << s | a >> w-s;
+    b *= 1911520717;
+    a ^= b << s | b >> w-s;
     a *= 2048419325;
     float random = a * (3.14159265 / ~(~0u >> 1)); // in [0, 2*Pi]
     vec2 v = {cos(random), sin(random)};
@@ -51,7 +54,7 @@ float dotGridGradient(int ix, int iy, float x, float y) {
     float dy = y - float(iy);
 
     // Compute the dot-product
-    return (dx*gradient.x + dy*gradient.y);
+    return (dx * gradient.x + dy * gradient.y);
 }
 
 // Compute Perlin noise at coordinates x, y
@@ -92,5 +95,5 @@ void main() {
   vec2 uv_coord = fragCoord/iResolution.xy;
 //   vec3 color = vec3(perlin(fragCoord), 0, 0);
 
-  fragColor = vec4(perlin(fragCoord), 0, 0, 1.0); // Output to screen
+  fragColor = perlin(vec2(fragCoord));
 }
