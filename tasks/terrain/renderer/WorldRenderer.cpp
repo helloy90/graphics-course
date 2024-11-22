@@ -1,19 +1,17 @@
 #include "WorldRenderer.hpp"
-#include "etna/Sampler.hpp"
+#include "etna/DescriptorSet.hpp"
 
 #include <cstring>
 #include <etna/GlobalContext.hpp>
 #include <etna/PipelineManager.hpp>
 #include <etna/Profiling.hpp>
 #include <etna/RenderTargetStates.hpp>
-#include <glm/fwd.hpp>
-#include <vulkan/vulkan_enums.hpp>
 
 WorldRenderer::WorldRenderer()
   : sceneMgr{std::make_unique<SceneManager>()}
   , maxInstancesInScene{4096}
   , instanceMatricesBuffer{std::nullopt}
-  , chunksAmount(2048)
+  , wireframeEnabled(false)
 {
 }
 
@@ -30,6 +28,8 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
     .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment,
   });
 
+  params.terrainInChunks = shader_uvec2(32, 32);
+
   instanceMatricesBuffer.emplace(
     ctx.getMainWorkCount(), [&ctx, maxInstancesInScene = this->maxInstancesInScene](std::size_t i) {
       return ctx.createBuffer(etna::Buffer::CreateInfo{
@@ -39,6 +39,14 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
         .memoryUsage = VMA_MEMORY_USAGE_CPU_TO_GPU,
         .name = fmt::format("sameInstanceMatrices{}", i)});
     });
+
+  constantsBuffer.emplace(ctx.getMainWorkCount(), [&ctx](std::size_t i) {
+    return ctx.createBuffer(etna::Buffer::CreateInfo{
+      .size = sizeof(UniformParams),
+      .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
+      .memoryUsage = VMA_MEMORY_USAGE_CPU_COPY,
+      .name = fmt::format("constants{}", i)});
+  });
 
   terrainSampler = etna::Sampler(
     etna::Sampler::CreateInfo{.filter = vk::Filter::eLinear, .name = "terrain_sampler"});
@@ -181,7 +189,33 @@ void WorldRenderer::generateTerrain()
   oneShotCommands->submitAndWait(commandBuffer);
 }
 
-void WorldRenderer::debugInput(const Keyboard&) {}
+void WorldRenderer::debugInput(const Keyboard& keyboard, vk::Format swapchain_format)
+{
+  if (keyboard[KeyboardKey::kF3] == ButtonState::Falling)
+  {
+    ETNA_CHECK_VK_RESULT(etna::get_context().getDevice().waitIdle());
+
+    auto& pipelineManager = etna::get_context().getPipelineManager();
+    terrainRenderPipeline = pipelineManager.createGraphicsPipeline(
+      "terrain_render",
+      etna::GraphicsPipeline::CreateInfo{
+        .inputAssemblyConfig = {.topology = vk::PrimitiveTopology::ePatchList},
+        .rasterizationConfig =
+          vk::PipelineRasterizationStateCreateInfo{
+            .polygonMode = (wireframeEnabled ? vk::PolygonMode::eLine : vk::PolygonMode::eFill),
+            .cullMode = vk::CullModeFlagBits::eBack,
+            .frontFace = vk::FrontFace::eCounterClockwise,
+            .lineWidth = 1.f,
+          },
+        .fragmentShaderOutput =
+          {
+            .colorAttachmentFormats = {swapchain_format},
+            .depthAttachmentFormat = vk::Format::eD32Sfloat,
+          },
+      });
+    wireframeEnabled = !wireframeEnabled;
+  }
+}
 
 void WorldRenderer::update(const FramePacket& packet)
 {
@@ -191,7 +225,8 @@ void WorldRenderer::update(const FramePacket& packet)
   {
     const float aspect = float(resolution.x) / float(resolution.y);
     worldViewProj = packet.mainCam.projTm(aspect) * packet.mainCam.viewTm();
-    cameraPosition = packet.mainCam.position;
+    params.projView = worldViewProj;
+    params.cameraWorldPosition = packet.mainCam.position;
   }
 }
 
@@ -279,32 +314,37 @@ void WorldRenderer::parseInstanceInfo(etna::Buffer& current_buffer, const glm::m
   current_buffer.unmap();
 }
 
-void WorldRenderer::renderTerrain(
-  vk::CommandBuffer cmd_buf, const glm::mat4x4& glob_tm, vk::PipelineLayout pipeline_layout)
+void WorldRenderer::updateConstants(etna::Buffer& constants)
 {
   ZoneScoped;
-  TesselatorPushConstants constants = {.projView = glob_tm, .cameraPosition = cameraPosition};
 
-  cmd_buf.pushConstants<TesselatorPushConstants>(
-    pipeline_layout,
-    vk::ShaderStageFlagBits::eTessellationControl |
-      vk::ShaderStageFlagBits::eTessellationEvaluation,
-    0,
-    {constants});
+  constants.map();
+
+  std::memcpy(constants.data(), &params, sizeof(UniformParams));
+
+  constants.unmap();
+}
+
+void WorldRenderer::renderTerrain(
+  vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout)
+{
+  ZoneScoped;
 
   auto shaderInfo = etna::get_shader_program("terrain_render");
   auto set = etna::create_descriptor_set(
     shaderInfo.getDescriptorLayoutId(0),
     cmd_buf,
-    {etna::Binding{
-      0, terrainMap.genBinding(terrainSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)}});
-    
+
+    {etna::Binding{0, constants.genBinding()},
+     etna::Binding{
+       1, terrainMap.genBinding(terrainSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)}});
+
   auto vkSet = set.getVkSet();
 
   cmd_buf.bindDescriptorSets(
     vk::PipelineBindPoint::eGraphics, pipeline_layout, 0, 1, &vkSet, 0, nullptr);
 
-  cmd_buf.drawIndexed(4, chunksAmount, 0, 0, 0);
+  cmd_buf.drawIndexed(4, params.terrainInChunks.x * params.terrainInChunks.y, 0, 0, 0);
 }
 
 void WorldRenderer::renderWorld(
@@ -319,6 +359,9 @@ void WorldRenderer::renderWorld(
     auto& currentBuffer = instanceMatricesBuffer->get();
     parseInstanceInfo(currentBuffer, worldViewProj);
 
+    auto& currentConstants = constantsBuffer->get();
+    updateConstants(currentConstants);
+
     {
       ETNA_PROFILE_GPU(cmd_buf, renderTerrain);
       etna::RenderTargetState renderTargets(
@@ -328,7 +371,7 @@ void WorldRenderer::renderWorld(
         {.image = mainViewDepth.get(), .view = mainViewDepth.getView({})});
 
       cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, terrainRenderPipeline.getVkPipeline());
-      renderTerrain(cmd_buf, worldViewProj, terrainRenderPipeline.getVkPipelineLayout());
+      renderTerrain(cmd_buf, currentConstants, terrainRenderPipeline.getVkPipelineLayout());
     }
 
     {

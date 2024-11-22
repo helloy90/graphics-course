@@ -70,7 +70,7 @@ void Renderer::loadScene(std::filesystem::path path)
 
 void Renderer::debugInput(const Keyboard& kb)
 {
-  worldRenderer->debugInput(kb);
+  worldRenderer->debugInput(kb, window->getCurrentFormat());
 
   if (kb[KeyboardKey::kB] == ButtonState::Falling)
   {
