@@ -22,17 +22,17 @@ layout (binding = 0) uniform params {
 layout (binding = 1) uniform sampler2D heightMap;
 
 vec3 generateNormal(vec2 currentTexCoord) {
-    float left = textureOffset(heightMap, currentTexCoord, ivec2(-1, 0)).x;
-    float right = textureOffset(heightMap, currentTexCoord, ivec2(1, 0)).x;
-    float up = textureOffset(heightMap, currentTexCoord, ivec2(0, 1)).x;
-    float down = textureOffset(heightMap, currentTexCoord, ivec2(0, -1)).x;
+  float left = textureOffset(heightMap, currentTexCoord, ivec2(-1, 0)).x;
+  float right = textureOffset(heightMap, currentTexCoord, ivec2(1, 0)).x;
+  float up = textureOffset(heightMap, currentTexCoord, ivec2(0, 1)).x;
+  float down = textureOffset(heightMap, currentTexCoord, ivec2(0, -1)).x;
 
-    vec3 normal = normalize(vec3(left - right, 2.0, up - down));
+  vec3 normal = normalize(vec3(left - right, 2.0 / (uniformParams.chunk.x * uniformParams.chunk.y), down - up));
 
-    return normal;
+  return normal;
 }
 
-const float heightAmplifier = 10.0;
+const float heightAmplifier = 500.0;
 
 void main() {
 
@@ -53,7 +53,7 @@ void main() {
 
   vec2 currentTexCoord = interpolate4Vert2D(texLeftLower, texLeftUpper, texRightLower, texRightUpper, u, v);
 
-  currentVertex.y = texture(heightMap, currentTexCoord).x * heightAmplifier;
+  currentVertex.y = texture(heightMap, currentTexCoord).x * heightAmplifier - heightAmplifier * 3 / 5;
 
   pos = currentVertex;
   normal = generateNormal(currentTexCoord);

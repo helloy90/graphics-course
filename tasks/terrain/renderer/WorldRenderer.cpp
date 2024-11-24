@@ -28,8 +28,8 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
     .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment,
   });
 
-  params.terrainInChunks = shader_uvec2(16, 16);
-  params.chunk = shader_uvec2(8, 8);
+  params.terrainInChunks = shader_uvec2(64,64);
+  params.chunk = shader_uvec2(16,16);
 
   instanceMatricesBuffer.emplace(
     ctx.getMainWorkCount(), [&ctx, maxInstancesInScene = this->maxInstancesInScene](std::size_t i) {
@@ -307,8 +307,8 @@ void WorldRenderer::renderWorld(
   {
     ETNA_PROFILE_GPU(cmd_buf, renderForward);
 
-    auto& currentBuffer = instanceMatricesBuffer->get();
-    parseInstanceInfo(currentBuffer, worldViewProj);
+    // auto& currentBuffer = instanceMatricesBuffer->get();
+    // parseInstanceInfo(currentBuffer, worldViewProj);
 
     auto& currentConstants = constantsBuffer->get();
     updateConstants(currentConstants);
@@ -330,8 +330,8 @@ void WorldRenderer::renderWorld(
     //   etna::RenderTargetState renderTargets(
     //     cmd_buf,
     //     {{0, 0}, {resolution.x, resolution.y}},
-    //     {{.image = target_image, .view = target_image_view}},
-    //     {.image = mainViewDepth.get(), .view = mainViewDepth.getView({})});
+    //     {{.image = target_image, .view = target_image_view, .loadOp = vk::AttachmentLoadOp::eLoad}},
+    //     {.image = mainViewDepth.get(), .view = mainViewDepth.getView({}), .loadOp = vk::AttachmentLoadOp::eLoad});
 
     //   cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, staticMeshPipeline.getVkPipeline());
     //   renderScene(cmd_buf, worldViewProj, staticMeshPipeline.getVkPipelineLayout(),

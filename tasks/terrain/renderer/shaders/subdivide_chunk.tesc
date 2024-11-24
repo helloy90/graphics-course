@@ -16,18 +16,21 @@ layout (binding = 0) uniform params {
   UniformParams uniformParams;
 };
 
-// const uint currentInstanceIndex = ; // actual instance index
+const float maxDistance = 256.0;
+const float minDistance = 32.0;
 
-const float maxDistance = 512.0;
-const float minDistance = 1.0;
+const float maxTesselationLevel = 16.0;
+const float minTesselationLevel = 4.0;
 
-const float maxTesselationLevel = 20.0;
-const float minTesselationLevel = 1.0;
+bool isVisible(vec3 leftLower, vec3 leftUpper, vec3 rightLower, vec3 rightUpper) {
+  return true;
+}
 
 vec3 getPosition(uint vertex) {
+  uint currentInstanceIndex = instanceIndex[0];
   uvec2 coordsOfChunkInGrid = uvec2(
-    instanceIndex[0] % uniformParams.terrainInChunks.x, 
-    instanceIndex[0] / uniformParams.terrainInChunks.x
+    currentInstanceIndex % uniformParams.terrainInChunks.x, 
+    currentInstanceIndex / uniformParams.terrainInChunks.x
   );
   uvec2 coordsOfVertexInChunk = uvec2(vertex / 2, vertex % 2);
   //start position is (0, 0, 0)
@@ -48,9 +51,7 @@ float getNearestDistanceFromCamera(vec3 first, vec3 second) {
 }
 
 vec2 getPositionInHeightMap(vec3 position) {
-  float x = smoothstep(0.0, uniformParams.extent.x, position.x);
-  float y = smoothstep(0.0, uniformParams.extent.y, position.z); // because in terrain coords
-  return vec2(x, y);
+  return clamp(vec2(getHorizontalCoords(position)) / uniformParams.extent, 0.0, 1.0);
 }
 
 float getTesselationLevel(float dist) {
@@ -63,6 +64,18 @@ void main() {
   vec3 leftUpper = getPosition(1);
   vec3 rightLower = getPosition(2);
   vec3 rightUpper = getPosition(3);
+
+  if (!isVisible(leftLower, leftUpper, rightLower, rightUpper)) {
+    gl_TessLevelOuter[0] = 0;
+    gl_TessLevelOuter[1] = 0;
+    gl_TessLevelOuter[2] = 0;
+    gl_TessLevelOuter[3] = 0;
+
+    gl_TessLevelInner[0] = 0;
+    gl_TessLevelInner[1] = 0;
+
+    return;
+  }
 
   vec3 save = getPosition(gl_InvocationID);
   worldPosition[gl_InvocationID] = save;
