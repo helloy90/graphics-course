@@ -13,3 +13,17 @@ vec2 getHorizontalCoords(vec4 vector) {
 vec2 getHorizontalCoords(vec3 vector) {
     return vector.xz;
 }
+
+vec3 interpolate4Vert2D(vec3 leftLower, vec3 leftUpper, vec3 rightLower, vec3 rightUpper, float u, float v) {
+  return leftLower * (1.0 - u) * (1.0 - v) 
+          + leftUpper * (1.0 - u) * v
+          + rightLower * u * (1.0 - v)
+          + rightUpper * u * v;
+}
+
+vec2 interpolate4Vert2D(vec2 leftLower, vec2 leftUpper, vec2 rightLower, vec2 rightUpper, float u, float v) {
+  return leftLower * (1.0 - u) * (1.0 - v) 
+          + leftUpper * (1.0 - u) * v
+          + rightLower * u * (1.0 - v)
+          + rightUpper * u * v;
+}

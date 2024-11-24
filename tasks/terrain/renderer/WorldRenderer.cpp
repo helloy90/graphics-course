@@ -1,11 +1,11 @@
 #include "WorldRenderer.hpp"
-#include "etna/DescriptorSet.hpp"
 
 #include <cstring>
 #include <etna/GlobalContext.hpp>
 #include <etna/PipelineManager.hpp>
 #include <etna/Profiling.hpp>
 #include <etna/RenderTargetStates.hpp>
+#include <vulkan/vulkan_enums.hpp>
 
 WorldRenderer::WorldRenderer()
   : sceneMgr{std::make_unique<SceneManager>()}
@@ -28,7 +28,8 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
     .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment,
   });
 
-  params.terrainInChunks = shader_uvec2(32, 32);
+  params.terrainInChunks = shader_uvec2(16, 16);
+  params.chunk = shader_uvec2(8, 8);
 
   instanceMatricesBuffer.emplace(
     ctx.getMainWorkCount(), [&ctx, maxInstancesInScene = this->maxInstancesInScene](std::size_t i) {
@@ -44,7 +45,7 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
     return ctx.createBuffer(etna::Buffer::CreateInfo{
       .size = sizeof(UniformParams),
       .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
-      .memoryUsage = VMA_MEMORY_USAGE_CPU_COPY,
+      .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
       .name = fmt::format("constants{}", i)});
   });
 
@@ -74,14 +75,14 @@ void WorldRenderer::loadShaders()
      TERRAIN_RENDERER_SHADERS_ROOT "generator.frag.spv"});
 
   etna::create_program(
-    "terrain",
+    "terrain_render",
     {TERRAIN_RENDERER_SHADERS_ROOT "chunk.vert.spv",
      TERRAIN_RENDERER_SHADERS_ROOT "subdivide_chunk.tesc.spv",
      TERRAIN_RENDERER_SHADERS_ROOT "process_chunk.tese.spv",
      TERRAIN_RENDERER_SHADERS_ROOT "terrain.frag.spv"});
 }
 
-void WorldRenderer::setupMeshPipelines(vk::Format swapchain_format)
+void WorldRenderer::setupRenderPipelines(vk::Format swapchain_format)
 {
   etna::VertexShaderInputDescription sceneVertexInputDesc{
     .bindings = {etna::VertexShaderInputDescription::Binding{
@@ -98,7 +99,25 @@ void WorldRenderer::setupMeshPipelines(vk::Format swapchain_format)
       .vertexShaderInput = sceneVertexInputDesc,
       .rasterizationConfig =
         vk::PipelineRasterizationStateCreateInfo{
-          .polygonMode = vk::PolygonMode::eFill,
+          .polygonMode = (wireframeEnabled ? vk::PolygonMode::eLine : vk::PolygonMode::eFill),
+          .cullMode = vk::CullModeFlagBits::eBack,
+          .frontFace = vk::FrontFace::eCounterClockwise,
+          .lineWidth = 1.f,
+        },
+      .fragmentShaderOutput =
+        {
+          .colorAttachmentFormats = {swapchain_format},
+          .depthAttachmentFormat = vk::Format::eD32Sfloat,
+        },
+    });
+
+  terrainRenderPipeline = pipelineManager.createGraphicsPipeline(
+    "terrain_render",
+    etna::GraphicsPipeline::CreateInfo{
+      .inputAssemblyConfig = {.topology = vk::PrimitiveTopology::ePatchList},
+      .rasterizationConfig =
+        vk::PipelineRasterizationStateCreateInfo{
+          .polygonMode = (wireframeEnabled ? vk::PolygonMode::eLine : vk::PolygonMode::eFill),
           .cullMode = vk::CullModeFlagBits::eBack,
           .frontFace = vk::FrontFace::eCounterClockwise,
           .lineWidth = 1.f,
@@ -111,16 +130,17 @@ void WorldRenderer::setupMeshPipelines(vk::Format swapchain_format)
     });
 }
 
-void WorldRenderer::setupTerrainResources(
-  vk::Format swapchain_format, vk::Format texture_format, vk::Extent3D extent)
+void WorldRenderer::setupTerrainGeneration(vk::Format texture_format, vk::Extent3D extent)
 {
   auto& ctx = etna::get_context();
   auto& pipelineManager = ctx.getPipelineManager();
+
   terrainMap = ctx.createImage(etna::Image::CreateInfo{
     .extent = extent,
     .name = "terrain_map",
     .format = texture_format,
     .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eColorAttachment});
+
   terrainGenerationPipeline = pipelineManager.createGraphicsPipeline(
     "terrain_generator",
     etna::GraphicsPipeline::CreateInfo{
@@ -128,23 +148,7 @@ void WorldRenderer::setupTerrainResources(
         .colorAttachmentFormats = {texture_format},
       }});
 
-  terrainRenderPipeline = pipelineManager.createGraphicsPipeline(
-    "terrain_render",
-    etna::GraphicsPipeline::CreateInfo{
-      .inputAssemblyConfig = {.topology = vk::PrimitiveTopology::ePatchList},
-      .rasterizationConfig =
-        vk::PipelineRasterizationStateCreateInfo{
-          .polygonMode = vk::PolygonMode::eFill,
-          .cullMode = vk::CullModeFlagBits::eBack,
-          .frontFace = vk::FrontFace::eCounterClockwise,
-          .lineWidth = 1.f,
-        },
-      .fragmentShaderOutput =
-        {
-          .colorAttachmentFormats = {swapchain_format},
-          .depthAttachmentFormat = vk::Format::eD32Sfloat,
-        },
-    });
+  params.extent = shader_uvec2(extent.width, extent.height);
 }
 
 void WorldRenderer::generateTerrain()
@@ -183,6 +187,16 @@ void WorldRenderer::generateTerrain()
 
       commandBuffer.draw(3, 1, 0, 0);
     }
+
+    etna::set_state(
+      commandBuffer,
+      terrainMap.get(),
+      vk::PipelineStageFlagBits2::eTessellationEvaluationShader,
+      vk::AccessFlagBits2::eShaderSampledRead,
+      vk::ImageLayout::eShaderReadOnlyOptimal,
+      vk::ImageAspectFlagBits::eColor);
+
+    etna::flush_barriers(commandBuffer);
   }
   ETNA_CHECK_VK_RESULT(commandBuffer.end());
 
@@ -195,25 +209,9 @@ void WorldRenderer::debugInput(const Keyboard& keyboard, vk::Format swapchain_fo
   {
     ETNA_CHECK_VK_RESULT(etna::get_context().getDevice().waitIdle());
 
-    auto& pipelineManager = etna::get_context().getPipelineManager();
-    terrainRenderPipeline = pipelineManager.createGraphicsPipeline(
-      "terrain_render",
-      etna::GraphicsPipeline::CreateInfo{
-        .inputAssemblyConfig = {.topology = vk::PrimitiveTopology::ePatchList},
-        .rasterizationConfig =
-          vk::PipelineRasterizationStateCreateInfo{
-            .polygonMode = (wireframeEnabled ? vk::PolygonMode::eLine : vk::PolygonMode::eFill),
-            .cullMode = vk::CullModeFlagBits::eBack,
-            .frontFace = vk::FrontFace::eCounterClockwise,
-            .lineWidth = 1.f,
-          },
-        .fragmentShaderOutput =
-          {
-            .colorAttachmentFormats = {swapchain_format},
-            .depthAttachmentFormat = vk::Format::eD32Sfloat,
-          },
-      });
     wireframeEnabled = !wireframeEnabled;
+
+    setupRenderPipelines(swapchain_format);
   }
 }
 
@@ -278,6 +276,70 @@ void WorldRenderer::renderScene(
   std::memset(instancesAmount.data(), 0, relems.size() * sizeof(uint32_t));
 }
 
+void WorldRenderer::renderTerrain(
+  vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout)
+{
+  ZoneScoped;
+
+  auto shaderInfo = etna::get_shader_program("terrain_render");
+  auto set = etna::create_descriptor_set(
+    shaderInfo.getDescriptorLayoutId(0),
+    cmd_buf,
+
+    {etna::Binding{0, constants.genBinding()},
+     etna::Binding{
+       1, terrainMap.genBinding(terrainSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)}});
+
+  auto vkSet = set.getVkSet();
+
+  cmd_buf.bindDescriptorSets(
+    vk::PipelineBindPoint::eGraphics, pipeline_layout, 0, 1, &vkSet, 0, nullptr);
+
+  cmd_buf.draw(4, params.terrainInChunks.x * params.terrainInChunks.y, 0, 0);
+}
+
+void WorldRenderer::renderWorld(
+  vk::CommandBuffer cmd_buf, vk::Image target_image, vk::ImageView target_image_view)
+{
+  ETNA_PROFILE_GPU(cmd_buf, renderWorld);
+
+  // draw final scene to screen
+  {
+    ETNA_PROFILE_GPU(cmd_buf, renderForward);
+
+    auto& currentBuffer = instanceMatricesBuffer->get();
+    parseInstanceInfo(currentBuffer, worldViewProj);
+
+    auto& currentConstants = constantsBuffer->get();
+    updateConstants(currentConstants);
+
+    {
+      ETNA_PROFILE_GPU(cmd_buf, renderTerrain);
+      etna::RenderTargetState renderTargets(
+        cmd_buf,
+        {{0, 0}, {resolution.x, resolution.y}},
+        {{.image = target_image, .view = target_image_view}},
+        {.image = mainViewDepth.get(), .view = mainViewDepth.getView({})});
+
+      cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, terrainRenderPipeline.getVkPipeline());
+      renderTerrain(cmd_buf, currentConstants, terrainRenderPipeline.getVkPipelineLayout());
+    }
+
+    // {
+    //   ETNA_PROFILE_GPU(cmd_buf, renderMeshes);
+    //   etna::RenderTargetState renderTargets(
+    //     cmd_buf,
+    //     {{0, 0}, {resolution.x, resolution.y}},
+    //     {{.image = target_image, .view = target_image_view}},
+    //     {.image = mainViewDepth.get(), .view = mainViewDepth.getView({})});
+
+    //   cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, staticMeshPipeline.getVkPipeline());
+    //   renderScene(cmd_buf, worldViewProj, staticMeshPipeline.getVkPipelineLayout(),
+    //   currentBuffer);
+    // }
+  }
+}
+
 void WorldRenderer::parseInstanceInfo(etna::Buffer& current_buffer, const glm::mat4x4& glob_tm)
 {
   ZoneScoped;
@@ -323,69 +385,6 @@ void WorldRenderer::updateConstants(etna::Buffer& constants)
   std::memcpy(constants.data(), &params, sizeof(UniformParams));
 
   constants.unmap();
-}
-
-void WorldRenderer::renderTerrain(
-  vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout)
-{
-  ZoneScoped;
-
-  auto shaderInfo = etna::get_shader_program("terrain_render");
-  auto set = etna::create_descriptor_set(
-    shaderInfo.getDescriptorLayoutId(0),
-    cmd_buf,
-
-    {etna::Binding{0, constants.genBinding()},
-     etna::Binding{
-       1, terrainMap.genBinding(terrainSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)}});
-
-  auto vkSet = set.getVkSet();
-
-  cmd_buf.bindDescriptorSets(
-    vk::PipelineBindPoint::eGraphics, pipeline_layout, 0, 1, &vkSet, 0, nullptr);
-
-  cmd_buf.drawIndexed(4, params.terrainInChunks.x * params.terrainInChunks.y, 0, 0, 0);
-}
-
-void WorldRenderer::renderWorld(
-  vk::CommandBuffer cmd_buf, vk::Image target_image, vk::ImageView target_image_view)
-{
-  ETNA_PROFILE_GPU(cmd_buf, renderWorld);
-
-  // draw final scene to screen
-  {
-    ETNA_PROFILE_GPU(cmd_buf, renderForward);
-
-    auto& currentBuffer = instanceMatricesBuffer->get();
-    parseInstanceInfo(currentBuffer, worldViewProj);
-
-    auto& currentConstants = constantsBuffer->get();
-    updateConstants(currentConstants);
-
-    {
-      ETNA_PROFILE_GPU(cmd_buf, renderTerrain);
-      etna::RenderTargetState renderTargets(
-        cmd_buf,
-        {{0, 0}, {resolution.x, resolution.y}},
-        {{.image = target_image, .view = target_image_view}},
-        {.image = mainViewDepth.get(), .view = mainViewDepth.getView({})});
-
-      cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, terrainRenderPipeline.getVkPipeline());
-      renderTerrain(cmd_buf, currentConstants, terrainRenderPipeline.getVkPipelineLayout());
-    }
-
-    {
-      ETNA_PROFILE_GPU(cmd_buf, renderMeshes);
-      etna::RenderTargetState renderTargets(
-        cmd_buf,
-        {{0, 0}, {resolution.x, resolution.y}},
-        {{.image = target_image, .view = target_image_view}},
-        {.image = mainViewDepth.get(), .view = mainViewDepth.getView({})});
-
-      cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, staticMeshPipeline.getVkPipeline());
-      renderScene(cmd_buf, worldViewProj, staticMeshPipeline.getVkPipelineLayout(), currentBuffer);
-    }
-  }
 }
 
 bool WorldRenderer::isVisible(

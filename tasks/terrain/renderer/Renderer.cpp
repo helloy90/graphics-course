@@ -28,7 +28,9 @@ void Renderer::initVulkan(std::span<const char*> instance_extensions)
     .applicationVersion = VK_MAKE_VERSION(0, 1, 0),
     .instanceExtensions = instanceExtensions,
     .deviceExtensions = deviceExtensions,
-    .features = vk::PhysicalDeviceFeatures2{.features = {}},
+    .features =
+      vk::PhysicalDeviceFeatures2{
+        .features = {.tessellationShader = vk::True, .fillModeNonSolid = vk::True /*debug*/}},
     .physicalDeviceIndexOverride = {},
     .numFramesInFlight = 2,
   });
@@ -57,9 +59,8 @@ void Renderer::initFrameDelivery(vk::UniqueSurfaceKHR a_surface, ResolutionProvi
 
   worldRenderer->allocateResources(resolution);
   worldRenderer->loadShaders();
-  worldRenderer->setupMeshPipelines(window->getCurrentFormat());
-  worldRenderer->setupTerrainResources(
-    window->getCurrentFormat(), vk::Format::eR32Sfloat, {4096, 4096, 1});
+  worldRenderer->setupRenderPipelines(window->getCurrentFormat());
+  worldRenderer->setupTerrainGeneration(vk::Format::eR32Sfloat, {4096, 4096, 1});
   worldRenderer->generateTerrain();
 }
 
@@ -75,7 +76,7 @@ void Renderer::debugInput(const Keyboard& kb)
   if (kb[KeyboardKey::kB] == ButtonState::Falling)
   {
     const int retval = std::system("cd " GRAPHICS_COURSE_ROOT "/build"
-                                   " && cmake --build . --target many_objects_renderer_shaders");
+                                   " && cmake --build . --target terrain_renderer_shaders");
     if (retval != 0)
       spdlog::warn("Shader recompilation returned a non-zero return code!");
     else

@@ -24,9 +24,8 @@ public:
 
   void loadShaders();
   void allocateResources(glm::uvec2 swapchain_resolution);
-  void setupMeshPipelines(vk::Format swapchain_format);
-  void setupTerrainResources(
-    vk::Format swapchain_format, vk::Format texture_format, vk::Extent3D extent);
+  void setupRenderPipelines(vk::Format swapchain_format);
+  void setupTerrainGeneration(vk::Format texture_format, vk::Extent3D extent);
   void generateTerrain();
 
   void debugInput(const Keyboard& kb, vk::Format swapchain_format);
@@ -57,11 +56,6 @@ private:
   etna::Image mainViewDepth;
   etna::Image terrainMap;
 
-  // struct TesselatorPushConstants
-  // {
-  //   glm::mat4x4 projView;
-  //   glm::vec3 cameraPosition;
-  // };
   UniformParams params;
 
   std::size_t maxInstancesInScene;
@@ -70,7 +64,6 @@ private:
   std::vector<uint32_t> instancesAmount;
 
   glm::mat4x4 worldViewProj;
-  glm::mat4x4 lightMatrix;
 
   etna::GraphicsPipeline staticMeshPipeline{};
   etna::GraphicsPipeline terrainGenerationPipeline;
@@ -78,7 +71,7 @@ private:
 
   etna::Sampler terrainSampler;
 
-  bool wireframeEnabled; //terrain only
+  bool wireframeEnabled;
 
   std::unique_ptr<etna::OneShotCmdMgr> oneShotCommands;
 
