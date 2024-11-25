@@ -9,6 +9,13 @@
 #include <etna/VertexInput.hpp>
 
 
+// Bounds for each render element
+struct Bounds
+{
+  glm::vec3 origin;
+  glm::vec3 extents;
+};
+
 // A single render element (relem) corresponds to a single draw call
 // of a certain pipeline with specific bindings (including material data)
 struct RenderElement
@@ -16,8 +23,21 @@ struct RenderElement
   std::uint32_t vertexOffset;
   std::uint32_t indexOffset;
   std::uint32_t indexCount;
+
+
+  auto operator<=>(const RenderElement& other) const = default;
   // Not implemented!
   // Material* material;
+};
+
+struct HashRenderElement
+{
+  std::size_t operator()(const RenderElement& render_element) const
+  {
+    return std::hash<std::uint32_t>()(render_element.indexCount) ^
+      std::hash<std::uint32_t>()(render_element.indexOffset) ^
+      std::hash<std::uint32_t>()(render_element.vertexOffset);
+  }
 };
 
 // A mesh is a collection of relems. A scene may have the same mesh
@@ -35,6 +55,7 @@ public:
   SceneManager();
 
   void selectScene(std::filesystem::path path);
+  void selectBakedScene(std::filesystem::path path);
 
   // Every instance is a mesh drawn with a certain transform
   // NOTE: maybe you can pass some additional data through unused matrix entries?
@@ -46,6 +67,8 @@ public:
 
   // Every relem is a single draw call
   std::span<const RenderElement> getRenderElements() { return renderElements; }
+
+  std::span<const Bounds> getRenderElementsBounds() { return renderElementsBounds; }
 
   vk::Buffer getVertexBuffer() { return unifiedVbuf.get(); }
   vk::Buffer getIndexBuffer() { return unifiedIbuf.get(); }
@@ -79,8 +102,19 @@ private:
     std::vector<std::uint32_t> indices;
     std::vector<RenderElement> relems;
     std::vector<Mesh> meshes;
+    std::vector<Bounds> bounds;
   };
   ProcessedMeshes processMeshes(const tinygltf::Model& model) const;
+
+  struct BakedMeshes
+  {
+    std::span<const Vertex> vertices;
+    std::span<const std::uint32_t> indices;
+    std::vector<RenderElement> relems;
+    std::vector<Mesh> meshes;
+    std::vector<Bounds> bounds;
+  };
+  BakedMeshes processBakedMeshes(const tinygltf::Model& model) const;
   void uploadData(std::span<const Vertex> vertices, std::span<const std::uint32_t>);
 
 private:
@@ -92,6 +126,7 @@ private:
   std::vector<Mesh> meshes;
   std::vector<glm::mat4x4> instanceMatrices;
   std::vector<std::uint32_t> instanceMeshes;
+  std::vector<Bounds> renderElementsBounds;
 
   etna::Buffer unifiedVbuf;
   etna::Buffer unifiedIbuf;

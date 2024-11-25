@@ -182,6 +182,7 @@ SceneManager::ProcessedMeshes SceneManager::processMeshes(const tinygltf::Model&
     for (const auto& mesh : model.meshes)
       totalPrimitives += mesh.primitives.size();
     result.relems.reserve(totalPrimitives);
+    result.bounds.reserve(totalPrimitives);
   }
 
   result.meshes.reserve(model.meshes.size());
@@ -237,8 +238,7 @@ SceneManager::ProcessedMeshes SceneManager::processMeshes(const tinygltf::Model&
       result.relems.push_back(RenderElement{
         .vertexOffset = static_cast<std::uint32_t>(result.vertices.size()),
         .indexOffset = static_cast<std::uint32_t>(result.indices.size()),
-        .indexCount = static_cast<std::uint32_t>(accessors[0]->count),
-      });
+        .indexCount = static_cast<std::uint32_t>(accessors[0]->count)});
 
       const std::size_t vertexCount = accessors[1]->count;
 
@@ -287,6 +287,16 @@ SceneManager::ProcessedMeshes SceneManager::processMeshes(const tinygltf::Model&
                     : 0,
       };
 
+
+      glm::vec3 minpos = {
+        std::numeric_limits<float>::max(),
+        std::numeric_limits<float>::max(),
+        std::numeric_limits<float>::max()};
+
+      glm::vec3 maxpos = {
+        std::numeric_limits<float>::min(),
+        std::numeric_limits<float>::min(),
+        std::numeric_limits<float>::min()};
       for (std::size_t i = 0; i < vertexCount; ++i)
       {
         auto& vtx = result.vertices.emplace_back();
@@ -313,6 +323,9 @@ SceneManager::ProcessedMeshes SceneManager::processMeshes(const tinygltf::Model&
         vtx.texCoordAndTangentAndPadding =
           glm::vec4(texcoord, std::bit_cast<float>(encode_normal(tangent)), 0);
 
+        minpos = glm::min(minpos, pos);
+        maxpos = glm::max(maxpos, pos);
+
         ptrs[1] += strides[1];
         if (hasNormals)
           ptrs[2] += strides[2];
@@ -321,6 +334,9 @@ SceneManager::ProcessedMeshes SceneManager::processMeshes(const tinygltf::Model&
         if (hasTexcoord)
           ptrs[4] += strides[4];
       }
+
+      result.bounds.push_back(
+        Bounds{.origin = (maxpos + minpos) / 2.0f, .extents = (maxpos - minpos) / 2.0f});
 
       // Indices are guaranteed to have no stride
       ETNA_VERIFY(bufViews[0]->byteStride == 0);
@@ -345,6 +361,92 @@ SceneManager::ProcessedMeshes SceneManager::processMeshes(const tinygltf::Model&
           sizeof(result.indices[0]) * indexCount);
       }
     }
+  }
+
+  return result;
+}
+
+SceneManager::BakedMeshes SceneManager::processBakedMeshes(const tinygltf::Model& model) const
+{
+
+  BakedMeshes result;
+
+  {
+    std::size_t totalPrimitives = 0;
+    for (const auto& mesh : model.meshes)
+      totalPrimitives += mesh.primitives.size();
+    result.relems.reserve(totalPrimitives);
+    result.bounds.reserve(totalPrimitives);
+  }
+
+  result.meshes.reserve(model.meshes.size());
+
+  for (const auto& mesh : model.meshes)
+  {
+    result.meshes.push_back(Mesh{
+      .firstRelem = static_cast<std::uint32_t>(result.relems.size()),
+      .relemCount = static_cast<std::uint32_t>(mesh.primitives.size()),
+    });
+
+    for (const auto& prim : mesh.primitives)
+    {
+      if (prim.mode != TINYGLTF_MODE_TRIANGLES)
+      {
+        spdlog::warn(
+          "Encountered a non-triangles primitive, these are not supported for now, skipping it!");
+        --result.meshes.back().relemCount;
+        continue;
+      }
+
+      auto& indicesAccessor = model.accessors[prim.indices];
+      auto& vertexAccessor = model.accessors[prim.attributes.at("POSITION")];
+
+      result.relems.push_back(RenderElement{
+        .vertexOffset = static_cast<uint32_t>(vertexAccessor.byteOffset / sizeof(Vertex)),
+        .indexOffset = static_cast<uint32_t>(indicesAccessor.byteOffset / sizeof(uint32_t)),
+        .indexCount = static_cast<uint32_t>(indicesAccessor.count),
+      });
+
+      auto positionBufferView = model.bufferViews[vertexAccessor.bufferView];
+      auto positionPtr =
+        reinterpret_cast<const std::byte*>(model.buffers[positionBufferView.buffer].data.data()) +
+        positionBufferView.byteOffset + vertexAccessor.byteOffset;
+      auto positionStride = positionBufferView.byteStride != 0
+        ? positionBufferView.byteStride
+        : tinygltf::GetComponentSizeInBytes(vertexAccessor.componentType) *
+          tinygltf::GetNumComponentsInType(vertexAccessor.type);
+
+      glm::vec3 minpos = {
+        std::numeric_limits<float>::max(),
+        std::numeric_limits<float>::max(),
+        std::numeric_limits<float>::max()};
+
+      glm::vec3 maxpos = {
+        std::numeric_limits<float>::min(),
+        std::numeric_limits<float>::min(),
+        std::numeric_limits<float>::min()};
+      for (std::size_t i = 0; i < vertexAccessor.count; i++)
+      {
+        glm::vec3 pos;
+        std::memcpy(&pos, positionPtr, sizeof(pos));
+
+        minpos = glm::min(minpos, pos);
+        maxpos = glm::max(maxpos, pos);
+
+        positionPtr += positionStride;
+      }
+
+      result.bounds.push_back(
+        Bounds{.origin = (maxpos + minpos) / 2.0f, .extents = (maxpos - minpos) / 2.0f});
+    }
+
+    auto buffer = model.buffers[0].data.data();
+    auto indicesAmount = model.bufferViews[0].byteLength / sizeof(uint32_t);
+    auto vertexAmount = model.bufferViews[1].byteLength / sizeof(Vertex);
+
+    result.indices = std::span(reinterpret_cast<const uint32_t*>(buffer), indicesAmount);
+    result.vertices = std::span(
+      reinterpret_cast<const Vertex*>(buffer + sizeof(uint32_t) * indicesAmount), vertexAmount);
   }
 
   return result;
@@ -388,10 +490,32 @@ void SceneManager::selectScene(std::filesystem::path path)
   instanceMatrices = std::move(instMats);
   instanceMeshes = std::move(instMeshes);
 
-  auto [verts, inds, relems, meshs] = processMeshes(model);
+  auto [verts, inds, relems, meshs, bounds] = processMeshes(model);
 
   renderElements = std::move(relems);
   meshes = std::move(meshs);
+  renderElementsBounds = std::move(bounds);
+
+  uploadData(verts, inds);
+}
+
+void SceneManager::selectBakedScene(std::filesystem::path path)
+{
+  auto maybeModel = loadModel(path);
+  if (!maybeModel.has_value())
+    return;
+
+  auto model = std::move(*maybeModel);
+
+  auto [instMats, instMeshes] = processInstances(model);
+  instanceMatrices = std::move(instMats);
+  instanceMeshes = std::move(instMeshes);
+
+  auto [verts, inds, relems, meshs, bounds] = processBakedMeshes(model);
+
+  renderElements = std::move(relems);
+  meshes = std::move(meshs);
+  renderElementsBounds = std::move(bounds);
 
   uploadData(verts, inds);
 }
