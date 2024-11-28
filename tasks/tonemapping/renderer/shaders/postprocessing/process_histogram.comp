@@ -1,0 +1,59 @@
+#version 450
+
+layout(local_size_x = 128) in; // upper bound of bins amount, increase if needed
+
+layout(binding = 0) buffer histogramBuffer {
+    int bins[];
+};
+
+layout(push_constant) uniform params {
+    uint len; 
+};
+
+shared uint totalAmount;
+
+uint recalculateAmount(int currentBin) {
+    if (currentBin == 0) {
+        totalAmount = 0;
+    }
+    barrier(); // maybe simple loop is better that two barriers
+    atomicAdd(totalAmount, bins[currentBin]);
+    barrier();
+}
+
+float deltaLuminosity(float luminosity) {
+    float loggedLum = log(luminosity) / log(10);
+    // from bonus
+    float loggedDelta = 
+        loggedLum < -3.94 ? -3.81 
+        : (
+            loggedLum < -1.44 ? pow(0.405 * loggedLum + 1.6, 2.18)
+            : (
+                loggedLum < -0.0184 ? (loggedLum - 1.345)
+                : (
+                    loggedLum < 1.9 ? (pow(0.249 * loggedLum + 0.65 , 2.7) - 1.67)
+                    : (loggedLum - 2.205)
+                )
+            )
+        );
+    return pow(10, loggedDelta);
+}
+
+int calculateCeiling() [
+
+]
+
+void histogramCeiling() {
+
+}
+
+void main() {
+    int currentBin = gl_GlobalInvocationID.x < len ? gl_GlobalInvocationID.x : -1;
+    if (currentBin == -1) {
+        return;
+    }
+
+    recalculateAmount(currentBin);
+
+    histogramCeiling();
+}

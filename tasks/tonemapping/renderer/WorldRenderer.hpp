@@ -6,6 +6,7 @@
 #include <etna/Sampler.hpp>
 #include <etna/Buffer.hpp>
 #include <etna/GraphicsPipeline.hpp>
+#include <etna/ComputePipeline.hpp>
 #include <etna/GpuSharedResource.hpp>
 #include <glm/glm.hpp>
 
@@ -25,6 +26,7 @@ public:
   void loadShaders();
   void allocateResources(glm::uvec2 swapchain_resolution);
   void setupRenderPipelines(vk::Format swapchain_format);
+  void setupPostprocessPipelines();
   void setupTerrainGeneration(vk::Format texture_format, vk::Extent3D extent);
   void generateTerrain();
 
@@ -50,11 +52,19 @@ private:
 
   void updateConstants(etna::Buffer& constants);
 
+  void generateHistogram(vk::CommandBuffer cmd_buf, etna::Buffer& current_histogram_buffer, vk::PipelineLayout pipeline_layout);
+  void processHistogram(vk::CommandBuffer cmd_buf, etna::Buffer& current_histogram_buffer, vk::PipelineLayout pipeline_layout);
+  void applyPostprocessing(vk::CommandBuffer cmd_buf, etna::Buffer& current_histogram_buffer, vk::PipelineLayout pipeline_layout);
+
 private:
   std::unique_ptr<SceneManager> sceneMgr;
 
+  vk::Format renderTargetFormat;
+
   etna::Image mainViewDepth;
   etna::Image terrainMap;
+
+  etna::Image renderTarget;
 
   UniformParams params;
 
@@ -68,6 +78,15 @@ private:
   etna::GraphicsPipeline staticMeshPipeline{};
   etna::GraphicsPipeline terrainGenerationPipeline;
   etna::GraphicsPipeline terrainRenderPipeline;
+
+  std::optional<etna::GpuSharedResource<etna::Buffer>> histogramBuffer;
+  std::optional<etna::GpuSharedResource<etna::Buffer>> distributionBuffer;
+  std::uint32_t binsAmount;
+
+  etna::ComputePipeline histogramPipeline;
+  etna::ComputePipeline processHistogramPipeline;
+  etna::ComputePipeline distributionPipeline;
+  etna::GraphicsPipeline postprocessPipeline;
 
   etna::Sampler terrainSampler;
 

@@ -60,6 +60,7 @@ void Renderer::initFrameDelivery(vk::UniqueSurfaceKHR a_surface, ResolutionProvi
   worldRenderer->allocateResources(resolution);
   worldRenderer->loadShaders();
   worldRenderer->setupRenderPipelines(window->getCurrentFormat());
+  worldRenderer->setupPostprocessPipelines();
   worldRenderer->setupTerrainGeneration(vk::Format::eR32Sfloat, {4096, 4096, 1});
   worldRenderer->generateTerrain();
 }

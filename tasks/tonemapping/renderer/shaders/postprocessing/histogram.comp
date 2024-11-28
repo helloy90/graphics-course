@@ -1,0 +1,43 @@
+#version 450
+
+layout(local_size_x = 32, local_size_y = 32) in;
+
+layout(binding = 0, r11f_g11f_b10f) uniform image2D renderImage;
+
+layout(binding = 1) buffer histogramBuffer {
+    int bins[];
+};
+
+layout(push_constant) uniform params {
+    uint len; 
+};
+
+ // cd/m^2, hardcode from monitor spec
+const float maxDisplayLuminocity = 350.0;
+const float minDisplayLuminocity = 0.35;
+
+uint getBin(vec3 color) {
+    float maxDisplayBrightness = log(maxDisplayLuminocity);
+    float minDisplayBrightness = log(minDisplayLuminocity);
+    float binStepSize = (maxDisplayBrightness - minDisplayBrightness) / float(len); // assume len > 0 ofc
+
+    // https://stackoverflow.com/questions/596216/formula-to-determine-perceived-brightness-of-rgb-color (option 2)
+    float luminosity = 0.299 * color.r + 0.587 * color.g + 0.114 * color.b;
+    luminosity = clamp(luminosity, minDisplayLuminocity, maxDisplayLuminocity); // ? for now (maybe need world min and max luminance)
+    return uint(floor((log(luminosity) - minDisplayLuminocity) / binStepSize)); 
+}
+
+void main() {
+    ivec2 texCoord = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 renderImageSize = imageSize(renderImage);
+    if (texCoord.x >= renderImageSize.x || texCoord.y >= renderImageSize.y) {
+        return;
+    }
+    vec3 color = imageLoad(renderImage, texCoord).rgb;
+    currentBin = getBin(color);
+
+    bins[currentBin] = 0;
+    barrier();
+
+    atomicAdd(bins[currentBin], 1);
+}
