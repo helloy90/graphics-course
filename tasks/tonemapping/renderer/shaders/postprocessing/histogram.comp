@@ -8,23 +8,39 @@ layout(binding = 1) buffer histogramBuffer {
     int bins[];
 };
 
+layout(binding = 2) uniform histogramInfo {
+    float binStepSize;
+    // cd/m^2
+    float minWorldLuminance;
+    float maxWorldLuminance;
+    float minWorldBrightness;
+    float maxWorldBrightness;
+};
+
 layout(push_constant) uniform params {
     uint len; 
 };
 
- // cd/m^2, hardcode from monitor spec
-const float maxDisplayLuminocity = 350.0;
-const float minDisplayLuminocity = 0.35;
+void calculateMinMax(float luminance) {
+    if (gl_GlobalInvocationID.xy == ivec2(0, 0)) {
+        minWorldLuminance = 1000000.0;
+        maxWorldLuminance = -1.0;
+    }
+    barrier();
 
-uint getBin(vec3 color) {
-    float maxDisplayBrightness = log(maxDisplayLuminocity);
-    float minDisplayBrightness = log(minDisplayLuminocity);
-    float binStepSize = (maxDisplayBrightness - minDisplayBrightness) / float(len); // assume len > 0 ofc
+    minWorldLuminance = atominMin(minWorldLuminance, luminance);
+    maxWorldLuminance = atomicMax(maxWorldLuminance, luminance);
+    barrier();
 
-    // https://stackoverflow.com/questions/596216/formula-to-determine-perceived-brightness-of-rgb-color (option 2)
-    float luminosity = 0.299 * color.r + 0.587 * color.g + 0.114 * color.b;
-    luminosity = clamp(luminosity, minDisplayLuminocity, maxDisplayLuminocity); // ? for now (maybe need world min and max luminance)
-    return uint(floor((log(luminosity) - minDisplayLuminocity) / binStepSize)); 
+    maxWorldBrightness = log(maxWorldLuminance);
+    minWorldBrightness = log(minWorldLuminance);
+    binStepSize = (maxWorldBrightness - minWorldBrightness) / float(len); // assume len > 0 ofc
+}
+
+uint getBin(float luminance) {
+
+    // luminance = clamp(luminance, minDisplayLuminance, maxDisplayLuminance); // ? for now (maybe need world min and max luminance)
+    return uint(floor((log(luminance) - minWorldBrightness) / binStepSize)); 
 }
 
 void main() {
@@ -33,11 +49,13 @@ void main() {
     if (texCoord.x >= renderImageSize.x || texCoord.y >= renderImageSize.y) {
         return;
     }
-    vec3 color = imageLoad(renderImage, texCoord).rgb;
-    currentBin = getBin(color);
 
-    bins[currentBin] = 0;
-    barrier();
+    vec3 color = imageLoad(renderImage, texCoord).rgb;
+    // https://stackoverflow.com/questions/596216/formula-to-determine-perceived-brightness-of-rgb-color (option 2)
+    float luminance = 0.299 * color.r + 0.587 * color.g + 0.114 * color.b;
+
+    calculateMinMax();
+    currentBin = getBin(luminance);
 
     atomicAdd(bins[currentBin], 1);
 }

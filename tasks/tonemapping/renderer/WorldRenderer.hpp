@@ -52,9 +52,19 @@ private:
 
   void updateConstants(etna::Buffer& constants);
 
-  void generateHistogram(vk::CommandBuffer cmd_buf, etna::Buffer& current_histogram_buffer, vk::PipelineLayout pipeline_layout);
-  void processHistogram(vk::CommandBuffer cmd_buf, etna::Buffer& current_histogram_buffer, vk::PipelineLayout pipeline_layout);
-  void applyPostprocessing(vk::CommandBuffer cmd_buf, etna::Buffer& current_histogram_buffer, vk::PipelineLayout pipeline_layout);
+  void generateHistogram(
+    vk::CommandBuffer cmd_buf,
+    etna::Buffer& current_histogram_buffer,
+    etna::Buffer& bin_step_size,
+    vk::PipelineLayout pipeline_layout);
+  void processHistogram(
+    vk::CommandBuffer cmd_buf,
+    etna::Buffer& current_histogram_buffer,
+    vk::PipelineLayout pipeline_layout);
+  void applyPostprocessing(
+    vk::CommandBuffer cmd_buf,
+    etna::Buffer& current_histogram_buffer,
+    vk::PipelineLayout pipeline_layout);
 
 private:
   std::unique_ptr<SceneManager> sceneMgr;
@@ -78,15 +88,16 @@ private:
   etna::GraphicsPipeline staticMeshPipeline{};
   etna::GraphicsPipeline terrainGenerationPipeline;
   etna::GraphicsPipeline terrainRenderPipeline;
+  etna::GraphicsPipeline postprocessPipeline;
 
   std::optional<etna::GpuSharedResource<etna::Buffer>> histogramBuffer;
+  std::optional<etna::GpuSharedResource<etna::Buffer>> binStepSizeBuffer;
   std::optional<etna::GpuSharedResource<etna::Buffer>> distributionBuffer;
   std::uint32_t binsAmount;
 
   etna::ComputePipeline histogramPipeline;
   etna::ComputePipeline processHistogramPipeline;
   etna::ComputePipeline distributionPipeline;
-  etna::GraphicsPipeline postprocessPipeline;
 
   etna::Sampler terrainSampler;
 

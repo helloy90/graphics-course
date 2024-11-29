@@ -20,6 +20,5 @@ target_add_shaders(tonemapping_renderer
   shaders/terrain.frag
   shaders/postprocessing/histogram.comp
   shaders/postprocessing/process_histogram.comp
-  shaders/postprocessing/distribution.comp
   shaders/postprocessing/postprocess.frag
 )

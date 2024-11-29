@@ -1,10 +1,12 @@
 #include "WorldRenderer.hpp"
+#include "etna/DescriptorSet.hpp"
 
 #include <cstring>
 #include <etna/GlobalContext.hpp>
 #include <etna/PipelineManager.hpp>
 #include <etna/Profiling.hpp>
 #include <etna/RenderTargetStates.hpp>
+#include <vulkan/vulkan.hpp>
 
 
 WorldRenderer::WorldRenderer()
@@ -69,10 +71,18 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
         .name = fmt::format("histogram{}", i)});
     });
 
+  binStepSizeBuffer.emplace(ctx.getMainWorkCount(), [&ctx](std::size_t i) {
+    return ctx.createBuffer(etna::Buffer::CreateInfo{
+      .size = 5 * sizeof(float), //hardcode for now
+      .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer,
+      .memoryUsage = VMA_MEMORY_USAGE_GPU_ONLY,
+      .name = fmt::format("binStepSize{}", i)});
+  });
+
   distributionBuffer.emplace(
     ctx.getMainWorkCount(), [&ctx, binsAmount = this->binsAmount](std::size_t i) {
       return ctx.createBuffer(etna::Buffer::CreateInfo{
-        .size = binsAmount * sizeof(int32_t), // assume int
+        .size = binsAmount * sizeof(float),
         .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer,
         .memoryUsage = VMA_MEMORY_USAGE_GPU_ONLY,
         .name = fmt::format("distribution{}", i)});
@@ -405,16 +415,18 @@ void WorldRenderer::renderWorld(
     // }
 
     auto& currentHistogramBuffer = histogramBuffer->get();
+    cmd_buf.fillBuffer(currentHistogramBuffer.get(), 0, vk::WholeSize, 0);
+    auto& binStepSize = binStepSizeBuffer->get();
+    cmd_buf.fillBuffer(binStepSize.get(), 0, vk::WholeSize, 0);
+    auto& currentDistributionBuffer = distributionBuffer->get();
+    cmd_buf.fillBuffer(currentDistributionBuffer.get(), 0, vk::WholeSize, 0);
 
     {
       ETNA_PROFILE_GPU(cmd_buf, histograms);
 
       cmd_buf.bindPipeline(vk::PipelineBindPoint::eCompute, histogramPipeline.getVkPipeline());
-      generateHistogram(cmd_buf, currentHistogramBuffer, histogramPipeline.getVkPipelineLayout());
-
-      cmd_buf.bindPipeline(
-        vk::PipelineBindPoint::eCompute, processHistogramPipeline.getVkPipeline());
-      generateHistogram(cmd_buf, currentHistogramBuffer, histogramPipeline.getVkPipelineLayout());
+      generateHistogram(
+        cmd_buf, currentHistogramBuffer, binStepSize, histogramPipeline.getVkPipelineLayout());
     }
 
     {
@@ -493,6 +505,7 @@ void WorldRenderer::updateConstants(etna::Buffer& constants)
 void WorldRenderer::generateHistogram(
   vk::CommandBuffer cmd_buf,
   etna::Buffer& current_histogram_buffer,
+  etna::Buffer& bin_step_size,
   vk::PipelineLayout pipeline_layout)
 {
   ZoneScoped;
@@ -502,7 +515,8 @@ void WorldRenderer::generateHistogram(
     histogramCalculationInfo.getDescriptorLayoutId(0),
     cmd_buf,
     {etna::Binding{0, renderTarget.genBinding(terrainSampler.get(), vk::ImageLayout::eGeneral)},
-     etna::Binding{1, current_histogram_buffer.genBinding()}});
+     etna::Binding{1, current_histogram_buffer.genBinding()},
+     etna::Binding{2, bin_step_size.genBinding()}});
 
   auto vkSet = set.getVkSet();
 

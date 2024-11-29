@@ -3,48 +3,117 @@
 layout(local_size_x = 128) in; // upper bound of bins amount, increase if needed
 
 layout(binding = 0) buffer histogramBuffer {
-    int bins[];
+    int histogramBins[];
+};
+
+layout(binding = 1) buffer distributionBuffer {
+    float distributionBins[];
+};
+
+layout(binding = 2) buffer histogramInfo {
+    float binStepSize;
+    float minWorldLuminance;
+    float maxWorldLuminance;
+    float minWorldBrightness;
+    float maxWorldBrightness;
 };
 
 layout(push_constant) uniform params {
     uint len; 
 };
 
-shared uint totalAmount;
+const float log10 = 2.302585092994; //precompute log(10)
 
-uint recalculateAmount(int currentBin) {
+ // cd/m^2, hardcode from monitor spec
+const float maxDisplayLuminance = 350.0;
+const float minDisplayLuminance = 0.35;
+//maybe precompute
+const float maxDisplayBrightness = log(maxDisplayLuminance); 
+const float minDisplayBrightness = log(minDisplayLuminance);
+
+shared uint totalAmount;
+shared uint newTotalAmount;
+shared int trimmings;
+
+void recalculateAmount(int currentBin) {
     if (currentBin == 0) {
-        totalAmount = 0;
+        newTotalAmount = 0;
+        trimmings = 0;
     }
-    barrier(); // maybe simple loop is better that two barriers
-    atomicAdd(totalAmount, bins[currentBin]);
     barrier();
+    atomicAdd(newTotalAmount, bins[currentBin]);
 }
 
-float deltaLuminosity(float luminosity) {
-    float loggedLum = log(luminosity) / log(10);
+void recalculateDistribution(int currentBin) {
+    distributionBins[currentBin] = 0.0;
+    barrier();
+
+    for (int i = 0; i < currentBin; i++) {
+        distributionBins[currentBin] += histogramBins[i];
+    }
+    distributionBins[currentBin] / float(newTotalAmount);
+    barrier(); //maybe too many barriers
+}
+
+float deltaLuminance(float luminance) {
+    float brightness = log(luminance) / log10;
     // from bonus
-    float loggedDelta = 
-        loggedLum < -3.94 ? -3.81 
+    float brightnessDelta = 
+        brightness < -3.94 ? -3.81 
         : (
-            loggedLum < -1.44 ? pow(0.405 * loggedLum + 1.6, 2.18)
+            brightness < -1.44 ? pow(0.405 * brightness + 1.6, 2.18)
             : (
-                loggedLum < -0.0184 ? (loggedLum - 1.345)
+                brightness < -0.0184 ? (brightness - 1.345)
                 : (
-                    loggedLum < 1.9 ? (pow(0.249 * loggedLum + 0.65 , 2.7) - 1.67)
-                    : (loggedLum - 2.205)
+                    brightness < 1.9 ? (pow(0.249 * brightness + 0.65 , 2.7) - 1.67)
+                    : (brightness - 2.205)
                 )
             )
         );
-    return pow(10, loggedDelta);
+    return pow(10, brightnessDelta);
 }
 
-int calculateCeiling() [
+float calculateCeiling(float displayLuminance, float worldLuminance) {
+    return deltaLuminance(displayLuminance) * worldLuminance 
+        / (displayLuminance * deltaLuminance(worldLuminance))
+        * newTotalAmount * binStepSize 
+        / (maxDisplayBrightness - minDisplayBrightness);
+}
 
-]
+void processHistogram(int currentBin) {
+    const float tolerance = 0.025;
+    float displayBrightness = 0.0;
+    do {
 
-void histogramCeiling() {
+        recalculateAmount(currentBin);
 
+        if (newTotalAmount < totalAmount) {
+            return;
+        }
+
+        displayBrightness = 
+            minDisplayBrightness
+            + (maxDisplayBrightness - minDisplayBrightness)
+            * distributionBins[currentBin];
+
+        float ceiling = 
+            calculateCeiling(
+                exp(displayBrightness),
+                exp(currentBin * binStepSize + minWorldBrightness) // world luminance estimate
+            );
+        
+        int clippedCeiling = int(floor(ceiling));
+
+        if (histogramBins[currentBin] > clippedCeiling) {
+            int trimmed = histogramBins[currentBin] - clippedCeiling;
+            atomicAdd(trimmings, trimmed);
+            histogramBins[currentBin] = clippedCeiling;
+        }
+
+        barrier();
+
+        recalculateDistribution(currentBin);
+    } while (float(trimmings) / float(totalAmount) > tolerance);
 }
 
 void main() {
@@ -53,7 +122,13 @@ void main() {
         return;
     }
 
-    recalculateAmount(currentBin);
+    if (currentBin == 0) {
+        totalAmount = 0;
+    }
+    barrier();
+    atomicAdd(totalAmount, histogramBins[currentBin]);
+    //no barrier because it is in recalculateAmount
 
-    histogramCeiling();
+    recalculateDistribution(currentBin);
+    processHistogram(currentBin);
 }
