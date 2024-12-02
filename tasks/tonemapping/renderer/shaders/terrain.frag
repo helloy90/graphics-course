@@ -11,6 +11,7 @@ layout (location = 0) out vec4 fragColor;
 
 void main() {
     vec3 lightPos = vec3(10, 20, 10);
+    float lightIntensity = 1.0;
 
     vec3 ambient = vec3(0.1);
     vec3 diffuseColor = vec3(0.5);
@@ -20,7 +21,7 @@ void main() {
     float normalLighting = clamp(dot(lightDir, normal), 0.0, 1.0);
     vec3 diffuse = diffuseColor * normalLighting;
 
-    vec3 color = ambient + diffuse;
+    vec3 color = (ambient + diffuse) * lightIntensity;
 
     fragColor = vec4(color, 1);
 }

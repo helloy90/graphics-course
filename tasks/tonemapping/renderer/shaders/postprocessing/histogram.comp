@@ -1,18 +1,21 @@
 #version 450
+#extension GL_ARB_separate_shader_objects : enable
 
 layout(local_size_x = 32, local_size_y = 32) in;
 
-layout(binding = 0, r11f_g11f_b10f) uniform image2D renderImage;
+layout(binding = 0, r11f_g11f_b10f) restrict uniform image2D renderImage;
 
 layout(binding = 1) buffer histogramBuffer {
     int bins[];
 };
 
-layout(binding = 2) uniform histogramInfo {
+layout(binding = 2) buffer histogramInfo_t {
     float binStepSize;
-    // cd/m^2
-    float minWorldLuminance;
-    float maxWorldLuminance;
+    float multiplier;
+    int intMinWorldLuminance;
+    int intMaxWorldLuminance;
+    float minWorldLuminance;    // relative
+    float maxWorldLuminance;    // relative
     float minWorldBrightness;
     float maxWorldBrightness;
 };
@@ -22,30 +25,49 @@ layout(push_constant) uniform params {
 };
 
 void calculateMinMax(float luminance) {
-    if (gl_GlobalInvocationID.xy == ivec2(0, 0)) {
-        minWorldLuminance = 1000000.0;
-        maxWorldLuminance = -1.0;
-    }
-    barrier();
-
-    minWorldLuminance = atominMin(minWorldLuminance, luminance);
-    maxWorldLuminance = atomicMax(maxWorldLuminance, luminance);
-    barrier();
-
-    maxWorldBrightness = log(maxWorldLuminance);
+    multiplier = 10000000.0;
+    intMinWorldLuminance = 1000000000;
+    intMaxWorldLuminance = -1;
+    minWorldLuminance = 0.001;
+    maxWorldLuminance = 1;
     minWorldBrightness = log(minWorldLuminance);
+    maxWorldBrightness = log(maxWorldLuminance);
     binStepSize = (maxWorldBrightness - minWorldBrightness) / float(len); // assume len > 0 ofc
+    memoryBarrierBuffer();
+    barrier();
+    // intMinWorldLuminance = atomicMin(intMinWorldLuminance, int(round(luminance * multiplier)));
+    // intMaxWorldLuminance = atomicMax(intMaxWorldLuminance, int(round(luminance * multiplier)));
+    // memoryBarrierBuffer();
+    // barrier();
+    // if (gl_GlobalInvocationID.xy == ivec2(0, 0)) {
+        // minWorldLuminance = (intMinWorldLuminance == 0) ? 0.0001 : float(intMinWorldLuminance) / multiplier;
+        // maxWorldLuminance = float(intMaxWorldLuminance) / multiplier;
+
+        // minWorldBrightness = log(minWorldLuminance);
+        // maxWorldBrightness = log(maxWorldLuminance);
+
+        // if (isnan(minWorldLuminance)) {
+        //     minWorldLuminance = 10000000;
+        // }
+        // if (isnan(maxWorldLuminance)) {
+        //     maxWorldLuminance = -1;
+        // }
+
+        // binStepSize = (maxWorldBrightness - minWorldBrightness) / float(len); // assume len > 0 ofc
+    // }
+
+    // memoryBarrierBuffer();
+    // barrier();
 }
 
 uint getBin(float luminance) {
 
-    // luminance = clamp(luminance, minDisplayLuminance, maxDisplayLuminance); // ? for now (maybe need world min and max luminance)
     return uint(floor((log(luminance) - minWorldBrightness) / binStepSize)); 
 }
 
 void main() {
     ivec2 texCoord = ivec2(gl_GlobalInvocationID.xy);
-    ivec2 renderImageSize = imageSize(renderImage);
+    uvec2 renderImageSize = imageSize(renderImage);
     if (texCoord.x >= renderImageSize.x || texCoord.y >= renderImageSize.y) {
         return;
     }
@@ -54,8 +76,10 @@ void main() {
     // https://stackoverflow.com/questions/596216/formula-to-determine-perceived-brightness-of-rgb-color (option 2)
     float luminance = 0.299 * color.r + 0.587 * color.g + 0.114 * color.b;
 
-    calculateMinMax();
-    currentBin = getBin(luminance);
-
+    calculateMinMax(luminance);
+    uint currentBin = getBin(luminance);
+    if (currentBin >= len) {
+        return;
+    }
     atomicAdd(bins[currentBin], 1);
 }

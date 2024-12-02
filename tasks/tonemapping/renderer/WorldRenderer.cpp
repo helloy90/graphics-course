@@ -1,5 +1,4 @@
 #include "WorldRenderer.hpp"
-#include "etna/DescriptorSet.hpp"
 
 #include <cstring>
 #include <etna/GlobalContext.hpp>
@@ -8,14 +7,12 @@
 #include <etna/RenderTargetStates.hpp>
 #include <vulkan/vulkan.hpp>
 
+#include "shaders/postprocessing/UniformHistogramInfo.h"
 
 WorldRenderer::WorldRenderer()
   : sceneMgr{std::make_unique<SceneManager>()}
   , renderTargetFormat(vk::Format::eB10G11R11UfloatPack32)
   , maxInstancesInScene{4096}
-  , instanceMatricesBuffer{std::nullopt}
-  , constantsBuffer{std::nullopt}
-  , histogramBuffer{std::nullopt}
   , binsAmount(128)
   , wireframeEnabled(false)
 {
@@ -38,7 +35,8 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
     .extent = vk::Extent3D{resolution.x, resolution.y, 1},
     .name = "render_target",
     .format = renderTargetFormat,
-    .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled,
+    .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled |
+      vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eTransferSrc,
   });
 
   params.terrainInChunks = shader_uvec2(64, 64);
@@ -65,25 +63,28 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
   histogramBuffer.emplace(
     ctx.getMainWorkCount(), [&ctx, binsAmount = this->binsAmount](std::size_t i) {
       return ctx.createBuffer(etna::Buffer::CreateInfo{
-        .size = binsAmount * sizeof(int32_t), // assume int
-        .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer,
+        .size = binsAmount * sizeof(int32_t),
+        .bufferUsage =
+          vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
         .memoryUsage = VMA_MEMORY_USAGE_GPU_ONLY,
         .name = fmt::format("histogram{}", i)});
     });
 
-  binStepSizeBuffer.emplace(ctx.getMainWorkCount(), [&ctx](std::size_t i) {
+  histogramInfoBuffer.emplace(ctx.getMainWorkCount(), [&ctx](std::size_t i) {
     return ctx.createBuffer(etna::Buffer::CreateInfo{
-      .size = 5 * sizeof(float), //hardcode for now
-      .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer,
+      .size = sizeof(UniformHistogramInfo),
+      .bufferUsage =
+        vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
       .memoryUsage = VMA_MEMORY_USAGE_GPU_ONLY,
-      .name = fmt::format("binStepSize{}", i)});
+      .name = fmt::format("histogram_info{}", i)});
   });
 
   distributionBuffer.emplace(
     ctx.getMainWorkCount(), [&ctx, binsAmount = this->binsAmount](std::size_t i) {
       return ctx.createBuffer(etna::Buffer::CreateInfo{
         .size = binsAmount * sizeof(float),
-        .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer,
+        .bufferUsage =
+          vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
         .memoryUsage = VMA_MEMORY_USAGE_GPU_ONLY,
         .name = fmt::format("distribution{}", i)});
     });
@@ -121,18 +122,17 @@ void WorldRenderer::loadShaders()
      TONEMAPPING_RENDERER_SHADERS_ROOT "terrain.frag.spv"});
 
   etna::create_program(
-    "histogram_calculation",
-    {TONEMAPPING_RENDERER_SHADERS_ROOT "/postprocessing/histogram.comp.spv"});
+    "histogram_calculation", {TONEMAPPING_RENDERER_SHADERS_ROOT "histogram.comp.spv"});
   etna::create_program(
-    "histogram_processing",
-    {TONEMAPPING_RENDERER_SHADERS_ROOT "/postprocessing/process_histogram.comp.spv"});
+    "histogram_processing", {TONEMAPPING_RENDERER_SHADERS_ROOT "process_histogram.comp.spv"});
+
   etna::create_program(
-    "distribution_calculation",
-    {TONEMAPPING_RENDERER_SHADERS_ROOT "/postprocessing/distribution.comp.spv"});
+    "postprocess_compute", {TONEMAPPING_RENDERER_SHADERS_ROOT "postprocess.comp.spv"});
+
   etna::create_program(
     "postprocess",
-    {TONEMAPPING_RENDERER_SHADERS_ROOT "/decoy.vert.spv",
-     TONEMAPPING_RENDERER_SHADERS_ROOT "/postprocessing/postprocess.frag.spv"});
+    {TONEMAPPING_RENDERER_SHADERS_ROOT "decoy.vert.spv",
+     TONEMAPPING_RENDERER_SHADERS_ROOT "postprocess.frag.spv"});
 }
 
 void WorldRenderer::setupRenderPipelines(vk::Format swapchain_format)
@@ -184,7 +184,7 @@ void WorldRenderer::setupRenderPipelines(vk::Format swapchain_format)
 
   histogramPipeline = pipelineManager.createComputePipeline("histogram_calculation", {});
   processHistogramPipeline = pipelineManager.createComputePipeline("histogram_processing", {});
-  distributionPipeline = pipelineManager.createComputePipeline("distribution_calculation", {});
+  postrocessComputePipeline = pipelineManager.createComputePipeline("postprocess_compute", {});
 
   postprocessPipeline = pipelineManager.createGraphicsPipeline(
     "postprocess",
@@ -306,7 +306,7 @@ void WorldRenderer::renderScene(
   vk::CommandBuffer cmd_buf,
   const glm::mat4x4& glob_tm,
   vk::PipelineLayout pipeline_layout,
-  etna::Buffer& current_instance_buffer)
+  etna::Buffer& instance_buffer)
 {
   ZoneScoped;
   if (!sceneMgr->getVertexBuffer())
@@ -320,9 +320,7 @@ void WorldRenderer::renderScene(
 
   auto shaderInfo = etna::get_shader_program("static_mesh_material");
   auto set = etna::create_descriptor_set(
-    shaderInfo.getDescriptorLayoutId(0),
-    cmd_buf,
-    {etna::Binding{0, current_instance_buffer.genBinding()}});
+    shaderInfo.getDescriptorLayoutId(0), cmd_buf, {etna::Binding{0, instance_buffer.genBinding()}});
   auto vkSet = set.getVkSet();
 
   cmd_buf.bindDescriptorSets(
@@ -373,7 +371,9 @@ void WorldRenderer::renderTerrain(
 }
 
 void WorldRenderer::renderWorld(
-  vk::CommandBuffer cmd_buf, vk::Image target_image, vk::ImageView target_image_view)
+  vk::CommandBuffer cmd_buf,
+  vk::Image target_image,
+  [[maybe_unused]] vk::ImageView target_image_view)
 {
   ETNA_PROFILE_GPU(cmd_buf, renderWorld);
 
@@ -387,12 +387,22 @@ void WorldRenderer::renderWorld(
     auto& currentConstants = constantsBuffer->get();
     updateConstants(currentConstants);
 
+    etna::set_state(
+      cmd_buf,
+      renderTarget.get(),
+      vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+      vk::AccessFlagBits2::eColorAttachmentWrite,
+      vk::ImageLayout::eColorAttachmentOptimal,
+      vk::ImageAspectFlagBits::eColor);
+
+    etna::flush_barriers(cmd_buf);
+
     {
       ETNA_PROFILE_GPU(cmd_buf, renderTerrain);
       etna::RenderTargetState renderTargets(
         cmd_buf,
         {{0, 0}, {resolution.x, resolution.y}},
-        {{.image = target_image, .view = target_image_view}},
+        {{.image = renderTarget.get(), .view = renderTarget.getView({})}},
         {.image = mainViewDepth.get(), .view = mainViewDepth.getView({})});
 
       cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, terrainRenderPipeline.getVkPipeline());
@@ -415,47 +425,256 @@ void WorldRenderer::renderWorld(
     // }
 
     auto& currentHistogramBuffer = histogramBuffer->get();
-    cmd_buf.fillBuffer(currentHistogramBuffer.get(), 0, vk::WholeSize, 0);
-    auto& binStepSize = binStepSizeBuffer->get();
-    cmd_buf.fillBuffer(binStepSize.get(), 0, vk::WholeSize, 0);
     auto& currentDistributionBuffer = distributionBuffer->get();
+    auto& currentHistogramInfo = histogramInfoBuffer->get();
+
+    cmd_buf.fillBuffer(currentHistogramBuffer.get(), 0, vk::WholeSize, 0);
     cmd_buf.fillBuffer(currentDistributionBuffer.get(), 0, vk::WholeSize, 0);
+    cmd_buf.fillBuffer(currentHistogramInfo.get(), 0, vk::WholeSize, 0);
 
     {
-      ETNA_PROFILE_GPU(cmd_buf, histograms);
+      std::array bufferBarriers = {
+        vk::BufferMemoryBarrier2{
+          .srcStageMask = vk::PipelineStageFlagBits2::eTransfer,
+          .srcAccessMask = vk::AccessFlagBits2::eTransferWrite,
+          .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+          .dstAccessMask = vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
+          .buffer = currentHistogramBuffer.get(),
+          .size = vk::WholeSize},
+        vk::BufferMemoryBarrier2{
+          .srcStageMask = vk::PipelineStageFlagBits2::eTransfer,
+          .srcAccessMask = vk::AccessFlagBits2::eTransferWrite,
+          .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+          .dstAccessMask = vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
+          .buffer = currentDistributionBuffer.get(),
+          .size = vk::WholeSize},
+        vk::BufferMemoryBarrier2{
+          .srcStageMask = vk::PipelineStageFlagBits2::eTransfer,
+          .srcAccessMask = vk::AccessFlagBits2::eTransferWrite,
+          .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+          .dstAccessMask = vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
+          .buffer = currentHistogramInfo.get(),
+          .size = vk::WholeSize}};
 
-      cmd_buf.bindPipeline(vk::PipelineBindPoint::eCompute, histogramPipeline.getVkPipeline());
-      generateHistogram(
-        cmd_buf, currentHistogramBuffer, binStepSize, histogramPipeline.getVkPipelineLayout());
+      vk::DependencyInfo dependencyInfo = {
+        .dependencyFlags = vk::DependencyFlagBits::eByRegion,
+        .bufferMemoryBarrierCount = bufferBarriers.size(),
+        .pBufferMemoryBarriers = bufferBarriers.data()};
+
+      cmd_buf.pipelineBarrier2(dependencyInfo);
     }
 
     {
+      ETNA_PROFILE_GPU(cmd_buf, tonemapping);
+
+      cmd_buf.bindPipeline(vk::PipelineBindPoint::eCompute, histogramPipeline.getVkPipeline());
+      generateHistogram(
+        cmd_buf,
+        currentHistogramBuffer,
+        currentHistogramInfo,
+        histogramPipeline.getVkPipelineLayout());
+
+      {
+        std::array bufferBarriers = {
+          vk::BufferMemoryBarrier2{
+            .srcStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+            .srcAccessMask = vk::AccessFlagBits2::eShaderWrite,
+            .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+            .dstAccessMask = vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
+            .buffer = currentHistogramBuffer.get(),
+            .size = vk::WholeSize},
+          vk::BufferMemoryBarrier2{
+            .srcStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+            .srcAccessMask = vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
+            .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+            .dstAccessMask = vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
+            .buffer = currentDistributionBuffer.get(),
+            .size = vk::WholeSize},
+          vk::BufferMemoryBarrier2{
+            .srcStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+            .srcAccessMask = vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
+            .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+            .dstAccessMask = vk::AccessFlagBits2::eShaderRead,
+            .buffer = currentHistogramInfo.get(),
+            .size = vk::WholeSize}};
+
+        vk::DependencyInfo dependencyInfo = {
+          .dependencyFlags = vk::DependencyFlagBits::eByRegion,
+          .bufferMemoryBarrierCount = bufferBarriers.size(),
+          .pBufferMemoryBarriers = bufferBarriers.data()};
+
+        cmd_buf.pipelineBarrier2(dependencyInfo);
+      }
+
+      cmd_buf.bindPipeline(
+        vk::PipelineBindPoint::eCompute, processHistogramPipeline.getVkPipeline());
+      processHistogram(
+        cmd_buf,
+        currentHistogramBuffer,
+        currentDistributionBuffer,
+        currentHistogramInfo,
+        processHistogramPipeline.getVkPipelineLayout());
+
+      {
+        std::array bufferBarriers = {
+          vk::BufferMemoryBarrier2{
+            .srcStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+            .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+            .buffer = currentHistogramBuffer.get(),
+            .size = vk::WholeSize},
+          vk::BufferMemoryBarrier2{
+            .srcStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+            .srcAccessMask = vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
+            .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+            .dstAccessMask = vk::AccessFlagBits2::eShaderRead,
+            .buffer = currentDistributionBuffer.get(),
+            .size = vk::WholeSize},
+          vk::BufferMemoryBarrier2{
+            .srcStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+            .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+            .buffer = currentHistogramInfo.get(),
+            .size = vk::WholeSize}};
+
+        vk::DependencyInfo dependencyInfo = {
+          .dependencyFlags = vk::DependencyFlagBits::eByRegion,
+          .bufferMemoryBarrierCount = bufferBarriers.size(),
+          .pBufferMemoryBarriers = bufferBarriers.data()};
+
+        cmd_buf.pipelineBarrier2(dependencyInfo);
+      }
+
       etna::set_state(
         cmd_buf,
         renderTarget.get(),
-        vk::PipelineStageFlagBits2::eFragmentShader,
-        vk::AccessFlagBits2::eShaderRead,
-        vk::ImageLayout::eShaderReadOnlyOptimal,
+        vk::PipelineStageFlagBits2::eComputeShader,
+        vk::AccessFlagBits2::eShaderRead | vk::AccessFlagBits2::eShaderWrite,
+        vk::ImageLayout::eGeneral,
         vk::ImageAspectFlagBits::eColor);
 
       etna::flush_barriers(cmd_buf);
 
-      etna::RenderTargetState renderTargets(
+      cmd_buf.bindPipeline(
+        vk::PipelineBindPoint::eCompute, postrocessComputePipeline.getVkPipeline());
+      applyPostprocessingCompute(
         cmd_buf,
-        {{0, 0}, {resolution.x, resolution.y}},
-        {{.image = target_image, .view = target_image_view, .loadOp = vk::AttachmentLoadOp::eLoad}},
-        {.image = mainViewDepth.get(),
-         .view = mainViewDepth.getView({}),
-         .loadOp = vk::AttachmentLoadOp::eLoad});
-      cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, postprocessPipeline.getVkPipeline());
-
-      applyPostprocessing(
-        cmd_buf, currentHistogramBuffer, postprocessPipeline.getVkPipelineLayout());
+        currentDistributionBuffer,
+        currentHistogramInfo,
+        postrocessComputePipeline.getVkPipelineLayout());
     }
+
+    etna::set_state(
+      cmd_buf,
+      renderTarget.get(),
+      vk::PipelineStageFlagBits2::eTransfer,
+      vk::AccessFlagBits2::eTransferRead,
+      vk::ImageLayout::eTransferSrcOptimal,
+      vk::ImageAspectFlagBits::eColor);
+
+    etna::set_state(
+      cmd_buf,
+      target_image,
+      vk::PipelineStageFlagBits2::eTransfer,
+      vk::AccessFlagBits2::eTransferWrite,
+      vk::ImageLayout::eTransferDstOptimal,
+      vk::ImageAspectFlagBits::eColor);
+
+    etna::flush_barriers(cmd_buf);
+
+    {
+      std::array srcOffset = {
+        vk::Offset3D{},
+        vk::Offset3D{static_cast<int32_t>(resolution.x), static_cast<int32_t>(resolution.y), 1}};
+      auto srdImageSubrecourceLayers = vk::ImageSubresourceLayers{
+        .aspectMask = vk::ImageAspectFlagBits::eColor,
+        .mipLevel = 0,
+        .baseArrayLayer = 0,
+        .layerCount = 1};
+
+      std::array dstOffset = {
+        vk::Offset3D{},
+        vk::Offset3D{static_cast<int32_t>(resolution.x), static_cast<int32_t>(resolution.y), 1}};
+      auto dstImageSubrecourceLayers = vk::ImageSubresourceLayers{
+        .aspectMask = vk::ImageAspectFlagBits::eColor,
+        .mipLevel = 0,
+        .baseArrayLayer = 0,
+        .layerCount = 1};
+
+      auto imageBlit = vk::ImageBlit2{
+        .sType = vk::StructureType::eImageBlit2,
+        .pNext = nullptr,
+        .srcSubresource = srdImageSubrecourceLayers,
+        .srcOffsets = srcOffset,
+        .dstSubresource = dstImageSubrecourceLayers,
+        .dstOffsets = dstOffset};
+
+      auto blitInfo = vk::BlitImageInfo2{
+        .sType = vk::StructureType::eBlitImageInfo2,
+        .pNext = nullptr,
+        .srcImage = renderTarget.get(),
+        .srcImageLayout = vk::ImageLayout::eTransferSrcOptimal,
+        .dstImage = target_image,
+        .dstImageLayout = vk::ImageLayout::eTransferDstOptimal,
+        .regionCount = 1,
+        .pRegions = &imageBlit,
+        .filter = vk::Filter::eLinear};
+
+      cmd_buf.blitImage2(&blitInfo);
+    }
+
+    // {
+    //   std::array bufferBarriers = {
+    //     vk::BufferMemoryBarrier2{
+    //       .srcStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+    //       .srcAccessMask = vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
+    //       .dstStageMask = vk::PipelineStageFlagBits2::eFragmentShader,
+    //       .dstAccessMask = vk::AccessFlagBits2::eShaderRead,
+    //       .buffer = currentDistributionBuffer.get(),
+    //       .size = vk::WholeSize},
+    //     vk::BufferMemoryBarrier2{
+    //       .srcStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+    //       .dstStageMask = vk::PipelineStageFlagBits2::eFragmentShader,
+    //       .dstAccessMask = vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
+    //       .buffer = currentHistogramInfo.get(),
+    //       .size = vk::WholeSize}};
+
+    //   vk::DependencyInfo dependencyInfo = {
+    //     .dependencyFlags = vk::DependencyFlagBits::eByRegion,
+    //     .bufferMemoryBarrierCount = bufferBarriers.size(),
+    //     .pBufferMemoryBarriers = bufferBarriers.data()};
+
+    //   cmd_buf.pipelineBarrier2(dependencyInfo);
+    // }
+
+    // etna::set_state(
+    //   cmd_buf,
+    //   renderTarget.get(),
+    //   vk::PipelineStageFlagBits2::eFragmentShader,
+    //   vk::AccessFlagBits2::eShaderSampledRead,
+    //   vk::ImageLayout::eShaderReadOnlyOptimal,
+    //   vk::ImageAspectFlagBits::eColor);
+
+    // etna::flush_barriers(cmd_buf);
+
+    // {
+    //   ETNA_PROFILE_GPU(cmd_buf, postprocess);
+
+    //   etna::RenderTargetState renderTargets(
+    //     cmd_buf,
+    //     {{0, 0}, {resolution.x, resolution.y}},
+    //     {{.image = target_image, .view = target_image_view}},
+    //     {.image = mainViewDepth.get(), .view = mainViewDepth.getView({})});
+    //   cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, postprocessPipeline.getVkPipeline());
+
+    //   applyPostprocessing(
+    //     cmd_buf,
+    //     currentDistributionBuffer,
+    //     currentHistogramInfo,
+    //     postprocessPipeline.getVkPipelineLayout());
+    // }
   }
 }
 
-void WorldRenderer::parseInstanceInfo(etna::Buffer& current_buffer, const glm::mat4x4& glob_tm)
+void WorldRenderer::parseInstanceInfo(etna::Buffer& buffer, const glm::mat4x4& glob_tm)
 {
   ZoneScoped;
 
@@ -464,9 +683,9 @@ void WorldRenderer::parseInstanceInfo(etna::Buffer& current_buffer, const glm::m
   auto meshes = sceneMgr->getMeshes();
   auto bounds = sceneMgr->getRenderElementsBounds();
 
-  current_buffer.map();
+  buffer.map();
 
-  glm::mat4x4* instanceData = std::bit_cast<glm::mat4x4*>(current_buffer.data());
+  glm::mat4x4* instanceData = std::bit_cast<glm::mat4x4*>(buffer.data());
 
   std::size_t index = 0;
   for (std::size_t i = 0; i < instanceMatrices.size(); i++)
@@ -488,7 +707,7 @@ void WorldRenderer::parseInstanceInfo(etna::Buffer& current_buffer, const glm::m
     }
   }
 
-  current_buffer.unmap();
+  buffer.unmap();
 }
 
 void WorldRenderer::updateConstants(etna::Buffer& constants)
@@ -504,19 +723,19 @@ void WorldRenderer::updateConstants(etna::Buffer& constants)
 
 void WorldRenderer::generateHistogram(
   vk::CommandBuffer cmd_buf,
-  etna::Buffer& current_histogram_buffer,
-  etna::Buffer& bin_step_size,
+  etna::Buffer& histogram_buffer,
+  etna::Buffer& histogram_info,
   vk::PipelineLayout pipeline_layout)
 {
   ZoneScoped;
-  auto histogramCalculationInfo = etna::get_shader_program("histogram_calculation");
+  auto histogramCalculation = etna::get_shader_program("histogram_calculation");
 
   auto set = etna::create_descriptor_set(
-    histogramCalculationInfo.getDescriptorLayoutId(0),
+    histogramCalculation.getDescriptorLayoutId(0),
     cmd_buf,
-    {etna::Binding{0, renderTarget.genBinding(terrainSampler.get(), vk::ImageLayout::eGeneral)},
-     etna::Binding{1, current_histogram_buffer.genBinding()},
-     etna::Binding{2, bin_step_size.genBinding()}});
+    {etna::Binding{0, renderTarget.genBinding({}, vk::ImageLayout::eGeneral)},
+     etna::Binding{1, histogram_buffer.genBinding()},
+     etna::Binding{2, histogram_info.genBinding()}});
 
   auto vkSet = set.getVkSet();
 
@@ -533,16 +752,20 @@ void WorldRenderer::generateHistogram(
 
 void WorldRenderer::processHistogram(
   vk::CommandBuffer cmd_buf,
-  etna::Buffer& current_histogram_buffer,
+  etna::Buffer& histogram_buffer,
+  etna::Buffer& distribution_buffer,
+  etna::Buffer& histogram_info,
   vk::PipelineLayout pipeline_layout)
 {
   ZoneScoped;
-  auto histogramCalculationInfo = etna::get_shader_program("histogram_processing");
+  auto histogramProcessing = etna::get_shader_program("histogram_processing");
 
   auto set = etna::create_descriptor_set(
-    histogramCalculationInfo.getDescriptorLayoutId(0),
+    histogramProcessing.getDescriptorLayoutId(0),
     cmd_buf,
-    {etna::Binding{0, current_histogram_buffer.genBinding()}});
+    {etna::Binding{0, histogram_buffer.genBinding()},
+     etna::Binding{1, distribution_buffer.genBinding()},
+     etna::Binding{2, histogram_info.genBinding()}});
 
   auto vkSet = set.getVkSet();
 
@@ -557,9 +780,36 @@ void WorldRenderer::processHistogram(
   cmd_buf.dispatch(1, 1, 1);
 }
 
+void WorldRenderer::applyPostprocessingCompute(
+  vk::CommandBuffer cmd_buf,
+  etna::Buffer& distribution_buffer,
+  etna::Buffer& histogram_info,
+  vk::PipelineLayout pipeline_layout)
+{
+  ZoneScoped;
+  auto histogramProcessing = etna::get_shader_program("postprocess_compute");
+
+  auto set = etna::create_descriptor_set(
+    histogramProcessing.getDescriptorLayoutId(0),
+    cmd_buf,
+    {etna::Binding{0, renderTarget.genBinding({}, vk::ImageLayout::eGeneral)},
+     etna::Binding{1, distribution_buffer.genBinding()},
+     etna::Binding{2, histogram_info.genBinding()}});
+
+  auto vkSet = set.getVkSet();
+
+  cmd_buf.bindDescriptorSets(
+    vk::PipelineBindPoint::eCompute, pipeline_layout, 0, 1, &vkSet, 0, nullptr);
+
+  etna::flush_barriers(cmd_buf);
+
+  cmd_buf.dispatch((resolution.x + 31) / 32, (resolution.y + 31) / 32, 1);
+}
+
 void WorldRenderer::applyPostprocessing(
   vk::CommandBuffer cmd_buf,
-  etna::Buffer& current_histogram_buffer,
+  etna::Buffer& distribution_buffer,
+  etna::Buffer& histogram_info,
   vk::PipelineLayout pipeline_layout)
 {
   ZoneScoped;
@@ -568,13 +818,17 @@ void WorldRenderer::applyPostprocessing(
   auto set = etna::create_descriptor_set(
     postprocessingInfo.getDescriptorLayoutId(0),
     cmd_buf,
-    {etna::Binding{0, renderTarget.genBinding(terrainSampler.get(), vk::ImageLayout::eGeneral)},
-     etna::Binding{1, current_histogram_buffer.genBinding()}});
+    {etna::Binding{
+       0, renderTarget.genBinding(terrainSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+     etna::Binding{1, distribution_buffer.genBinding()},
+     etna::Binding{2, histogram_info.genBinding()}});
 
   auto vkSet = set.getVkSet();
 
   cmd_buf.bindDescriptorSets(
-    vk::PipelineBindPoint::eCompute, pipeline_layout, 0, 1, &vkSet, 0, nullptr);
+    vk::PipelineBindPoint::eGraphics, pipeline_layout, 0, 1, &vkSet, 0, nullptr);
+
+  cmd_buf.draw(3, 1, 0, 0);
 }
 
 bool WorldRenderer::isVisible(

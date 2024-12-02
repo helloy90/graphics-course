@@ -5,6 +5,8 @@
 #include <etna/RenderTargetStates.hpp>
 #include <etna/PipelineManager.hpp>
 #include <etna/Profiling.hpp>
+#include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan_core.h>
 
 
 Renderer::Renderer(glm::uvec2 res)
@@ -24,13 +26,13 @@ void Renderer::initVulkan(std::span<const char*> instance_extensions)
   deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 
   etna::initialize(etna::InitParams{
-    .applicationName = "model_bakery_renderer",
+    .applicationName = "tonemapping_renderer",
     .applicationVersion = VK_MAKE_VERSION(0, 1, 0),
     .instanceExtensions = instanceExtensions,
     .deviceExtensions = deviceExtensions,
     .features =
       vk::PhysicalDeviceFeatures2{
-        .features = {.tessellationShader = vk::True, .fillModeNonSolid = vk::True /*debug*/}},
+        .features = {.tessellationShader = vk::True, .fillModeNonSolid = vk::True /*debug*/, .fragmentStoresAndAtomics = vk::True}},
     .physicalDeviceIndexOverride = {},
     .numFramesInFlight = 2,
   });
@@ -60,7 +62,6 @@ void Renderer::initFrameDelivery(vk::UniqueSurfaceKHR a_surface, ResolutionProvi
   worldRenderer->allocateResources(resolution);
   worldRenderer->loadShaders();
   worldRenderer->setupRenderPipelines(window->getCurrentFormat());
-  worldRenderer->setupPostprocessPipelines();
   worldRenderer->setupTerrainGeneration(vk::Format::eR32Sfloat, {4096, 4096, 1});
   worldRenderer->generateTerrain();
 }
