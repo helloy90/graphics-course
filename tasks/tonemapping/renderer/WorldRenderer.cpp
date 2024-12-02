@@ -1,5 +1,6 @@
 #include "WorldRenderer.hpp"
 
+#include <cstdint>
 #include <cstring>
 #include <etna/GlobalContext.hpp>
 #include <etna/PipelineManager.hpp>
@@ -458,7 +459,7 @@ void WorldRenderer::renderWorld(
 
       vk::DependencyInfo dependencyInfo = {
         .dependencyFlags = vk::DependencyFlagBits::eByRegion,
-        .bufferMemoryBarrierCount = bufferBarriers.size(),
+        .bufferMemoryBarrierCount = static_cast<uint32_t>(bufferBarriers.size()),
         .pBufferMemoryBarriers = bufferBarriers.data()};
 
       cmd_buf.pipelineBarrier2(dependencyInfo);
@@ -500,7 +501,7 @@ void WorldRenderer::renderWorld(
 
         vk::DependencyInfo dependencyInfo = {
           .dependencyFlags = vk::DependencyFlagBits::eByRegion,
-          .bufferMemoryBarrierCount = bufferBarriers.size(),
+          .bufferMemoryBarrierCount = static_cast<uint32_t>(bufferBarriers.size()),
           .pBufferMemoryBarriers = bufferBarriers.data()};
 
         cmd_buf.pipelineBarrier2(dependencyInfo);
@@ -537,7 +538,7 @@ void WorldRenderer::renderWorld(
 
         vk::DependencyInfo dependencyInfo = {
           .dependencyFlags = vk::DependencyFlagBits::eByRegion,
-          .bufferMemoryBarrierCount = bufferBarriers.size(),
+          .bufferMemoryBarrierCount = static_cast<uint32_t>(bufferBarriers.size()),
           .pBufferMemoryBarriers = bufferBarriers.data()};
 
         cmd_buf.pipelineBarrier2(dependencyInfo);
