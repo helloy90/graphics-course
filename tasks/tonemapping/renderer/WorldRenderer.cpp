@@ -372,8 +372,8 @@ void WorldRenderer::renderTerrain(
 
 void WorldRenderer::renderWorld(
   vk::CommandBuffer cmd_buf,
-  vk::Image target_image,
-  [[maybe_unused]] vk::ImageView target_image_view)
+  vk::Image target_image)
+  // [[maybe_unused]] vk::ImageView target_image_view)
 {
   ETNA_PROFILE_GPU(cmd_buf, renderWorld);
 

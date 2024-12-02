@@ -33,7 +33,7 @@ public:
   void update(const FramePacket& packet);
   void drawGui();
   void renderWorld(
-    vk::CommandBuffer cmd_buf, vk::Image target_image, vk::ImageView target_image_view);
+    vk::CommandBuffer cmd_buf, vk::Image target_image); //vk::ImageView target_image_view);
 
 private:
   void renderScene(

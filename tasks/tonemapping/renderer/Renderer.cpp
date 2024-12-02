@@ -5,8 +5,6 @@
 #include <etna/RenderTargetStates.hpp>
 #include <etna/PipelineManager.hpp>
 #include <etna/Profiling.hpp>
-#include <vulkan/vulkan.hpp>
-#include <vulkan/vulkan_core.h>
 
 
 Renderer::Renderer(glm::uvec2 res)
@@ -113,7 +111,7 @@ void Renderer::drawFrame()
     {
       ETNA_PROFILE_GPU(currentCmdBuf, renderFrame);
 
-      worldRenderer->renderWorld(currentCmdBuf, image, view);
+      worldRenderer->renderWorld(currentCmdBuf, image); //view);
 
       etna::set_state(
         currentCmdBuf,
