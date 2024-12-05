@@ -262,9 +262,13 @@ void WorldRenderer::debugInput(const Keyboard& keyboard)
   {
     ETNA_CHECK_VK_RESULT(etna::get_context().getDevice().waitIdle());
 
+    
+
     wireframeEnabled = !wireframeEnabled;
 
     setupRenderPipelines();
+
+    ETNA_CHECK_VK_RESULT(etna::get_context().getDevice().waitIdle());
   }
 }
 
@@ -453,12 +457,11 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
         {(resolution.x + 31) / 32, (resolution.y + 31) / 32});
 
       {
-        std::array bufferBarriers = {
-          vk::BufferMemoryBarrier2{
-            .srcStageMask = vk::PipelineStageFlagBits2::eComputeShader,
-            .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
-            .buffer = currentHistogramInfo.get(),
-            .size = vk::WholeSize}};
+        std::array bufferBarriers = {vk::BufferMemoryBarrier2{
+          .srcStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+          .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+          .buffer = currentHistogramInfo.get(),
+          .size = vk::WholeSize}};
 
         vk::DependencyInfo dependencyInfo = {
           .dependencyFlags = vk::DependencyFlagBits::eByRegion,
@@ -487,7 +490,9 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
             .size = vk::WholeSize},
           vk::BufferMemoryBarrier2{
             .srcStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+            .srcAccessMask = vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
             .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+            .dstAccessMask = vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
             .buffer = currentHistogramInfo.get(),
             .size = vk::WholeSize}};
 

@@ -6,13 +6,13 @@ layout(local_size_x = 32, local_size_y = 32) in;
 layout(binding = 0, r11f_g11f_b10f) restrict uniform image2D renderImage;
 
 layout(binding = 1) buffer histogramBuffer {
-    int bins[];
+    uint bins[];
 };
 
 layout(binding = 2) buffer histogramInfo_t {
     float binStepSize;
-    float minWorldLuminance;    // relative
-    float maxWorldLuminance;    // relative
+    float minWorldLuminance;
+    float maxWorldLuminance;
     float minWorldBrightness;
     float maxWorldBrightness;
 };
@@ -21,17 +21,22 @@ layout(push_constant) uniform params {
     uint len; 
 };
 
+const float minDisplayLuminance = 0.0001;
+const float maxDisplayLuminance = 1;
+
+
 void calculateInfo(float luminance) {
     minWorldBrightness = log(minWorldLuminance);
     maxWorldBrightness = log(maxWorldLuminance);
 
-    binStepSize = (maxWorldBrightness - minWorldBrightness) / float(len); // assume len > 0 ofc
+    binStepSize = (maxWorldLuminance - minWorldLuminance) / float(len);
+
     memoryBarrierBuffer();
     barrier();
 }
 
 uint getBin(float luminance) {
-    return clamp(uint(floor((log(luminance) - minWorldBrightness) / binStepSize)), 0, len - 1); 
+    return clamp(uint(floor((luminance - minWorldLuminance) / binStepSize)), 0, len - 1); 
 }
 
 void main() {
@@ -42,7 +47,6 @@ void main() {
     }
 
     vec3 color = imageLoad(renderImage, texCoord).rgb;
-    // https://stackoverflow.com/questions/596216/formula-to-determine-perceived-brightness-of-rgb-color (option 2)
     float luminance = 0.299 * color.r + 0.587 * color.g + 0.114 * color.b;
 
     calculateInfo(luminance);

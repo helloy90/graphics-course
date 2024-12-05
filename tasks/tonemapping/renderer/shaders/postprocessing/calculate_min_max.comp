@@ -17,6 +17,7 @@ layout(push_constant) uniform params {
     uint len; 
 };
 
+
 void main() {
     ivec2 texCoord = ivec2(gl_GlobalInvocationID.xy);
     uvec2 renderImageSize = imageSize(renderImage);
@@ -25,6 +26,7 @@ void main() {
     }
 
     vec3 color = imageLoad(renderImage, texCoord).rgb;
+    // https://stackoverflow.com/questions/596216/formula-to-determine-perceived-brightness-of-rgb-color (option 2)
     float luminance = 0.299 * color.r + 0.587 * color.g + 0.114 * color.b;
 
     if (gl_GlobalInvocationID.xy == ivec2(0, 0)) {

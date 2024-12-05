@@ -21,15 +21,13 @@ layout(push_constant) uniform params {
     uint len; 
 };
 
-const float minDisplayLuminance = 0.001;
-const float maxDisplayLuminance = 1.0;
-//maybe precompute
-const float minDisplayBrightness = log(minDisplayLuminance);
-const float maxDisplayBrightness = log(maxDisplayLuminance); 
+const float minDisplayLuminance = 0.0001;
+const float maxDisplayLuminance = 1;
 
 uint getBin(float luminance) {
-    return clamp(uint(floor((log(luminance) - minWorldBrightness) / binStepSize)), 0, len - 1); 
+    return clamp(uint(floor((luminance - minWorldLuminance) / binStepSize)), 0, len - 1); 
 }
+
 
 void main() {
     ivec2 texCoord = ivec2(gl_GlobalInvocationID.xy);
@@ -41,11 +39,11 @@ void main() {
 
     float luminance = 0.299 * color.r + 0.587 * color.g + 0.114 * color.b;
     uint currentBin = getBin(luminance);
-    float adjustedBrightness = 
-        minDisplayBrightness 
-        + (maxDisplayBrightness - minDisplayBrightness)
+    float adjustedLuminance = 
+        minDisplayLuminance 
+        + (maxDisplayLuminance - minDisplayLuminance)
         * bins[currentBin];
-    
-    color = color * exp(adjustedBrightness) / luminance;
+
+    color = color * adjustedLuminance / luminance;
     imageStore(renderImage, texCoord, vec4(color, 1.0));
 }
