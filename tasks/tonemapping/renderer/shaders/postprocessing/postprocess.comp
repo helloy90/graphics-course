@@ -11,13 +11,14 @@ layout(binding = 1) readonly buffer distributionBuffer {
 
 layout(binding = 2) readonly buffer histogramInfo_t {
     float binStepSize;
-    float multiplier;
-    int intMinWorldLuminance;
-    int intMaxWorldLuminance;
     float minWorldLuminance;    // relative
     float maxWorldLuminance;    // relative
     float minWorldBrightness;
     float maxWorldBrightness;
+};
+
+layout(push_constant) uniform params {
+    uint len; 
 };
 
 const float minDisplayLuminance = 0.001;
@@ -27,7 +28,7 @@ const float minDisplayBrightness = log(minDisplayLuminance);
 const float maxDisplayBrightness = log(maxDisplayLuminance); 
 
 uint getBin(float luminance) {
-    return uint(floor((log(luminance) - minWorldBrightness) / binStepSize));
+    return clamp(uint(floor((log(luminance) - minWorldBrightness) / binStepSize)), 0, len - 1); 
 }
 
 void main() {

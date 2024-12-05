@@ -18,8 +18,8 @@ target_add_shaders(tonemapping_renderer
   shaders/subdivide_chunk.tesc
   shaders/process_chunk.tese
   shaders/terrain.frag
+  shaders/postprocessing/calculate_min_max.comp
   shaders/postprocessing/histogram.comp
   shaders/postprocessing/process_histogram.comp
   shaders/postprocessing/postprocess.comp
-  shaders/postprocessing/postprocess.frag
 )

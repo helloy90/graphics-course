@@ -59,7 +59,7 @@ void Renderer::initFrameDelivery(vk::UniqueSurfaceKHR a_surface, ResolutionProvi
 
   worldRenderer->allocateResources(resolution);
   worldRenderer->loadShaders();
-  worldRenderer->setupRenderPipelines(window->getCurrentFormat());
+  worldRenderer->setupRenderPipelines();
   worldRenderer->setupTerrainGeneration(vk::Format::eR32Sfloat, {4096, 4096, 1});
   worldRenderer->generateTerrain();
 }
@@ -71,7 +71,7 @@ void Renderer::loadScene(std::filesystem::path path)
 
 void Renderer::debugInput(const Keyboard& kb)
 {
-  worldRenderer->debugInput(kb, window->getCurrentFormat());
+  worldRenderer->debugInput(kb);
 
   if (kb[KeyboardKey::kB] == ButtonState::Falling)
   {

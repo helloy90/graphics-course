@@ -13,9 +13,6 @@ layout(binding = 1) buffer distributionBuffer {
 
 layout(binding = 2) buffer histogramInfo_t {
     float binStepSize;
-    float multiplier;
-    int intMinWorldLuminance;
-    int intMaxWorldLuminance;
     float minWorldLuminance;    // relative
     float maxWorldLuminance;    // relative
     float minWorldBrightness;
