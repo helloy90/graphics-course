@@ -4,7 +4,6 @@
 #include <etna/PipelineManager.hpp>
 #include <etna/Profiling.hpp>
 #include <etna/RenderTargetStates.hpp>
-#include <optional>
 
 #include "shaders/postprocessing/UniformHistogramInfo.h"
 
