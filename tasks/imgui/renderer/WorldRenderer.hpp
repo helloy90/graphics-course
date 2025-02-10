@@ -71,12 +71,7 @@ private:
   etna::Image terrainMap;
   std::optional<etna::GpuSharedResource<etna::Buffer>> generationParamsBuffer;
   TerrainGenerationParams generationParams;
-  // std::optional<etna::GpuSharedResource<etna::Buffer>> mixesCoefficients;
-  // std::optional<etna::GpuSharedResource<etna::Buffer>> damping;
-  // std::optional<etna::GpuSharedResource<etna::Buffer>> octaves;
-  // std::vector<uint32_t> mixesCoefficientsArray;
-  // std::vector<uint32_t> dampingArray;
-  // std::vector<uint32_t> octavesArray;
+
   uint32_t maxNumberOfSamples;
 
   etna::Image renderTarget;
@@ -109,6 +104,7 @@ private:
   etna::Sampler terrainSampler;
 
   bool wireframeEnabled;
+  bool tonemappingEnabled;
 
   std::unique_ptr<etna::OneShotCmdMgr> oneShotCommands;
 

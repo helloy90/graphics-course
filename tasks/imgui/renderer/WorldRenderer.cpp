@@ -17,6 +17,7 @@ WorldRenderer::WorldRenderer()
   , maxInstancesInScene{4096}
   , binsAmount(128)
   , wireframeEnabled(false)
+  , tonemappingEnabled(true)
 {
 }
 
@@ -41,26 +42,6 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
       vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eTransferSrc,
   });
 
-  // mixesCoefficients.emplace(
-  //   ctx.getMainWorkCount(), [&ctx, maxNumberOfSamples = this->maxNumberOfSamples](std::size_t i)
-  //   {
-  //     return ctx.createBuffer(etna::Buffer::CreateInfo{
-  //       .size = sizeof(uint32_t) * maxNumberOfSamples,
-  //       .bufferUsage = vk::BufferUsageFlagBits::eVertexBuffer |
-  //         vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
-  //       .memoryUsage = VMA_MEMORY_USAGE_CPU_TO_GPU,
-  //       .name = fmt::format("mixesCoeeficients{}", i)});
-  //   });
-
-  // damping.emplace(ctx.getMainWorkCount(), [&ctx, maxNumberOfSamples =
-  // this->maxNumberOfSamples](std::size_t i) {
-  //   return ctx.createBuffer(etna::Buffer::CreateInfo{
-  //     .size = sizeof(uint32_t) * maxNumberOfSamples,
-  //     .bufferUsage = vk::BufferUsageFlagBits::eVertexBuffer |
-  //       vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
-  //     .memoryUsage = VMA_MEMORY_USAGE_CPU_TO_GPU,
-  //     .name = fmt::format("mixesCoeeficients{}", i)});
-  // });
 
   generationParamsBuffer.emplace(ctx.getMainWorkCount(), [&ctx](std::size_t i) {
     return ctx.createBuffer(etna::Buffer::CreateInfo{
@@ -300,6 +281,7 @@ void WorldRenderer::drawGui()
 
       setupRenderPipelines();
     }
+    ImGui::Checkbox("Enable Tonemapping", &tonemappingEnabled);
   }
 
   ImGui::End();
@@ -495,93 +477,35 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
     //   renderScene(cmd_buf, worldViewProj, staticMeshPipeline.getVkPipelineLayout(),
     //   currentBuffer);
     // }
-
-    auto& currentHistogramBuffer = histogramBuffer->get();
-    auto& currentDistributionBuffer = distributionBuffer->get();
-    auto& currentHistogramInfo = histogramInfoBuffer->get();
-
-    cmd_buf.fillBuffer(currentHistogramBuffer.get(), 0, vk::WholeSize, 0);
-    cmd_buf.fillBuffer(currentDistributionBuffer.get(), 0, vk::WholeSize, 0);
-    cmd_buf.fillBuffer(currentHistogramInfo.get(), 0, vk::WholeSize, 0);
-
+    if (tonemappingEnabled)
     {
-      std::array bufferBarriers = {
-        vk::BufferMemoryBarrier2{
-          .srcStageMask = vk::PipelineStageFlagBits2::eTransfer,
-          .srcAccessMask = vk::AccessFlagBits2::eTransferWrite,
-          .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
-          .dstAccessMask = vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
-          .buffer = currentHistogramBuffer.get(),
-          .size = vk::WholeSize},
-        vk::BufferMemoryBarrier2{
-          .srcStageMask = vk::PipelineStageFlagBits2::eTransfer,
-          .srcAccessMask = vk::AccessFlagBits2::eTransferWrite,
-          .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
-          .dstAccessMask = vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
-          .buffer = currentDistributionBuffer.get(),
-          .size = vk::WholeSize},
-        vk::BufferMemoryBarrier2{
-          .srcStageMask = vk::PipelineStageFlagBits2::eTransfer,
-          .srcAccessMask = vk::AccessFlagBits2::eTransferWrite,
-          .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
-          .dstAccessMask = vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
-          .buffer = currentHistogramInfo.get(),
-          .size = vk::WholeSize}};
+      auto& currentHistogramBuffer = histogramBuffer->get();
+      auto& currentDistributionBuffer = distributionBuffer->get();
+      auto& currentHistogramInfo = histogramInfoBuffer->get();
 
-      vk::DependencyInfo dependencyInfo = {
-        .dependencyFlags = vk::DependencyFlagBits::eByRegion,
-        .bufferMemoryBarrierCount = static_cast<uint32_t>(bufferBarriers.size()),
-        .pBufferMemoryBarriers = bufferBarriers.data()};
-
-      cmd_buf.pipelineBarrier2(dependencyInfo);
-    }
-
-    {
-      ETNA_PROFILE_GPU(cmd_buf, tonemapping);
-      tonemappingShaderStart(
-        cmd_buf,
-        calculateMinMaxPipeline,
-        "min_max_calculation",
-        {etna::Binding{0, renderTarget.genBinding({}, vk::ImageLayout::eGeneral)},
-         etna::Binding{1, currentHistogramInfo.genBinding()}},
-        binsAmount,
-        {(resolution.x + 31) / 32, (resolution.y + 31) / 32});
-
-      {
-        std::array bufferBarriers = {vk::BufferMemoryBarrier2{
-          .srcStageMask = vk::PipelineStageFlagBits2::eComputeShader,
-          .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
-          .buffer = currentHistogramInfo.get(),
-          .size = vk::WholeSize}};
-
-        vk::DependencyInfo dependencyInfo = {
-          .dependencyFlags = vk::DependencyFlagBits::eByRegion,
-          .bufferMemoryBarrierCount = static_cast<uint32_t>(bufferBarriers.size()),
-          .pBufferMemoryBarriers = bufferBarriers.data()};
-
-        cmd_buf.pipelineBarrier2(dependencyInfo);
-      }
-
-      tonemappingShaderStart(
-        cmd_buf,
-        histogramPipeline,
-        "histogram_calculation",
-        {etna::Binding{0, renderTarget.genBinding({}, vk::ImageLayout::eGeneral)},
-         etna::Binding{1, currentHistogramBuffer.genBinding()},
-         etna::Binding{2, currentHistogramInfo.genBinding()}},
-        binsAmount,
-        {(resolution.x + 31) / 32, (resolution.y + 31) / 32});
+      cmd_buf.fillBuffer(currentHistogramBuffer.get(), 0, vk::WholeSize, 0);
+      cmd_buf.fillBuffer(currentDistributionBuffer.get(), 0, vk::WholeSize, 0);
+      cmd_buf.fillBuffer(currentHistogramInfo.get(), 0, vk::WholeSize, 0);
 
       {
         std::array bufferBarriers = {
           vk::BufferMemoryBarrier2{
-            .srcStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+            .srcStageMask = vk::PipelineStageFlagBits2::eTransfer,
+            .srcAccessMask = vk::AccessFlagBits2::eTransferWrite,
             .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+            .dstAccessMask = vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
             .buffer = currentHistogramBuffer.get(),
             .size = vk::WholeSize},
           vk::BufferMemoryBarrier2{
-            .srcStageMask = vk::PipelineStageFlagBits2::eComputeShader,
-            .srcAccessMask = vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
+            .srcStageMask = vk::PipelineStageFlagBits2::eTransfer,
+            .srcAccessMask = vk::AccessFlagBits2::eTransferWrite,
+            .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+            .dstAccessMask = vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
+            .buffer = currentDistributionBuffer.get(),
+            .size = vk::WholeSize},
+          vk::BufferMemoryBarrier2{
+            .srcStageMask = vk::PipelineStageFlagBits2::eTransfer,
+            .srcAccessMask = vk::AccessFlagBits2::eTransferWrite,
             .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
             .dstAccessMask = vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
             .buffer = currentHistogramInfo.get(),
@@ -595,60 +519,120 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
         cmd_buf.pipelineBarrier2(dependencyInfo);
       }
 
-      tonemappingShaderStart(
-        cmd_buf,
-        processHistogramPipeline,
-        "histogram_processing",
-        {etna::Binding{0, currentHistogramBuffer.genBinding()},
-         etna::Binding{1, currentDistributionBuffer.genBinding()},
-         etna::Binding{2, currentHistogramInfo.genBinding()}},
-        binsAmount,
-        {1, 1});
-
       {
-        std::array bufferBarriers = {
-          vk::BufferMemoryBarrier2{
+        ETNA_PROFILE_GPU(cmd_buf, tonemapping);
+        tonemappingShaderStart(
+          cmd_buf,
+          calculateMinMaxPipeline,
+          "min_max_calculation",
+          {etna::Binding{0, renderTarget.genBinding({}, vk::ImageLayout::eGeneral)},
+           etna::Binding{1, currentHistogramInfo.genBinding()}},
+          binsAmount,
+          {(resolution.x + 31) / 32, (resolution.y + 31) / 32});
+
+        {
+          std::array bufferBarriers = {vk::BufferMemoryBarrier2{
             .srcStageMask = vk::PipelineStageFlagBits2::eComputeShader,
-            .srcAccessMask = vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
             .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
-            .dstAccessMask = vk::AccessFlagBits2::eShaderRead,
-            .buffer = currentDistributionBuffer.get(),
-            .size = vk::WholeSize},
-          vk::BufferMemoryBarrier2{
-            .srcStageMask = vk::PipelineStageFlagBits2::eComputeShader,
-            .srcAccessMask = vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
-            .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
-            .dstAccessMask = vk::AccessFlagBits2::eShaderRead,
             .buffer = currentHistogramInfo.get(),
             .size = vk::WholeSize}};
 
-        vk::DependencyInfo dependencyInfo = {
-          .dependencyFlags = vk::DependencyFlagBits::eByRegion,
-          .bufferMemoryBarrierCount = static_cast<uint32_t>(bufferBarriers.size()),
-          .pBufferMemoryBarriers = bufferBarriers.data()};
+          vk::DependencyInfo dependencyInfo = {
+            .dependencyFlags = vk::DependencyFlagBits::eByRegion,
+            .bufferMemoryBarrierCount = static_cast<uint32_t>(bufferBarriers.size()),
+            .pBufferMemoryBarriers = bufferBarriers.data()};
 
-        cmd_buf.pipelineBarrier2(dependencyInfo);
+          cmd_buf.pipelineBarrier2(dependencyInfo);
+        }
+
+        tonemappingShaderStart(
+          cmd_buf,
+          histogramPipeline,
+          "histogram_calculation",
+          {etna::Binding{0, renderTarget.genBinding({}, vk::ImageLayout::eGeneral)},
+           etna::Binding{1, currentHistogramBuffer.genBinding()},
+           etna::Binding{2, currentHistogramInfo.genBinding()}},
+          binsAmount,
+          {(resolution.x + 31) / 32, (resolution.y + 31) / 32});
+
+        {
+          std::array bufferBarriers = {
+            vk::BufferMemoryBarrier2{
+              .srcStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+              .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+              .buffer = currentHistogramBuffer.get(),
+              .size = vk::WholeSize},
+            vk::BufferMemoryBarrier2{
+              .srcStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+              .srcAccessMask = vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
+              .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+              .dstAccessMask = vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
+              .buffer = currentHistogramInfo.get(),
+              .size = vk::WholeSize}};
+
+          vk::DependencyInfo dependencyInfo = {
+            .dependencyFlags = vk::DependencyFlagBits::eByRegion,
+            .bufferMemoryBarrierCount = static_cast<uint32_t>(bufferBarriers.size()),
+            .pBufferMemoryBarriers = bufferBarriers.data()};
+
+          cmd_buf.pipelineBarrier2(dependencyInfo);
+        }
+
+        tonemappingShaderStart(
+          cmd_buf,
+          processHistogramPipeline,
+          "histogram_processing",
+          {etna::Binding{0, currentHistogramBuffer.genBinding()},
+           etna::Binding{1, currentDistributionBuffer.genBinding()},
+           etna::Binding{2, currentHistogramInfo.genBinding()}},
+          binsAmount,
+          {1, 1});
+
+        {
+          std::array bufferBarriers = {
+            vk::BufferMemoryBarrier2{
+              .srcStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+              .srcAccessMask = vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
+              .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+              .dstAccessMask = vk::AccessFlagBits2::eShaderRead,
+              .buffer = currentDistributionBuffer.get(),
+              .size = vk::WholeSize},
+            vk::BufferMemoryBarrier2{
+              .srcStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+              .srcAccessMask = vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
+              .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+              .dstAccessMask = vk::AccessFlagBits2::eShaderRead,
+              .buffer = currentHistogramInfo.get(),
+              .size = vk::WholeSize}};
+
+          vk::DependencyInfo dependencyInfo = {
+            .dependencyFlags = vk::DependencyFlagBits::eByRegion,
+            .bufferMemoryBarrierCount = static_cast<uint32_t>(bufferBarriers.size()),
+            .pBufferMemoryBarriers = bufferBarriers.data()};
+
+          cmd_buf.pipelineBarrier2(dependencyInfo);
+        }
+
+        etna::set_state(
+          cmd_buf,
+          renderTarget.get(),
+          vk::PipelineStageFlagBits2::eComputeShader,
+          vk::AccessFlagBits2::eShaderRead | vk::AccessFlagBits2::eShaderWrite,
+          vk::ImageLayout::eGeneral,
+          vk::ImageAspectFlagBits::eColor);
+
+        etna::flush_barriers(cmd_buf);
+
+        tonemappingShaderStart(
+          cmd_buf,
+          postprocessComputePipeline,
+          "postprocess_compute",
+          {etna::Binding{0, renderTarget.genBinding({}, vk::ImageLayout::eGeneral)},
+           etna::Binding{1, currentDistributionBuffer.genBinding()},
+           etna::Binding{2, currentHistogramInfo.genBinding()}},
+          binsAmount,
+          {(resolution.x + 31) / 32, (resolution.y + 31) / 32});
       }
-
-      etna::set_state(
-        cmd_buf,
-        renderTarget.get(),
-        vk::PipelineStageFlagBits2::eComputeShader,
-        vk::AccessFlagBits2::eShaderRead | vk::AccessFlagBits2::eShaderWrite,
-        vk::ImageLayout::eGeneral,
-        vk::ImageAspectFlagBits::eColor);
-
-      etna::flush_barriers(cmd_buf);
-
-      tonemappingShaderStart(
-        cmd_buf,
-        postprocessComputePipeline,
-        "postprocess_compute",
-        {etna::Binding{0, renderTarget.genBinding({}, vk::ImageLayout::eGeneral)},
-         etna::Binding{1, currentDistributionBuffer.genBinding()},
-         etna::Binding{2, currentHistogramInfo.genBinding()}},
-        binsAmount,
-        {(resolution.x + 31) / 32, (resolution.y + 31) / 32});
     }
 
     etna::set_state(
