@@ -84,21 +84,12 @@ void Renderer::loadScene(std::filesystem::path path)
 
 void Renderer::debugInput(const Keyboard& kb)
 {
-  worldRenderer->debugInput(kb);
-
   if (kb[KeyboardKey::kB] == ButtonState::Falling)
   {
-    const int retval = std::system("cd " GRAPHICS_COURSE_ROOT "/build"
-                                   " && cmake --build . --target imgui_renderer_shaders");
-    if (retval != 0)
-      spdlog::warn("Shader recompilation returned a non-zero return code!");
-    else
-    {
-      ETNA_CHECK_VK_RESULT(etna::get_context().getDevice().waitIdle());
-      etna::reload_shaders();
-      spdlog::info("Successfully reloaded shaders!");
-    }
+    reloadShaders();
   }
+
+  worldRenderer->debugInput(kb);
 }
 
 void Renderer::update(const FramePacket& packet)
@@ -108,15 +99,19 @@ void Renderer::update(const FramePacket& packet)
 
 void Renderer::drawGui()
 {
-  ImGui::Begin("Render Settings", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+  ImGui::Begin("Render Settings");
 
-  if (ImGui::CollapsingHeader("Application options"))
+  if (ImGui::CollapsingHeader("Application Settings"))
   {
-    if (ImGui::Button("Enable/Disable Vsync"))
+    if (ImGui::Checkbox("Use Vsync", &useVsync))
     {
-      useVsync = !useVsync;
       swapchainRecreationNeeded = true;
     }
+  }
+
+  if (ImGui::Button("Reload shaders"))
+  {
+    reloadShaders();
   }
 
   ImGui::End();
@@ -204,6 +199,20 @@ void Renderer::drawFrame()
   }
 
   etna::end_frame();
+}
+
+void Renderer::reloadShaders()
+{
+  const int retval = std::system("cd " GRAPHICS_COURSE_ROOT "/build"
+                                 " && cmake --build . --target imgui_renderer_shaders");
+  if (retval != 0)
+    spdlog::warn("Shader recompilation returned a non-zero return code!");
+  else
+  {
+    ETNA_CHECK_VK_RESULT(etna::get_context().getDevice().waitIdle());
+    etna::reload_shaders();
+    spdlog::info("Successfully reloaded shaders!");
+  }
 }
 
 Renderer::~Renderer()

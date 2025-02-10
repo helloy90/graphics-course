@@ -6,11 +6,14 @@
 #include <etna/RenderTargetStates.hpp>
 
 #include "imgui.h"
+
+#include "shaders/TerrainGenerationParams.h"
 #include "shaders/postprocessing/UniformHistogramInfo.h"
 
 WorldRenderer::WorldRenderer()
   : sceneMgr{std::make_unique<SceneManager>()}
   , renderTargetFormat(vk::Format::eB10G11R11UfloatPack32)
+  , maxNumberOfSamples(16)
   , maxInstancesInScene{4096}
   , binsAmount(128)
   , wireframeEnabled(false)
@@ -36,6 +39,35 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
     .format = renderTargetFormat,
     .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled |
       vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eTransferSrc,
+  });
+
+  // mixesCoefficients.emplace(
+  //   ctx.getMainWorkCount(), [&ctx, maxNumberOfSamples = this->maxNumberOfSamples](std::size_t i)
+  //   {
+  //     return ctx.createBuffer(etna::Buffer::CreateInfo{
+  //       .size = sizeof(uint32_t) * maxNumberOfSamples,
+  //       .bufferUsage = vk::BufferUsageFlagBits::eVertexBuffer |
+  //         vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
+  //       .memoryUsage = VMA_MEMORY_USAGE_CPU_TO_GPU,
+  //       .name = fmt::format("mixesCoeeficients{}", i)});
+  //   });
+
+  // damping.emplace(ctx.getMainWorkCount(), [&ctx, maxNumberOfSamples =
+  // this->maxNumberOfSamples](std::size_t i) {
+  //   return ctx.createBuffer(etna::Buffer::CreateInfo{
+  //     .size = sizeof(uint32_t) * maxNumberOfSamples,
+  //     .bufferUsage = vk::BufferUsageFlagBits::eVertexBuffer |
+  //       vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
+  //     .memoryUsage = VMA_MEMORY_USAGE_CPU_TO_GPU,
+  //     .name = fmt::format("mixesCoeeficients{}", i)});
+  // });
+
+  generationParamsBuffer.emplace(ctx.getMainWorkCount(), [&ctx](std::size_t i) {
+    return ctx.createBuffer(etna::Buffer::CreateInfo{
+      .size = sizeof(TerrainGenerationParams),
+      .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
+      .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
+      .name = fmt::format("constants{}", i)});
   });
 
   params.terrainInChunks = shader_uvec2(64, 64);
@@ -200,59 +232,9 @@ void WorldRenderer::setupTerrainGeneration(vk::Format texture_format, vk::Extent
       }});
 
   params.extent = shader_uvec2(extent.width, extent.height);
+  generationParams = {.extent = params.extent, .numberOfSamples = 2, .persistence = 0.5};
 }
 
-void WorldRenderer::generateTerrain()
-{
-  auto commandBuffer = oneShotCommands->start();
-
-  ETNA_CHECK_VK_RESULT(commandBuffer.begin(vk::CommandBufferBeginInfo{}));
-  {
-    etna::set_state(
-      commandBuffer,
-      terrainMap.get(),
-      vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-      vk::AccessFlagBits2::eColorAttachmentWrite,
-      vk::ImageLayout::eColorAttachmentOptimal,
-      vk::ImageAspectFlagBits::eColor);
-
-    etna::flush_barriers(commandBuffer);
-
-    {
-      auto extent = terrainMap.getExtent();
-      glm::uvec2 glmExtent = {extent.width, extent.height};
-      etna::RenderTargetState state(
-        commandBuffer,
-        {{}, {glmExtent.x, glmExtent.y}},
-        {{terrainMap.get(), terrainMap.getView({})}},
-        {});
-
-      commandBuffer.bindPipeline(
-        vk::PipelineBindPoint::eGraphics, terrainGenerationPipeline.getVkPipeline());
-
-      commandBuffer.pushConstants<glm::uvec2>(
-        terrainGenerationPipeline.getVkPipelineLayout(),
-        vk::ShaderStageFlagBits::eFragment,
-        0,
-        {glmExtent});
-
-      commandBuffer.draw(3, 1, 0, 0);
-    }
-
-    etna::set_state(
-      commandBuffer,
-      terrainMap.get(),
-      vk::PipelineStageFlagBits2::eTessellationEvaluationShader,
-      vk::AccessFlagBits2::eShaderSampledRead,
-      vk::ImageLayout::eShaderReadOnlyOptimal,
-      vk::ImageAspectFlagBits::eColor);
-
-    etna::flush_barriers(commandBuffer);
-  }
-  ETNA_CHECK_VK_RESULT(commandBuffer.end());
-
-  oneShotCommands->submitAndWait(commandBuffer);
-}
 
 void WorldRenderer::debugInput(const Keyboard& keyboard)
 {
@@ -263,8 +245,6 @@ void WorldRenderer::debugInput(const Keyboard& keyboard)
     wireframeEnabled = !wireframeEnabled;
 
     setupRenderPipelines();
-
-    ETNA_CHECK_VK_RESULT(etna::get_context().getDevice().waitIdle());
   }
 }
 
@@ -282,13 +262,118 @@ void WorldRenderer::update(const FramePacket& packet)
 
 void WorldRenderer::drawGui()
 {
-  ImGui::Begin("Render Settings", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
 
-  ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "Press F3 to enable wireframe mode");
-  ImGui::NewLine();
-  ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "Press B to recompile shaders");
-  
+  static ImU32 numberOfSamplesMin = 1;
+  static ImU32 numberOfSamplesMax = maxNumberOfSamples;
+  static float persistenceMin = 0.0f;
+  static float persistenceMax = 1.0f;
+  ImGui::Begin("Render Settings");
+
+  if (ImGui::CollapsingHeader("Terrain Generation"))
+  {
+    ImGui::SeparatorText("Generation parameters");
+    ImGui::SliderScalar(
+      "Number of samples",
+      ImGuiDataType_U32,
+      &generationParams.numberOfSamples,
+      &numberOfSamplesMin,
+      &numberOfSamplesMax,
+      "%u");
+    ImGui::SliderScalar(
+      "Persistence",
+      ImGuiDataType_Float,
+      &generationParams.persistence,
+      &persistenceMin,
+      &persistenceMax,
+      "%f");
+    if (ImGui::Button("Regenerate Terrain"))
+    {
+      generateTerrain();
+    }
+  }
+
+  if (ImGui::CollapsingHeader("World Render Settings"))
+  {
+    if (ImGui::Checkbox("Enable Wireframe Mode", &wireframeEnabled))
+    {
+      ETNA_CHECK_VK_RESULT(etna::get_context().getDevice().waitIdle());
+
+      setupRenderPipelines();
+    }
+  }
+
   ImGui::End();
+}
+
+void WorldRenderer::generateTerrain()
+{
+  auto commandBuffer = oneShotCommands->start();
+
+  ETNA_CHECK_VK_RESULT(commandBuffer.begin(vk::CommandBufferBeginInfo{}));
+  {
+    auto& currentGenerationConstants = generationParamsBuffer->get();
+
+    currentGenerationConstants.map();
+
+    std::memcpy(
+      currentGenerationConstants.data(), &generationParams, sizeof(TerrainGenerationParams));
+
+    currentGenerationConstants.unmap();
+
+    etna::set_state(
+      commandBuffer,
+      terrainMap.get(),
+      vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+      vk::AccessFlagBits2::eColorAttachmentWrite,
+      vk::ImageLayout::eColorAttachmentOptimal,
+      vk::ImageAspectFlagBits::eColor);
+
+    etna::flush_barriers(commandBuffer);
+
+    {
+      etna::RenderTargetState state(
+        commandBuffer,
+        {{}, {generationParams.extent.x, generationParams.extent.y}},
+        {{terrainMap.get(), terrainMap.getView({})}},
+        {});
+
+      auto shaderInfo = etna::get_shader_program("terrain_generator");
+      auto set = etna::create_descriptor_set(
+        shaderInfo.getDescriptorLayoutId(0),
+        commandBuffer,
+        {etna::Binding{0, currentGenerationConstants.genBinding()}});
+
+      auto vkSet = set.getVkSet();
+
+      commandBuffer.bindDescriptorSets(
+        vk::PipelineBindPoint::eGraphics,
+        terrainGenerationPipeline.getVkPipelineLayout(),
+        0,
+        1,
+        &vkSet,
+        0,
+        nullptr);
+
+      commandBuffer.bindPipeline(
+        vk::PipelineBindPoint::eGraphics, terrainGenerationPipeline.getVkPipeline());
+
+      commandBuffer.draw(3, 1, 0, 0);
+    }
+
+    etna::set_state(
+      commandBuffer,
+      terrainMap.get(),
+      vk::PipelineStageFlagBits2::eTessellationEvaluationShader,
+      vk::AccessFlagBits2::eShaderSampledRead,
+      vk::ImageLayout::eShaderReadOnlyOptimal,
+      vk::ImageAspectFlagBits::eColor);
+
+    etna::flush_barriers(commandBuffer);
+  }
+
+  ETNA_CHECK_VK_RESULT(commandBuffer.end());
+
+  oneShotCommands->submitAndWait(commandBuffer);
 }
 
 void WorldRenderer::renderScene(

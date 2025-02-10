@@ -30,6 +30,8 @@ public:
   void drawGui();
   void drawFrame();
 
+  void reloadShaders();
+
 private:
   ResolutionProvider resolutionProvider;
 

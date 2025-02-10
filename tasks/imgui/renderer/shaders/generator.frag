@@ -1,12 +1,18 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
+#extension GL_GOOGLE_include_directive : require
+
+#include "TerrainGenerationParams.h"
 
 layout(location = 0) out float fragColor;
 
-layout(push_constant) uniform params {
-  uvec2 iResolution;
-} pushConstant;
+layout(binding = 0) uniform params {
+  TerrainGenerationParams genParams;
+};
 
+// layout(push_constant) uniform params {
+//   uvec2 iResolution;
+// } pushConstant;
 
 float interpolate(float a0, float a1, float w) {
   return (a1 - a0) * ((w * (w * 6.0 - 15.0) + 10.0) * w * w * w) + a0;
@@ -41,7 +47,7 @@ float map(float value, float fromLow, float fromHigh, float toLow, float toHigh)
   return toLow + (toHigh - toLow) * ((value - fromLow) / (fromHigh - fromLow));
 }
 
-float perlin(vec2 vector, int octaves) {
+float perlin(vec2 vector, int octaves, float persistence) {
   float frequency = 1.0;
   float amplitude = 1.0;
   float total = 0.0;
@@ -73,15 +79,21 @@ float perlin(vec2 vector, int octaves) {
     total += value;
 
     frequency *= 2.0;
-    amplitude *= 0.5;
+    amplitude *= persistence;
   }
 
   return total * 0.5 + 0.5;
 }
 
 void main() {
-  vec2 iResolution = pushConstant.iResolution;
+  vec2 iResolution = genParams.extent;
   vec2 fragCoord = vec2(gl_FragCoord.x, iResolution.y - gl_FragCoord.y); // flipped screen y coord
 
-  fragColor = mix(perlin(vec2(fragCoord / 2048), 2), perlin(vec2(fragCoord / 512), 3), 0.5);
+  float result = perlin(vec2(fragCoord / 2048), 2, genParams.persistence);
+
+  for (int i = 1; i < genParams.numberOfSamples; i++) {
+    result = mix(result, perlin(vec2(fragCoord / (2048 / (4 * i))), i, genParams.persistence), 0.5);
+  }
+
+  fragColor = result; //mix(perlin(vec2(fragCoord / 2048), 2, 0.5), perlin(vec2(fragCoord / 512), 3, 0.5), 0.5);
 }
