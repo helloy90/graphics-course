@@ -2,7 +2,6 @@
 #define UNIFORM_HISTOGRAM_INFO_H_INCLUDED
 
 #include "cpp_glsl_compat.h"
-#include <glm/fwd.hpp>
 
 
 struct UniformHistogramInfo

@@ -14,7 +14,9 @@
 #include "wsi/Keyboard.hpp"
 
 #include "FramePacket.hpp"
-#include "shaders/UniformParams.h"
+#include "shaders/terrain/UniformParams.h"
+#include "GBuffer.hpp"
+
 
 class WorldRenderer
 {
@@ -45,6 +47,9 @@ private:
   void renderTerrain(
     vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout);
 
+  void shadeTerrain(
+    vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout);
+
   bool isVisible(const Bounds& bounds, const glm::mat4& proj_view, const glm::mat4& transform);
 
   void parseInstanceInfo(etna::Buffer& buffer, const glm::mat4x4& glob_tm);
@@ -64,11 +69,11 @@ private:
 
   vk::Format renderTargetFormat;
 
-  etna::Image mainViewDepth;
+  // etna::Image mainViewDepth;
   etna::Image terrainMap;
   etna::Image renderTarget;
 
-  
+  std::optional<GBuffer> gBuffer;
 
   UniformParams params;
 
@@ -82,6 +87,7 @@ private:
   etna::GraphicsPipeline staticMeshPipeline{};
   etna::GraphicsPipeline terrainGenerationPipeline;
   etna::GraphicsPipeline terrainRenderPipeline;
+  etna::GraphicsPipeline terrainShadingPipeline;
 
   std::optional<etna::GpuSharedResource<etna::Buffer>> histogramBuffer;
   std::optional<etna::GpuSharedResource<etna::Buffer>> histogramInfoBuffer;
