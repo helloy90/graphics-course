@@ -2,7 +2,7 @@
 
 #include "etna/DescriptorSet.hpp"
 #include "etna/RenderTargetStates.hpp"
-#include <array>
+#include "etna/Sampler.hpp"
 
 #include <etna/Image.hpp>
 #include <glm/glm.hpp>
@@ -20,11 +20,16 @@ public:
 
   std::vector<etna::RenderTargetState::AttachmentParams> genColorAttachmentParams();
 
-  etna::RenderTargetState::AttachmentParams genDepthAttachemtParams();
+  etna::RenderTargetState::AttachmentParams genDepthAttachmentParams();
 
-  std::vector<etna::Binding> genBindings();
+  etna::Binding genAlbedoBinding(uint32_t index);
+  etna::Binding genNormalBinding(uint32_t index);
+  etna::Binding genDepthBinding(uint32_t index);
 
 private:
-  std::array<etna::Image, 3> colorImages; // size hardcode for now
+  etna::Image albedo;
+  etna::Image normal;
   etna::Image depth;
+
+  etna::Sampler sampler;
 };

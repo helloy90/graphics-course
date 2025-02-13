@@ -5,8 +5,11 @@
 #include <etna/Profiling.hpp>
 #include <etna/RenderTargetStates.hpp>
 #include <minwindef.h>
+#include <vulkan/vulkan_enums.hpp>
 
+#include "etna/DescriptorSet.hpp"
 #include "etna/Etna.hpp"
+#include "etna/GraphicsPipeline.hpp"
 #include "shaders/postprocessing/UniformHistogramInfo.h"
 
 WorldRenderer::WorldRenderer()
@@ -180,12 +183,12 @@ void WorldRenderer::setupRenderPipelines()
         },
       .fragmentShaderOutput =
         {
-          .colorAttachmentFormats = {renderTargetFormat},
+          .colorAttachmentFormats = {renderTargetFormat, renderTargetFormat},
           .depthAttachmentFormat = vk::Format::eD32Sfloat,
         },
     });
 
-  terrainRenderPipeline = pipelineManager.createGraphicsPipeline(
+  terrainShadingPipeline = pipelineManager.createGraphicsPipeline(
     "terrain_shading",
     etna::GraphicsPipeline::CreateInfo{
       .inputAssemblyConfig = {.topology = vk::PrimitiveTopology::ePatchList},
@@ -228,6 +231,33 @@ void WorldRenderer::setupTerrainGeneration(vk::Format texture_format, vk::Extent
       }});
 
   params.extent = shader_uvec2(extent.width, extent.height);
+}
+
+void WorldRenderer::debugInput(const Keyboard& keyboard)
+{
+  if (keyboard[KeyboardKey::kF3] == ButtonState::Falling)
+  {
+    ETNA_CHECK_VK_RESULT(etna::get_context().getDevice().waitIdle());
+
+    wireframeEnabled = !wireframeEnabled;
+
+    // TODO: fix sync error in queue submit
+    setupRenderPipelines();
+  }
+}
+
+void WorldRenderer::update(const FramePacket& packet)
+{
+  ZoneScoped;
+
+  // calc camera matrix
+  {
+    const float aspect = float(resolution.x) / float(resolution.y);
+    params.view = packet.mainCam.viewTm();
+    params.proj = packet.mainCam.projTm(aspect);
+    params.projView = params.proj * params.view;
+    params.cameraWorldPosition = packet.mainCam.position;
+  }
 }
 
 void WorldRenderer::generateTerrain()
@@ -282,32 +312,6 @@ void WorldRenderer::generateTerrain()
   oneShotCommands->submitAndWait(commandBuffer);
 }
 
-void WorldRenderer::debugInput(const Keyboard& keyboard)
-{
-  if (keyboard[KeyboardKey::kF3] == ButtonState::Falling)
-  {
-    ETNA_CHECK_VK_RESULT(etna::get_context().getDevice().waitIdle());
-
-    wireframeEnabled = !wireframeEnabled;
-
-    // TODO: fix sync error in queue submit
-    setupRenderPipelines();
-  }
-}
-
-void WorldRenderer::update(const FramePacket& packet)
-{
-  ZoneScoped;
-
-  // calc camera matrix
-  {
-    const float aspect = float(resolution.x) / float(resolution.y);
-    worldViewProj = packet.mainCam.projTm(aspect) * packet.mainCam.viewTm();
-    params.projView = worldViewProj;
-    params.cameraWorldPosition = packet.mainCam.position;
-  }
-}
-
 void WorldRenderer::renderScene(
   vk::CommandBuffer cmd_buf,
   const glm::mat4x4& glob_tm,
@@ -317,6 +321,8 @@ void WorldRenderer::renderScene(
   ZoneScoped;
   if (!sceneMgr->getVertexBuffer())
     return;
+
+  // add gbuffer bind
 
   cmd_buf.bindVertexBuffers(0, {sceneMgr->getVertexBuffer()}, {0});
   cmd_buf.bindIndexBuffer(sceneMgr->getIndexBuffer(), 0, vk::IndexType::eUint32);
@@ -375,13 +381,19 @@ void WorldRenderer::renderTerrain(
   cmd_buf.draw(4, params.terrainInChunks.x * params.terrainInChunks.y, 0, 0);
 }
 
-void WorldRenderer::shadeTerrain(vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout)
+void WorldRenderer::shadeTerrain(
+  vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout)
 {
   ZoneScoped;
 
-  auto shaderInfo = etna::get_shader_program("terrain_render");
+  auto shaderInfo = etna::get_shader_program("terrain_shading");
   auto set = etna::create_descriptor_set(
-    shaderInfo.getDescriptorLayoutId(0), cmd_buf, gBuffer->genBindings());
+    shaderInfo.getDescriptorLayoutId(0),
+    cmd_buf,
+    {etna::Binding{0, constants.genBinding()},
+     gBuffer->genAlbedoBinding(1),
+     gBuffer->genNormalBinding(2),
+     gBuffer->genDepthBinding(3)});
 
   auto vkSet = set.getVkSet();
 
@@ -417,6 +429,9 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
       vk::ImageLayout::eColorAttachmentOptimal,
       vk::ImageAspectFlagBits::eColor);
 
+
+    gBuffer->prepareForRender(cmd_buf);
+
     etna::flush_barriers(cmd_buf);
 
     // {
@@ -432,17 +447,13 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
     //   terrainRenderPipeline.getVkPipelineLayout());
     // }
 
-    gBuffer->prepareForRender(cmd_buf);
-
-    etna::flush_barriers(cmd_buf);
-
     {
       ETNA_PROFILE_GPU(cmd_buf, renderTerrain);
       etna::RenderTargetState renderTargets(
         cmd_buf,
         {{0, 0}, {resolution.x, resolution.y}},
         gBuffer->genColorAttachmentParams(),
-        gBuffer->genDepthAttachemtParams());
+        gBuffer->genDepthAttachmentParams());
 
       cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, terrainRenderPipeline.getVkPipeline());
       renderTerrain(cmd_buf, currentConstants, terrainRenderPipeline.getVkPipelineLayout());
@@ -458,10 +469,10 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
         cmd_buf,
         {{0, 0}, {resolution.x, resolution.y}},
         {{.image = renderTarget.get(), .view = renderTarget.getView({})}},
-        gBuffer->genDepthAttachemtParams());
+        {});
 
-      cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, terrainRenderPipeline.getVkPipeline());
-      shadeTerrain(cmd_buf, terrainRenderPipeline.getVkPipelineLayout());
+      cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, terrainShadingPipeline.getVkPipeline());
+      shadeTerrain(cmd_buf, currentConstants, terrainShadingPipeline.getVkPipelineLayout());
     }
 
     // {
@@ -474,9 +485,9 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
     //     {.image = mainViewDepth.get(), .view = mainViewDepth.getView({}), .loadOp =
     //     vk::AttachmentLoadOp::eLoad});
 
-    //   cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, staticMeshPipeline.getVkPipeline());
-    //   renderScene(cmd_buf, worldViewProj, staticMeshPipeline.getVkPipelineLayout(),
-    //   currentBuffer);
+    //   cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics,
+    //   staticMeshPipeline.getVkPipeline()); renderScene(cmd_buf, worldViewProj,
+    //   staticMeshPipeline.getVkPipelineLayout(), currentBuffer);
     // }
 
     auto& currentHistogramBuffer = histogramBuffer->get();

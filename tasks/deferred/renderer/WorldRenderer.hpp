@@ -48,7 +48,7 @@ private:
     vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout);
 
   void shadeTerrain(
-    vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout);
+    vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout);
 
   bool isVisible(const Bounds& bounds, const glm::mat4& proj_view, const glm::mat4& transform);
 
@@ -81,8 +81,6 @@ private:
   std::optional<etna::GpuSharedResource<etna::Buffer>> instanceMatricesBuffer;
   std::optional<etna::GpuSharedResource<etna::Buffer>> constantsBuffer;
   std::vector<uint32_t> instancesAmount;
-
-  glm::mat4x4 worldViewProj;
 
   etna::GraphicsPipeline staticMeshPipeline{};
   etna::GraphicsPipeline terrainGenerationPipeline;
