@@ -10,7 +10,7 @@ struct UniformParams
     shader_mat4 proj;
     shader_mat4 projView;
     shader_vec3 cameraWorldPosition;
-    shader_uint padding;
+    shader_uint lightsAmount;
     shader_uvec2 extent;
     shader_uvec2 chunk;
     shader_uvec2 terrainInChunks;

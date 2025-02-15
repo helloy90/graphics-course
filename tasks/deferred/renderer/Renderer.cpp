@@ -24,13 +24,16 @@ void Renderer::initVulkan(std::span<const char*> instance_extensions)
   deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 
   etna::initialize(etna::InitParams{
-    .applicationName = "tonemapping_renderer",
+    .applicationName = "deferred_renderer",
     .applicationVersion = VK_MAKE_VERSION(0, 1, 0),
     .instanceExtensions = instanceExtensions,
     .deviceExtensions = deviceExtensions,
     .features =
       vk::PhysicalDeviceFeatures2{
-        .features = {.tessellationShader = vk::True, .fillModeNonSolid = vk::True /*debug*/, .fragmentStoresAndAtomics = vk::True}},
+        .features =
+          {.tessellationShader = vk::True,
+           .fillModeNonSolid = vk::True /*debug*/,
+           .fragmentStoresAndAtomics = vk::True}},
     .physicalDeviceIndexOverride = {},
     .numFramesInFlight = 2,
   });
@@ -59,6 +62,7 @@ void Renderer::initFrameDelivery(vk::UniqueSurfaceKHR a_surface, ResolutionProvi
 
   worldRenderer->allocateResources(resolution);
   worldRenderer->loadShaders();
+  worldRenderer->loadLights();
   worldRenderer->setupRenderPipelines();
   worldRenderer->setupTerrainGeneration(vk::Format::eR32Sfloat, {4096, 4096, 1});
   worldRenderer->generateTerrain();
@@ -111,7 +115,7 @@ void Renderer::drawFrame()
     {
       ETNA_PROFILE_GPU(currentCmdBuf, renderFrame);
 
-      worldRenderer->renderWorld(currentCmdBuf, image); //view);
+      worldRenderer->renderWorld(currentCmdBuf, image); // view);
 
       etna::set_state(
         currentCmdBuf,

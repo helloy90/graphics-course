@@ -18,9 +18,11 @@ public:
   // no flush
   void prepareForRead(vk::CommandBuffer cmd_buf);
 
-  std::vector<etna::RenderTargetState::AttachmentParams> genColorAttachmentParams();
+  std::vector<etna::RenderTargetState::AttachmentParams> genColorAttachmentParams(
+    vk::AttachmentLoadOp load_op = vk::AttachmentLoadOp::eClear);
 
-  etna::RenderTargetState::AttachmentParams genDepthAttachmentParams();
+  etna::RenderTargetState::AttachmentParams genDepthAttachmentParams(
+    vk::AttachmentLoadOp load_op = vk::AttachmentLoadOp::eClear);
 
   etna::Binding genAlbedoBinding(uint32_t index);
   etna::Binding genNormalBinding(uint32_t index);

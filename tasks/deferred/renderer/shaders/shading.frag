@@ -3,10 +3,11 @@
 #extension GL_GOOGLE_include_directive : require
 
 #include "terrain/UniformParams.h"
+#include "Light.h"
 
 layout(location = 0) out vec4 fragColor;
 
-layout (binding = 0) uniform params {
+layout(binding = 0) uniform params {
   UniformParams uniformParams;
 };
 
@@ -14,14 +15,12 @@ layout(binding = 1) uniform sampler2D gAlbedo;
 layout(binding = 2) uniform sampler2D gNormal;
 layout(binding = 3) uniform sampler2D gDepth;
 
-layout(push_constant) uniform resolution_t {
-    uvec2 resolution;
+layout(binding = 4) readonly buffer lights {
+    Light lightsBuffer[];
 };
 
-struct Light {
-    vec3 pos;
-    vec3 color;
-    float intensity;
+layout(push_constant) uniform resolution_t {
+    uvec2 resolution;
 };
 
 void main() {
@@ -36,16 +35,24 @@ void main() {
     vec4 viewSpacePosition = inverse(uniformParams.proj) * screenSpacePosition;
     viewSpacePosition /= viewSpacePosition.w;
 
-    Light light = {(uniformParams.view * vec4(10, 20, 10, 1.0)).xyz, vec3(1), 1.0};
+    vec3 viewSpaceNormal = normalize((transpose(inverse(uniformParams.view)) * vec4(normal, 1)).xyz);
 
-    vec3 ambient = vec3(0.1);
+    vec3 ambient = vec3(0.05);
+    vec3 color = ambient;
 
-    vec3 lightDir = normalize(light.pos - viewSpacePosition.xyz);
+    for (uint i = 0; i < uniformParams.lightsAmount; i++) {
+        Light currentLight = lightsBuffer[i];
 
-    float normalLighting = clamp(dot(lightDir, normal), 0.0, 1.0);
-    vec3 diffuse = albedo * normalLighting * light.color * light.intensity;
+        vec4 viewSpaceLightPosition = uniformParams.view * currentLight.pos;
+        viewSpaceLightPosition /= viewSpaceLightPosition.w;
 
-    vec3 color = ambient + diffuse;
+        vec3 lightDir = normalize(viewSpaceLightPosition.xyz - viewSpacePosition.xyz);
+
+        float normalLighting = clamp(dot(viewSpaceNormal, lightDir), 0.0, 1.0);
+        vec3 diffuse = albedo * normalLighting * currentLight.color * currentLight.intensity;
+
+        color += diffuse;
+    }
 
     fragColor = vec4(color, 1);
 }

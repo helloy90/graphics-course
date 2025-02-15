@@ -26,6 +26,7 @@ public:
   void loadScene(std::filesystem::path path);
 
   void loadShaders();
+  void loadLights();
   void allocateResources(glm::uvec2 swapchain_resolution);
   void setupRenderPipelines();
   void setupTerrainGeneration(vk::Format texture_format, vk::Extent3D extent);
@@ -40,7 +41,7 @@ public:
 private:
   void renderScene(
     vk::CommandBuffer cmd_buf,
-    const glm::mat4x4& glob_tm,
+    etna::Buffer& constants,
     vk::PipelineLayout pipeline_layout,
     etna::Buffer& instance_buffer);
 
@@ -52,7 +53,7 @@ private:
 
   bool isVisible(const Bounds& bounds, const glm::mat4& proj_view, const glm::mat4& transform);
 
-  void parseInstanceInfo(etna::Buffer& buffer, const glm::mat4x4& glob_tm);
+  void parseInstanceInfo(etna::Buffer& buffer);
 
   void updateConstants(etna::Buffer& constants);
 
@@ -69,11 +70,12 @@ private:
 
   vk::Format renderTargetFormat;
 
-  // etna::Image mainViewDepth;
+  etna::Image mainViewDepth;
   etna::Image terrainMap;
   etna::Image renderTarget;
 
   std::optional<GBuffer> gBuffer;
+  etna::Buffer lightsBuffer;
 
   UniformParams params;
 
@@ -104,6 +106,7 @@ private:
   bool wireframeEnabled;
 
   std::unique_ptr<etna::OneShotCmdMgr> oneShotCommands;
+  std::unique_ptr<etna::BlockingTransferHelper> transferHelper;
 
   glm::uvec2 resolution;
 };

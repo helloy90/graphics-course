@@ -2,6 +2,7 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_GOOGLE_include_directive : require
 
+#include "../terrain/UniformParams.h"
 #include "unpack_attributes_baked.glsl"
 
 
@@ -12,10 +13,9 @@ layout(std140, set = 0, binding = 0) readonly buffer instanceMatrices_t {
   mat4 matrices[];
 } instanceMatrices;
 
-layout(push_constant) uniform params_t
-{
-  mat4 mProjView;
-} params;
+layout (binding = 1) uniform params {
+  UniformParams uniformParams;
+};
 
 
 layout (location = 0 ) out VS_OUT
@@ -40,5 +40,5 @@ void main(void)
   vOut.wTangent = normalize(mat3(transpose(inverse(currentModelMatrix))) * wTang.xyz);
   vOut.texCoord = vTexCoordAndTang.xy;
 
-  gl_Position   = params.mProjView * vec4(vOut.wPos, 1.0);
+  gl_Position   = uniformParams.projView * vec4(vOut.wPos, 1.0);
 }
