@@ -6,7 +6,8 @@
 
 struct Light
 {
-  shader_vec4 pos; // last coord is padding
+  shader_vec3 pos;
+  float radius;
   shader_vec3 color;
   float intensity;
 };

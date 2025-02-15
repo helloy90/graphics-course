@@ -43,8 +43,13 @@ void main() {
     for (uint i = 0; i < uniformParams.lightsAmount; i++) {
         Light currentLight = lightsBuffer[i];
 
-        vec4 viewSpaceLightPosition = uniformParams.view * currentLight.pos;
+        vec4 viewSpaceLightPosition = uniformParams.view * vec4(currentLight.pos, 1);
         viewSpaceLightPosition /= viewSpaceLightPosition.w;
+
+        float dist = length(viewSpaceLightPosition - viewSpacePosition);
+        if (dist > currentLight.radius) {
+            continue;
+        }
 
         vec3 lightDir = normalize(viewSpaceLightPosition.xyz - viewSpacePosition.xyz);
 

@@ -5,6 +5,8 @@
 #include <etna/PipelineManager.hpp>
 #include <etna/Profiling.hpp>
 #include <etna/RenderTargetStates.hpp>
+#include <glm/ext/quaternion_exponential.hpp>
+#include <glm/ext/vector_common.hpp>
 #include <span>
 
 #include "etna/DescriptorSet.hpp"
@@ -12,6 +14,7 @@
 #include "etna/GraphicsPipeline.hpp"
 #include "shaders/postprocessing/UniformHistogramInfo.h"
 #include "shaders/Light.h"
+#include "spdlog/spdlog.h"
 
 WorldRenderer::WorldRenderer()
   : sceneMgr{std::make_unique<SceneManager>()}
@@ -111,13 +114,25 @@ void WorldRenderer::loadScene(std::filesystem::path path)
 void WorldRenderer::loadLights()
 {
   auto& ctx = etna::get_context();
+
+  float constant = 1.0;
+  float linear = 0.7;
+  float quadratic = 1.8;
+
   std::array lights = {
-    Light{.pos = {0, 100, 0, 1}, .color = {1, 1, 1}, .intensity = 1},
-    Light{.pos = {500, 100, 0, 1}, .color = {0.5, 1, 0.5}, .intensity = 1},
-    Light{.pos = {0, 100, 500, 1}, .color = {1, 0.5, 1}, .intensity = 1},
-    Light{.pos = {500, 50, 500, 1}, .color = {0, 1, 1}, .intensity = 1},
-    Light{.pos = {100, 100, 100, 1}, .color = {1, 1, 0}, .intensity = 1},
-    Light{.pos = {0, -20, 0, 1}, .color = {1, 0, 1}, .intensity = 0.5}};
+    Light{.pos = {0, 100, 0}, .radius = 0, .color = {1, 1, 1}, .intensity = 1},
+    Light{.pos = {500, 100, 0}, .radius = 0, .color = {0.5, 1, 0.5}, .intensity = 1},
+    Light{.pos = {0, 100, 500}, .radius = 0, .color = {1, 0.5, 1}, .intensity = 1},
+    Light{.pos = {500, 50, 500}, .radius = 0, .color = {0, 1, 1}, .intensity = 1},
+    Light{.pos = {100, 100, 100}, .radius = 0, .color = {1, 1, 0}, .intensity = 1},
+    Light{.pos = {0, -20, 0}, .radius = 0, .color = {1, 0, 1}, .intensity = 0.5}};
+
+  for (auto& light : lights)
+  {
+    float lightMax = glm::max(light.color.r, light.color.g, light.color.b);
+    light.radius = (-linear + glm::sqrt(linear * linear - 4 * quadratic * (constant - (256.0 / 0.001) * lightMax))) / (2 * quadratic);
+    spdlog::info("radius of light - {}", light.radius);
+  }
 
   lightsBuffer = ctx.createBuffer(etna::Buffer::CreateInfo{
     .size = sizeof(Light) * lights.size(),
