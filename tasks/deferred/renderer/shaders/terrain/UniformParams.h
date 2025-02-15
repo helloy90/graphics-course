@@ -3,7 +3,6 @@
 
 #include "cpp_glsl_compat.h"
 
-
 struct UniformParams
 {
     shader_mat4 view;

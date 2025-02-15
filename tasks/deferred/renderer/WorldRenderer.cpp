@@ -1,20 +1,12 @@
 #include "WorldRenderer.hpp"
 
-#include <array>
 #include <etna/GlobalContext.hpp>
 #include <etna/PipelineManager.hpp>
 #include <etna/Profiling.hpp>
 #include <etna/RenderTargetStates.hpp>
-#include <glm/ext/quaternion_exponential.hpp>
-#include <glm/ext/vector_common.hpp>
-#include <span>
 
-#include "etna/DescriptorSet.hpp"
-#include "etna/Etna.hpp"
-#include "etna/GraphicsPipeline.hpp"
 #include "shaders/postprocessing/UniformHistogramInfo.h"
 #include "shaders/Light.h"
-#include "spdlog/spdlog.h"
 
 WorldRenderer::WorldRenderer()
   : sceneMgr{std::make_unique<SceneManager>()}
@@ -115,9 +107,9 @@ void WorldRenderer::loadLights()
 {
   auto& ctx = etna::get_context();
 
-  float constant = 1.0;
-  float linear = 0.7;
-  float quadratic = 1.8;
+  float constant = 1.0f;
+  float linear = 0.7f;
+  float quadratic = 1.8f;
 
   std::array lights = {
     Light{.pos = {0, 100, 0}, .radius = 0, .color = {1, 1, 1}, .intensity = 1},
@@ -130,8 +122,10 @@ void WorldRenderer::loadLights()
   for (auto& light : lights)
   {
     float lightMax = glm::max(light.color.r, light.color.g, light.color.b);
-    light.radius = (-linear + glm::sqrt(linear * linear - 4 * quadratic * (constant - (256.0 / 0.001) * lightMax))) / (2 * quadratic);
-    spdlog::info("radius of light - {}", light.radius);
+    light.radius = (-linear +
+                    static_cast<float>(glm::sqrt(
+                      linear * linear - 4 * quadratic * (constant - (256.0 / 0.001) * lightMax)))) /
+      (2 * quadratic);
   }
 
   lightsBuffer = ctx.createBuffer(etna::Buffer::CreateInfo{
@@ -145,7 +139,7 @@ void WorldRenderer::loadLights()
 
   transferHelper->uploadBuffer(*oneShotCommands, lightsBuffer, 0, std::as_bytes(std::span(lights)));
 
-  params.lightsAmount = lights.size();
+  params.lightsAmount = static_cast<uint32_t>(lights.size());
 }
 
 void WorldRenderer::loadShaders()
