@@ -6,6 +6,8 @@
 #include <etna/PipelineManager.hpp>
 #include <etna/Profiling.hpp>
 
+#include <imgui.h>
+
 
 Renderer::Renderer(glm::uvec2 res)
   : resolution{res}
@@ -60,6 +62,8 @@ void Renderer::initFrameDelivery(vk::UniqueSurfaceKHR a_surface, ResolutionProvi
 
   worldRenderer = std::make_unique<WorldRenderer>();
 
+  guiRenderer = std::make_unique<ImGuiRenderer>(window->getCurrentFormat());
+
   worldRenderer->allocateResources(resolution);
   worldRenderer->loadShaders();
   worldRenderer->loadLights();
@@ -75,21 +79,12 @@ void Renderer::loadScene(std::filesystem::path path)
 
 void Renderer::debugInput(const Keyboard& kb)
 {
-  worldRenderer->debugInput(kb);
-
   if (kb[KeyboardKey::kB] == ButtonState::Falling)
   {
-    const int retval = std::system("cd " GRAPHICS_COURSE_ROOT "/build"
-                                   " && cmake --build . --target deferred_renderer_shaders");
-    if (retval != 0)
-      spdlog::warn("Shader recompilation returned a non-zero return code!");
-    else
-    {
-      ETNA_CHECK_VK_RESULT(etna::get_context().getDevice().waitIdle());
-      etna::reload_shaders();
-      spdlog::info("Successfully reloaded shaders!");
-    }
+    reloadShaders();
   }
+
+  worldRenderer->debugInput(kb);
 }
 
 void Renderer::update(const FramePacket& packet)
@@ -97,9 +92,38 @@ void Renderer::update(const FramePacket& packet)
   worldRenderer->update(packet);
 }
 
+void Renderer::drawGui()
+{
+  ImGui::Begin("Render Settings");
+
+  if (ImGui::CollapsingHeader("Application Settings"))
+  {
+    if (ImGui::Checkbox("Use Vsync", &useVsync))
+    {
+      swapchainRecreationNeeded = true;
+    }
+  }
+
+  if (ImGui::Button("Reload shaders"))
+  {
+    reloadShaders();
+  }
+
+  ImGui::End();
+}
+
 void Renderer::drawFrame()
 {
   ZoneScoped;
+
+  {
+    ZoneScopedN("drawGui");
+    guiRenderer->nextFrame();
+    ImGui::NewFrame();
+    worldRenderer->drawGui();
+    drawGui();
+    ImGui::Render();
+  }
 
   auto currentCmdBuf = commandManager->acquireNext();
 
@@ -121,6 +145,20 @@ void Renderer::drawFrame()
         currentCmdBuf,
         image,
         vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+        vk::AccessFlagBits2::eColorAttachmentRead,
+        vk::ImageLayout::eColorAttachmentOptimal,
+        vk::ImageAspectFlagBits::eColor);
+
+      {
+        ImDrawData* pDrawData = ImGui::GetDrawData();
+        guiRenderer->render(
+          currentCmdBuf, {{0, 0}, {resolution.x, resolution.y}}, image, view, pDrawData);
+      }
+
+      etna::set_state(
+        currentCmdBuf,
+        image,
+        vk::PipelineStageFlagBits2::eColorAttachmentOutput,
         {},
         vk::ImageLayout::ePresentSrcKHR,
         vk::ImageAspectFlagBits::eColor);
@@ -137,10 +175,17 @@ void Renderer::drawFrame()
 
     if (!presented)
       nextSwapchainImage = std::nullopt;
+
+    if (swapchainRecreationNeeded)
+    {
+      nextSwapchainImage = std::nullopt;
+      swapchainRecreationNeeded = false;
+    }
   }
 
   if (!nextSwapchainImage && resolutionProvider() != glm::uvec2{0, 0})
   {
+    spdlog::info("recreating swapchain");
     auto [w, h] = window->recreateSwapchain(etna::Window::DesiredProperties{
       .resolution = {resolution.x, resolution.y},
       .vsync = useVsync,
@@ -149,6 +194,20 @@ void Renderer::drawFrame()
   }
 
   etna::end_frame();
+}
+
+void Renderer::reloadShaders()
+{
+  const int retval = std::system("cd " GRAPHICS_COURSE_ROOT "/build"
+                                 " && cmake --build . --target deferred_renderer_shaders");
+  if (retval != 0)
+    spdlog::warn("Shader recompilation returned a non-zero return code!");
+  else
+  {
+    ETNA_CHECK_VK_RESULT(etna::get_context().getDevice().waitIdle());
+    etna::reload_shaders();
+    spdlog::info("Successfully reloaded shaders!");
+  }
 }
 
 Renderer::~Renderer()

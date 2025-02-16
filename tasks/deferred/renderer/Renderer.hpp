@@ -6,6 +6,7 @@
 #include <function2/function2.hpp>
 
 #include "wsi/Keyboard.hpp"
+#include "gui/ImGuiRenderer.hpp"
 
 #include "FramePacket.hpp"
 #include "WorldRenderer.hpp"
@@ -26,7 +27,10 @@ public:
 
   void debugInput(const Keyboard& kb);
   void update(const FramePacket& packet);
+  void drawGui();
   void drawFrame();
+
+  void reloadShaders();
 
 private:
   ResolutionProvider resolutionProvider;
@@ -36,6 +40,10 @@ private:
 
   glm::uvec2 resolution;
   bool useVsync = false;
+
+  bool swapchainRecreationNeeded = false; 
+
+  std::unique_ptr<ImGuiRenderer> guiRenderer;
 
   std::unique_ptr<WorldRenderer> worldRenderer;
 };
