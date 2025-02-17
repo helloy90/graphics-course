@@ -22,8 +22,6 @@ layout (binding = 0) uniform params {
 layout (binding = 1) uniform sampler2D heightMap;
 layout (binding = 2) uniform sampler2D normalMap;
 
-const float heightAmplifier = 500.0;
-
 void main() {
 
   float u = gl_TessCoord.x;
@@ -43,7 +41,7 @@ void main() {
 
   vec2 currentTexCoord = interpolate4Vert2D(texLeftLower, texLeftUpper, texRightLower, texRightUpper, u, v);
 
-  currentVertex.y = texture(heightMap, currentTexCoord).x * heightAmplifier - heightAmplifier * 3 / 5;
+  currentVertex.y = (texture(heightMap, currentTexCoord).x - uniformParams.heightOffset) * uniformParams.heightAmplifier;
 
   pos = currentVertex;
   normal = texture(normalMap, currentTexCoord).xyz;

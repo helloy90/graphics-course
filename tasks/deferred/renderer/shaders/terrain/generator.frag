@@ -75,7 +75,7 @@ float perlin(vec2 vector, int octaves, float persistence) {
     total += value;
 
     frequency *= 2.0;
-    amplitude *= 0.5;
+    amplitude *= persistence;
   }
 
   return total * 0.5 + 0.5;

@@ -31,7 +31,7 @@ public:
   void rebuildRenderPipelines();
   void setupTerrainGeneration(vk::Format texture_format, vk::Extent3D extent);
   void generateTerrain();
-  void loadLights();
+  void loadLights(); 
 
   void debugInput(const Keyboard& kb);
   void update(const FramePacket& packet);
@@ -104,6 +104,7 @@ private:
   std::uint32_t binsAmount;
 
   etna::ComputePipeline terrainNormalPipeline;
+  etna::ComputePipeline lightDisplacementPipeline;
 
   etna::ComputePipeline calculateMinMaxPipeline;
   etna::ComputePipeline histogramPipeline;

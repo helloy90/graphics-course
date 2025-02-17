@@ -23,6 +23,8 @@ layout(binding = 5) readonly buffer directionalLights {
     DirectionalLight directionalLightsBuffer[];
 };
 
+layout(binding = 6) uniform sampler2D terrainMap;
+
 layout(push_constant) uniform resolution_t {
     uvec2 resolution;
 };
@@ -33,6 +35,8 @@ void main() {
     vec3 albedo = texture(gAlbedo, texCoord).rgb;
     vec3 normal = texture(gNormal, texCoord).xyz;
     float depth = texture(gDepth, texCoord).x;
+
+    // float height = (texture(terrainMap, texCoord).x - uniformParams.heightOffset) * uniformParams.heightAmplifier;
 
     vec4 screenSpacePosition = vec4(texCoord * 2.0 - 1.0, depth, 1.0);
 
@@ -47,33 +51,34 @@ void main() {
     for (uint i = 0; i < uniformParams.directionalLightsAmount; i++) {
         DirectionalLight currentLight = directionalLightsBuffer[i];
 
-        vec4 viewSpaceLightDirection = normalize(uniformParams.view * vec4(currentLight.direction, 0));
-        // viewSpaceLightDirection /= viewSpaceLightDirection.w;
+        vec3 viewSpaceLightDirection = normalize(uniformParams.view * vec4(currentLight.direction, 0)).xyz;
 
-        float normalLighting = clamp(dot(viewSpaceNormal, viewSpaceLightDirection.xyz), 0.0, 1.0);
+        float normalLighting = clamp(dot(viewSpaceNormal, viewSpaceLightDirection), 0.0, 1.0);
         vec3 diffuse = albedo * normalLighting * currentLight.color * currentLight.intensity;
 
         color += diffuse;
     }
 
-    // for (uint i = 0; i < uniformParams.lightsAmount; i++) {
-    //     Light currentLight = lightsBuffer[i];
+    for (uint i = 0; i < uniformParams.lightsAmount; i++) {
+        Light currentLight = lightsBuffer[i];
 
-    //     vec4 viewSpaceLightPosition = uniformParams.view * vec4(currentLight.pos, 1);
-    //     viewSpaceLightPosition /= viewSpaceLightPosition.w;
+        vec4 viewSpaceLightPosition = uniformParams.view * vec4(currentLight.pos, 1);
+        viewSpaceLightPosition /= viewSpaceLightPosition.w;
 
-    //     float dist = length(viewSpaceLightPosition - viewSpacePosition);
-    //     if (dist > currentLight.radius) {
-    //         continue;
-    //     }
+        float dist = length(viewSpaceLightPosition - viewSpacePosition);
+        if (dist > currentLight.radius) {
+            continue;
+        }
 
-    //     vec3 lightDir = normalize(viewSpaceLightPosition.xyz - viewSpacePosition.xyz);
+        vec3 lightDir = normalize(viewSpaceLightPosition.xyz - viewSpacePosition.xyz);
 
-    //     float normalLighting = clamp(dot(viewSpaceNormal, lightDir), 0.0, 1.0);
-    //     vec3 diffuse = albedo * normalLighting * currentLight.color * currentLight.intensity;
+        float attenuation = 1 / (uniformParams.constant + uniformParams.linear * dist + uniformParams.quadratic * (dist * dist));
 
-    //     color += diffuse;
-    // }
+        float normalLighting = clamp(dot(viewSpaceNormal, lightDir), 0.0, 1.0);
+        vec3 diffuse = albedo * normalLighting * currentLight.color * currentLight.intensity * attenuation;
+
+        color += diffuse;
+    }
 
     fragColor = vec4(color, 1);
 }
