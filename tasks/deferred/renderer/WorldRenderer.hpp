@@ -25,14 +25,13 @@ public:
   WorldRenderer();
 
   void loadScene(std::filesystem::path path);
-
   void loadShaders();
-  void loadLights();
   void allocateResources(glm::uvec2 swapchain_resolution);
   void setupRenderPipelines();
   void rebuildRenderPipelines();
   void setupTerrainGeneration(vk::Format texture_format, vk::Extent3D extent);
   void generateTerrain();
+  void loadLights();
 
   void debugInput(const Keyboard& kb);
   void update(const FramePacket& packet);
@@ -75,6 +74,7 @@ private:
   etna::Image mainViewDepth;
 
   etna::Image terrainMap;
+  etna::Image terrainNormalMap;
   std::optional<etna::GpuSharedResource<etna::Buffer>> generationParamsBuffer;
   TerrainGenerationParams generationParams;
   uint32_t maxNumberOfSamples;
@@ -83,6 +83,7 @@ private:
 
   std::optional<GBuffer> gBuffer;
   etna::Buffer lightsBuffer;
+  etna::Buffer directionalLightsBuffer;
 
   UniformParams params;
 
@@ -101,6 +102,8 @@ private:
   std::optional<etna::GpuSharedResource<etna::Buffer>> distributionBuffer;
 
   std::uint32_t binsAmount;
+
+  etna::ComputePipeline terrainNormalPipeline;
 
   etna::ComputePipeline calculateMinMaxPipeline;
   etna::ComputePipeline histogramPipeline;

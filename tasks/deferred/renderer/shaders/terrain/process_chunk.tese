@@ -20,17 +20,7 @@ layout (binding = 0) uniform params {
 };
 
 layout (binding = 1) uniform sampler2D heightMap;
-
-vec3 generateNormal(vec2 currentTexCoord) {
-  float left = textureOffset(heightMap, currentTexCoord, ivec2(-1, 0)).x;
-  float right = textureOffset(heightMap, currentTexCoord, ivec2(1, 0)).x;
-  float up = textureOffset(heightMap, currentTexCoord, ivec2(0, 1)).x;
-  float down = textureOffset(heightMap, currentTexCoord, ivec2(0, -1)).x;
-
-  vec3 normal = normalize(vec3(left - right, 2.0 / (uniformParams.chunk.x * uniformParams.chunk.y), down - up));
-
-  return normal;
-}
+layout (binding = 2) uniform sampler2D normalMap;
 
 const float heightAmplifier = 500.0;
 
@@ -56,7 +46,7 @@ void main() {
   currentVertex.y = texture(heightMap, currentTexCoord).x * heightAmplifier - heightAmplifier * 3 / 5;
 
   pos = currentVertex;
-  normal = generateNormal(currentTexCoord);
+  normal = texture(normalMap, currentTexCoord).xyz;
 
   gl_Position = uniformParams.projView * vec4(currentVertex, 1.0);
 }
