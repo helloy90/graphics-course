@@ -2,17 +2,38 @@
 
 #include <stack>
 
+#include <stb_image.h>
 #include <spdlog/spdlog.h>
 #include <fmt/std.h>
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
+
 #include <etna/GlobalContext.hpp>
 #include <etna/OneShotCmdMgr.hpp>
+#include <etna/Etna.hpp>
+#include <etna/RenderTargetStates.hpp>
+#include <vulkan/vulkan_enums.hpp>
+#include <vulkan/vulkan_structs.hpp>
 
+
+static std::uint32_t encode_normal(glm::vec3 normal)
+{
+  const std::int32_t x = static_cast<std::int32_t>(normal.x * 32767.0f);
+  const std::int32_t y = static_cast<std::int32_t>(normal.y * 32767.0f);
+
+  const std::uint32_t sign = normal.z >= 0 ? 0 : 1;
+  const std::uint32_t sx = static_cast<std::uint32_t>(x & 0xfffe) | sign;
+  const std::uint32_t sy = static_cast<std::uint32_t>(y & 0xffff) << 16;
+
+  return sx | sy;
+}
 
 SceneManager::SceneManager()
   : oneShotCommands{etna::get_context().createOneShotCmdMgr()}
   , transferHelper{etna::BlockingTransferHelper::CreateInfo{.stagingSize = 4096 * 4096 * 4}}
+  , baseColorPlaceholder(Texture2D::Id::Invalid)
+  , metallicRoughnessPlaceholder(Texture2D::Id::Invalid)
+  , normalPlaceholder(Texture2D::Id::Invalid)
 {
 }
 
@@ -51,6 +72,359 @@ std::optional<tinygltf::Model> SceneManager::loadModel(std::filesystem::path pat
     spdlog::warn("glTF: No glTF extensions are currently implemented!");
 
   return model;
+}
+
+std::unordered_map<std::string, vk::Format> SceneManager::parseTextures(
+  const tinygltf::Model& model)
+{
+  std::unordered_map<std::string, vk::Format> texturesInfo;
+  for (const auto& material : model.materials)
+  {
+    if (material.pbrMetallicRoughness.baseColorTexture.index != -1)
+    {
+      const auto& image = model.images[material.pbrMetallicRoughness.baseColorTexture.index];
+      texturesInfo[image.uri] = vk::Format::eR8G8B8A8Srgb;
+    }
+    if (material.pbrMetallicRoughness.metallicRoughnessTexture.index != -1)
+    {
+      const auto& image =
+        model.images[material.pbrMetallicRoughness.metallicRoughnessTexture.index];
+      texturesInfo[image.uri] = vk::Format::eR8G8B8A8Unorm;
+    }
+    if (material.normalTexture.index != -1)
+    {
+      const auto& image = model.images[material.normalTexture.index];
+      texturesInfo[image.uri] = vk::Format::eR8G8B8A8Srgb;
+    }
+  }
+  return texturesInfo;
+}
+
+void SceneManager::processTextures(
+  std::unordered_map<std::string, vk::Format> textures_info, std::filesystem::path path)
+{
+  auto& ctx = etna::get_context();
+
+  uint32_t layerCount = 1;
+  int width, height, channels;
+  for (const auto& [textureImageUri, format] : textures_info)
+  {
+    auto filename = (path / textureImageUri).generic_string<char>();
+    unsigned char* textureData =
+      stbi_load(filename.c_str(), &width, &height, &channels, STBI_rgb_alpha);
+
+    // maybe add recovery later
+    ETNA_VERIFYF(textureData != nullptr, "Texture is not loaded!");
+
+    uint32_t mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1;
+
+    const vk::DeviceSize textureSize = width * height * 4;
+    etna::Buffer textureBuffer = ctx.createBuffer(etna::Buffer::CreateInfo{
+      .size = textureSize,
+      .bufferUsage = vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eTransferDst,
+      .name = textureImageUri + "_buffer",
+    });
+
+    auto source = std::span<unsigned char>(textureData, textureSize);
+    transferHelper.uploadBuffer(*oneShotCommands, textureBuffer, 0, std::as_bytes(source));
+
+    etna::Image texture = ctx.createImage(etna::Image::CreateInfo{
+      .extent = vk::Extent3D{static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1},
+      .name = textureImageUri + "_texture",
+      .format = format,
+      .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst |
+        vk::ImageUsageFlagBits::eTransferSrc,
+      .mipLevels = mipLevels});
+
+    localCopyBufferToImage(textureBuffer, texture, layerCount);
+
+    generateMipmapsVkStyle(texture, mipLevels, layerCount);
+
+    auto id = texture2dManager.loadResource(
+      ("texture_" + textureImageUri).c_str(), {.texture = std::move(texture)});
+    spdlog::info(
+      "New texture loaded from file {}, texture id = {}",
+      textureImageUri,
+      static_cast<uint32_t>(id));
+
+    stbi_image_free(textureData);
+  }
+}
+
+void SceneManager::processMaterials(const tinygltf::Model& model)
+{
+  for (const auto& modelMaterial : model.materials)
+  {
+    Material material;
+
+    // always guaranteed by tinygltf loader to have 4 members in baseColorFactor vector
+    material.baseColorFactor = {
+      modelMaterial.pbrMetallicRoughness.baseColorFactor[0],
+      modelMaterial.pbrMetallicRoughness.baseColorFactor[1],
+      modelMaterial.pbrMetallicRoughness.baseColorFactor[2],
+      modelMaterial.pbrMetallicRoughness.baseColorFactor[3]};
+
+    material.roughnessFactor = modelMaterial.pbrMetallicRoughness.roughnessFactor;
+    material.metallicFactor = modelMaterial.pbrMetallicRoughness.metallicFactor;
+
+    // little bit ugly
+    if (modelMaterial.pbrMetallicRoughness.baseColorTexture.index != -1)
+    {
+      material.baseColorTexture =
+        static_cast<Texture2D::Id>(modelMaterial.pbrMetallicRoughness.baseColorTexture.index);
+    }
+    else
+    {
+      if (baseColorPlaceholder == Texture2D::Id::Invalid)
+      {
+        baseColorPlaceholder = generatePlaceholder(
+          "base_color_placeholder", vk::Format::eR8G8B8A8Srgb, {1.0f, 1.0f, 1.0f, 1.0f});
+      }
+      material.baseColorTexture = baseColorPlaceholder;
+    }
+
+    if (modelMaterial.pbrMetallicRoughness.metallicRoughnessTexture.index != -1)
+    {
+      material.metallicRoughnessTexture = static_cast<Texture2D::Id>(
+        modelMaterial.pbrMetallicRoughness.metallicRoughnessTexture.index);
+    }
+    else
+    {
+      if (metallicRoughnessPlaceholder == Texture2D::Id::Invalid)
+      {
+        metallicRoughnessPlaceholder = generatePlaceholder(
+          "metallic_roughness_placeholder", vk::Format::eR8G8B8A8Unorm, {0.0f, 1.0f, 1.0f, 1.0f});
+      }
+      material.metallicRoughnessTexture = metallicRoughnessPlaceholder;
+    }
+
+    if (modelMaterial.normalTexture.index != -1)
+    {
+
+      material.normalTexture = static_cast<Texture2D::Id>(modelMaterial.normalTexture.index);
+    }
+    else
+    {
+      if (normalPlaceholder == Texture2D::Id::Invalid)
+      {
+        normalPlaceholder = generatePlaceholder(
+          "normal_placeholder", vk::Format::eR8G8B8A8Srgb, {0.0f, 0.0f, 0.5f, 0.0f});
+      }
+      material.normalTexture = normalPlaceholder;
+    }
+
+    auto id =
+      materialManager.loadResource(("material_" + modelMaterial.name).c_str(), std::move(material));
+    spdlog::info(
+      "Material loaded, name - {}, material id = {}, used texture ids - [\n"
+      "base color - {},\n"
+      "metallic/roughness - {},\n"
+      "normal - {}\n]",
+      modelMaterial.name,
+      static_cast<uint32_t>(id),
+      static_cast<uint32_t>(material.baseColorTexture),
+      static_cast<uint32_t>(material.metallicRoughnessTexture),
+      static_cast<uint32_t>(material.normalTexture));
+  }
+}
+
+Texture2D::Id SceneManager::generatePlaceholder(
+  std::string name, vk::Format format, vk::ClearColorValue clear_color)
+{
+  etna::Image texture = etna::get_context().createImage(etna::Image::CreateInfo{
+    .extent = vk::Extent3D{1, 1, 1},
+    .name = name + "_texture",
+    .format = format,
+    .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst});
+
+  auto commandBuffer = oneShotCommands->start();
+  auto extent = texture.getExtent();
+
+  ETNA_CHECK_VK_RESULT(commandBuffer.begin(vk::CommandBufferBeginInfo{}));
+  {
+    // needed for setting texture color
+    {
+      etna::RenderTargetState state(
+        commandBuffer,
+        {{}, {extent.width, extent.height}},
+        {{.image = texture.get(), .view = texture.getView({}), .clearColorValue = clear_color}},
+        {});
+    }
+
+    etna::set_state(
+      commandBuffer,
+      texture.get(),
+      vk::PipelineStageFlagBits2::eFragmentShader,
+      vk::AccessFlagBits2::eShaderSampledRead,
+      vk::ImageLayout::eShaderReadOnlyOptimal,
+      vk::ImageAspectFlagBits::eColor);
+
+    etna::flush_barriers(commandBuffer);
+  }
+  ETNA_CHECK_VK_RESULT(commandBuffer.end());
+
+  oneShotCommands->submitAndWait(commandBuffer);
+
+  Texture2D::Id placeholder =
+    texture2dManager.loadResource(("texture_" + name).c_str(), {.texture = std::move(texture)});
+  return placeholder;
+}
+
+void SceneManager::localCopyBufferToImage(
+  const etna::Buffer& buffer, const etna::Image& image, uint32_t layer_count)
+{
+  auto commandBuffer = oneShotCommands->start();
+
+  auto extent = image.getExtent();
+
+  ETNA_CHECK_VK_RESULT(commandBuffer.begin(vk::CommandBufferBeginInfo{}));
+  {
+    etna::set_state(
+      commandBuffer,
+      image.get(),
+      vk::PipelineStageFlagBits2::eTransfer,
+      vk::AccessFlagBits2::eTransferWrite,
+      vk::ImageLayout::eTransferDstOptimal,
+      vk::ImageAspectFlagBits::eColor);
+
+    etna::flush_barriers(commandBuffer);
+
+    vk::BufferImageCopy copyRegion = {
+      .bufferOffset = 0,
+      .bufferRowLength = 0,
+      .bufferImageHeight = 0,
+      .imageSubresource =
+        {.aspectMask = vk::ImageAspectFlagBits::eColor,
+         .mipLevel = 0,
+         .baseArrayLayer = 0,
+         .layerCount = layer_count},
+      .imageExtent =
+        vk::Extent3D{static_cast<uint32_t>(extent.width), static_cast<uint32_t>(extent.height), 1}};
+
+    commandBuffer.copyBufferToImage(
+      buffer.get(), image.get(), vk::ImageLayout::eTransferDstOptimal, 1, &copyRegion);
+  }
+  ETNA_CHECK_VK_RESULT(commandBuffer.end());
+
+  oneShotCommands->submitAndWait(commandBuffer);
+}
+
+void SceneManager::generateMipmapsVkStyle(
+  const etna::Image& image, uint32_t mip_levels, uint32_t layer_count)
+{
+  auto extent = image.getExtent();
+
+  auto commandBuffer = oneShotCommands->start();
+
+  auto vkImage = image.get();
+
+  ETNA_CHECK_VK_RESULT(commandBuffer.begin(vk::CommandBufferBeginInfo{}));
+  {
+    int32_t mipWidth = extent.width;
+    int32_t mipHeight = extent.height;
+
+    vk::ImageMemoryBarrier barrier{
+      .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
+      .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
+      .image = vkImage,
+      .subresourceRange = {
+        .aspectMask = vk::ImageAspectFlagBits::eColor,
+        .levelCount = 1,
+        .baseArrayLayer = 0,
+        .layerCount = layer_count,
+      }};
+
+    for (uint32_t i = 1; i < mip_levels; i++)
+    {
+      barrier.subresourceRange.baseMipLevel = i - 1;
+      barrier.oldLayout = vk::ImageLayout::eTransferDstOptimal;
+      barrier.newLayout = vk::ImageLayout::eTransferSrcOptimal;
+      barrier.srcAccessMask = vk::AccessFlagBits::eTransferWrite;
+      barrier.dstAccessMask = vk::AccessFlagBits::eTransferRead;
+
+      commandBuffer.pipelineBarrier(
+        vk::PipelineStageFlagBits::eTransfer,
+        vk::PipelineStageFlagBits::eTransfer,
+        vk::DependencyFlagBits::eByRegion,
+        0,
+        nullptr,
+        0,
+        nullptr,
+        1,
+        &barrier);
+
+      std::array srcOffset = {vk::Offset3D{0, 0, 0}, vk::Offset3D{mipWidth, mipHeight, 1}};
+
+      auto srcImageSubrecourceLayers = vk::ImageSubresourceLayers{
+        .aspectMask = vk::ImageAspectFlagBits::eColor,
+        .mipLevel = i - 1,
+        .baseArrayLayer = 0,
+        .layerCount = layer_count};
+
+      std::array dstOffset = {
+        vk::Offset3D{0, 0, 0},
+        vk::Offset3D{mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, 1}};
+
+      auto dstImageSubrecourceLayers = vk::ImageSubresourceLayers{
+        .aspectMask = vk::ImageAspectFlagBits::eColor,
+        .mipLevel = i,
+        .baseArrayLayer = 0,
+        .layerCount = layer_count};
+
+      auto imageBlit = vk::ImageBlit{
+        .srcSubresource = srcImageSubrecourceLayers,
+        .srcOffsets = srcOffset,
+        .dstSubresource = dstImageSubrecourceLayers,
+        .dstOffsets = dstOffset};
+
+      commandBuffer.blitImage(
+        vkImage,
+        vk::ImageLayout::eTransferSrcOptimal,
+        vkImage,
+        vk::ImageLayout::eTransferDstOptimal,
+        1,
+        &imageBlit,
+        vk::Filter::eLinear);
+
+      barrier.oldLayout = vk::ImageLayout::eTransferSrcOptimal;
+      barrier.newLayout = vk::ImageLayout::eTransferDstOptimal;
+      barrier.srcAccessMask = vk::AccessFlagBits::eTransferRead;
+      barrier.dstAccessMask = vk::AccessFlagBits::eTransferWrite;
+
+      commandBuffer.pipelineBarrier(
+        vk::PipelineStageFlagBits::eTransfer,
+        vk::PipelineStageFlagBits::eTransfer,
+        vk::DependencyFlagBits::eByRegion,
+        0,
+        nullptr,
+        0,
+        nullptr,
+        1,
+        &barrier);
+
+      if (mipWidth > 1)
+      {
+        mipWidth /= 2;
+      }
+      if (mipHeight > 1)
+      {
+        mipHeight /= 2;
+      }
+    }
+
+    etna::set_state(
+      commandBuffer,
+      image.get(),
+      vk::PipelineStageFlagBits2::eFragmentShader,
+      vk::AccessFlagBits2::eShaderSampledRead,
+      vk::ImageLayout::eShaderReadOnlyOptimal,
+      vk::ImageAspectFlagBits::eColor);
+
+    etna::flush_barriers(commandBuffer);
+  }
+  ETNA_CHECK_VK_RESULT(commandBuffer.end());
+
+  oneShotCommands->submitAndWait(commandBuffer);
 }
 
 SceneManager::ProcessedInstances SceneManager::processInstances(const tinygltf::Model& model) const
@@ -131,18 +505,6 @@ SceneManager::ProcessedInstances SceneManager::processInstances(const tinygltf::
     }
 
   return result;
-}
-
-static std::uint32_t encode_normal(glm::vec3 normal)
-{
-  const std::int32_t x = static_cast<std::int32_t>(normal.x * 32767.0f);
-  const std::int32_t y = static_cast<std::int32_t>(normal.y * 32767.0f);
-
-  const std::uint32_t sign = normal.z >= 0 ? 0 : 1;
-  const std::uint32_t sx = static_cast<std::uint32_t>(x & 0xfffe) | sign;
-  const std::uint32_t sy = static_cast<std::uint32_t>(y & 0xffff) << 16;
-
-  return sx | sy;
 }
 
 SceneManager::ProcessedMeshes SceneManager::processMeshes(const tinygltf::Model& model) const
@@ -238,7 +600,8 @@ SceneManager::ProcessedMeshes SceneManager::processMeshes(const tinygltf::Model&
       result.relems.push_back(RenderElement{
         .vertexOffset = static_cast<std::uint32_t>(result.vertices.size()),
         .indexOffset = static_cast<std::uint32_t>(result.indices.size()),
-        .indexCount = static_cast<std::uint32_t>(accessors[0]->count)});
+        .indexCount = static_cast<std::uint32_t>(accessors[0]->count),
+        .material = static_cast<Material::Id>(prim.material)});
 
       const std::size_t vertexCount = accessors[1]->count;
 
@@ -405,7 +768,7 @@ SceneManager::BakedMeshes SceneManager::processBakedMeshes(const tinygltf::Model
         .vertexOffset = static_cast<uint32_t>(vertexAccessor.byteOffset / sizeof(Vertex)),
         .indexOffset = static_cast<uint32_t>(indicesAccessor.byteOffset / sizeof(uint32_t)),
         .indexCount = static_cast<uint32_t>(indicesAccessor.count),
-      });
+        .material = static_cast<Material::Id>(prim.material)});
 
       auto positionBufferView = model.bufferViews[vertexAccessor.bufferView];
       auto positionPtr =
@@ -481,6 +844,9 @@ void SceneManager::selectScene(std::filesystem::path path)
 
   auto model = std::move(*maybeModel);
 
+  processTextures(parseTextures(model), path.parent_path());
+  processMaterials(model);
+
   // By aggregating all SceneManager fields mutations here,
   // we guarantee that we don't forget to clear something
   // when re-loading a scene.
@@ -506,6 +872,9 @@ void SceneManager::selectBakedScene(std::filesystem::path path)
     return;
 
   auto model = std::move(*maybeModel);
+
+  processTextures(parseTextures(model), path.parent_path());
+  processMaterials(model);
 
   auto [instMats, instMeshes] = processInstances(model);
   instanceMatrices = std::move(instMats);
