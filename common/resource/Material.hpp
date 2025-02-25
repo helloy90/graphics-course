@@ -17,6 +17,6 @@ struct Material
   // almost identical to reference,
   // TextureManager must be present
   Texture2D::Id baseColorTexture;
-  Texture2D::Id normalTexture;
   Texture2D::Id metallicRoughnessTexture;
+  Texture2D::Id normalTexture;
 };

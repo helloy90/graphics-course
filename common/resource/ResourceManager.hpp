@@ -1,5 +1,6 @@
 #pragma once
 
+#include <glm/gtc/type_precision.hpp>
 #include <vector>
 
 #include <etna/Assert.hpp>
@@ -62,7 +63,18 @@ public:
     return storage[static_cast<std::underlying_type_t<typename Res::Id>>(id)];
   }
 
+  const Res& getResource(Res::Id id) const
+  {
+    if (static_cast<uint32_t>(id) >= storage.size())
+    {
+      // maybe add recovery later
+      ETNA_PANIC("Invalid resource id {}", static_cast<uint32_t>(id));
+    }
+    return storage[static_cast<std::underlying_type_t<typename Res::Id>>(id)];
+  }
+
   Res getResource(const char* name) { return getResource(getResourceId(name)); }
+  const Res& getResource(const char* name) const { return getResource(getResourceId(name)); }
 
   void clear()
   {

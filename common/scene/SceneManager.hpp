@@ -9,6 +9,8 @@
 #include <etna/VertexInput.hpp>
 
 #include "../resource/ResourceManager.hpp"
+#include "resource/Material.hpp"
+#include "resource/Texture2D.hpp"
 
 
 // Bounds for each render element
@@ -69,12 +71,22 @@ public:
   // Every relem is a single draw call
   std::span<const RenderElement> getRenderElements() { return renderElements; }
 
+  const Texture2D& getTexture(Texture2D::Id id) const { return texture2dManager.getResource(id); }
+  const Material& getMaterial(Material::Id id) const { return materialManager.getResource(id); }
+
   std::span<const Bounds> getRenderElementsBounds() { return renderElementsBounds; }
 
   vk::Buffer getVertexBuffer() { return unifiedVbuf.get(); }
   vk::Buffer getIndexBuffer() { return unifiedIbuf.get(); }
 
   etna::VertexByteStreamFormatDescription getVertexFormatDescription();
+
+  // for now one placeholder for all materials
+  Texture2D::Id baseColorPlaceholder;
+  Texture2D::Id metallicRoughnessPlaceholder;
+  Texture2D::Id normalPlaceholder;
+
+  Material::Id materialPlaceholder;
 
 private:
   struct ProcessedInstances
@@ -112,16 +124,18 @@ private:
 
   std::optional<tinygltf::Model> loadModel(std::filesystem::path path);
 
-  std::unordered_map<std::string, vk::Format> parseTextures(const tinygltf::Model& model);
+  std::vector<vk::Format> parseTextures(const tinygltf::Model& model);
 
   void processTextures(
-    std::unordered_map<std::string, vk::Format> textures_info, std::filesystem::path path);
+    const tinygltf::Model& model,
+    std::vector<vk::Format> textures_info,
+    std::filesystem::path path);
   void processMaterials(const tinygltf::Model& model);
 
-  Texture2D::Id generatePlaceholder(
-    std::string name,
-    vk::Format format,
-    vk::ClearColorValue clear_color);
+  Texture2D::Id generatePlaceholderTexture(
+    std::string name, vk::Format format, vk::ClearColorValue clear_color);
+
+  void generatePlaceholderMaterial();
 
   void localCopyBufferToImage(
     const etna::Buffer& buffer, const etna::Image& image, uint32_t layer_count);
@@ -145,11 +159,6 @@ private:
 
   MaterialManager materialManager;
   Texture2DManager texture2dManager;
-
-  // for now one placeholder for all materials
-  Texture2D::Id baseColorPlaceholder;
-  Texture2D::Id metallicRoughnessPlaceholder;
-  Texture2D::Id normalPlaceholder;
 
   etna::Buffer unifiedVbuf;
   etna::Buffer unifiedIbuf;

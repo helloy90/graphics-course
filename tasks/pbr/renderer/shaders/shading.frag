@@ -14,16 +14,17 @@ layout(binding = 0) uniform params {
 
 layout(binding = 1) uniform sampler2D gAlbedo;
 layout(binding = 2) uniform sampler2D gNormal;
-layout(binding = 3) uniform sampler2D gDepth;
+layout(binding = 3) uniform sampler2D gMaterial;
+layout(binding = 4) uniform sampler2D gDepth;
 
-layout(binding = 4) readonly buffer lights {
+layout(binding = 5) readonly buffer lights {
     Light lightsBuffer[];
 };
-layout(binding = 5) readonly buffer directionalLights {
+layout(binding = 6) readonly buffer directionalLights {
     DirectionalLight directionalLightsBuffer[];
 };
 
-layout(binding = 6) uniform sampler2D terrainMap;
+layout(binding = 7) uniform sampler2D terrainMap;
 
 layout(push_constant) uniform resolution_t {
     uvec2 resolution;
@@ -35,8 +36,6 @@ void main() {
     vec3 albedo = texture(gAlbedo, texCoord).rgb;
     vec3 normal = texture(gNormal, texCoord).xyz;
     float depth = texture(gDepth, texCoord).x;
-
-    // float height = (texture(terrainMap, texCoord).x - uniformParams.heightOffset) * uniformParams.heightAmplifier;
 
     vec4 screenSpacePosition = vec4(texCoord * 2.0 - 1.0, depth, 1.0);
 

@@ -113,6 +113,7 @@ private:
   etna::ComputePipeline postprocessComputePipeline;
 
   etna::Sampler terrainSampler;
+  etna::Sampler staticMeshSampler;
 
   bool wireframeEnabled;
   bool tonemappingEnabled;

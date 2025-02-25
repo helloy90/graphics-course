@@ -27,6 +27,14 @@ GBuffer::GBuffer(glm::uvec2 resolution, vk::Format render_target_format)
       vk::ImageUsageFlagBits::eStorage,
   });
 
+  material = ctx.createImage(etna::Image::CreateInfo{
+    .extent = vk::Extent3D{resolution.x, resolution.y, 1},
+    .name = "material",
+    .format = vk::Format::eR8G8B8A8Unorm,
+    .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled |
+      vk::ImageUsageFlagBits::eStorage,
+  });
+
   depth = ctx.createImage(etna::Image::CreateInfo{
     .extent = vk::Extent3D{resolution.x, resolution.y, 1},
     .name = "depth",
@@ -57,8 +65,16 @@ void GBuffer::prepareForRender(vk::CommandBuffer cmd_buf)
     vk::ImageAspectFlagBits::eColor);
   etna::set_state(
     cmd_buf,
+    material.get(),
+    vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+    vk::AccessFlagBits2::eColorAttachmentWrite,
+    vk::ImageLayout::eColorAttachmentOptimal,
+    vk::ImageAspectFlagBits::eColor);
+  etna::set_state(
+    cmd_buf,
     depth.get(),
-    vk::PipelineStageFlagBits2::eEarlyFragmentTests | vk::PipelineStageFlagBits2::eLateFragmentTests,
+    vk::PipelineStageFlagBits2::eEarlyFragmentTests |
+      vk::PipelineStageFlagBits2::eLateFragmentTests,
     vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
     vk::ImageLayout::eDepthAttachmentOptimal,
     vk::ImageAspectFlagBits::eDepth);
@@ -82,6 +98,13 @@ void GBuffer::prepareForRead(vk::CommandBuffer cmd_buf)
     vk::ImageAspectFlagBits::eColor);
   etna::set_state(
     cmd_buf,
+    material.get(),
+    vk::PipelineStageFlagBits2::eFragmentShader,
+    vk::AccessFlagBits2::eShaderSampledRead,
+    vk::ImageLayout::eReadOnlyOptimal,
+    vk::ImageAspectFlagBits::eColor);
+  etna::set_state(
+    cmd_buf,
     depth.get(),
     vk::PipelineStageFlagBits2::eFragmentShader,
     vk::AccessFlagBits2::eShaderSampledRead,
@@ -95,7 +118,8 @@ std::vector<etna::RenderTargetState::AttachmentParams> GBuffer::genColorAttachme
   // little bit ugly
   return {
     {.image = albedo.get(), .view = albedo.getView({}), .loadOp = load_op},
-    {.image = normal.get(), .view = normal.getView({}), .loadOp = load_op}};
+    {.image = normal.get(), .view = normal.getView({}), .loadOp = load_op},
+    {.image = material.get(), .view = material.getView({}), .loadOp = load_op}};
 }
 
 etna::RenderTargetState::AttachmentParams GBuffer::genDepthAttachmentParams(
@@ -113,6 +137,11 @@ etna::Binding GBuffer::genNormalBinding(uint32_t index)
 {
   return etna::Binding{
     index, normal.genBinding(sampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)};
+}
+etna::Binding GBuffer::genMaterialBinding(uint32_t index)
+{
+  return etna::Binding{
+    index, material.genBinding(sampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)};
 }
 etna::Binding GBuffer::genDepthBinding(uint32_t index)
 {
