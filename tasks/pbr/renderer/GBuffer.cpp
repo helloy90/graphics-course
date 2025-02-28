@@ -76,7 +76,18 @@ void GBuffer::prepareForRender(vk::CommandBuffer cmd_buf)
     vk::PipelineStageFlagBits2::eEarlyFragmentTests |
       vk::PipelineStageFlagBits2::eLateFragmentTests,
     vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
-    vk::ImageLayout::eDepthAttachmentOptimal,
+    vk::ImageLayout::eDepthStencilAttachmentOptimal,
+    vk::ImageAspectFlagBits::eDepth);
+}
+
+void GBuffer::continueDepthWrite(vk::CommandBuffer cmd_buf) {
+  etna::set_state(
+    cmd_buf,
+    depth.get(),
+    vk::PipelineStageFlagBits2::eEarlyFragmentTests |
+      vk::PipelineStageFlagBits2::eLateFragmentTests,
+      vk::AccessFlagBits2::eDepthStencilAttachmentRead | vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
+    vk::ImageLayout::eDepthStencilAttachmentOptimal,
     vk::ImageAspectFlagBits::eDepth);
 }
 
@@ -123,9 +134,9 @@ std::vector<etna::RenderTargetState::AttachmentParams> GBuffer::genColorAttachme
 }
 
 etna::RenderTargetState::AttachmentParams GBuffer::genDepthAttachmentParams(
-  vk::AttachmentLoadOp load_op)
+  vk::AttachmentLoadOp load_op, vk::AttachmentStoreOp store_op)
 {
-  return {.image = depth.get(), .view = depth.getView({}), .loadOp = load_op};
+  return {.image = depth.get(), .view = depth.getView({}), .loadOp = load_op, .storeOp = store_op};
 }
 
 etna::Binding GBuffer::genAlbedoBinding(uint32_t index)

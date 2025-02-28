@@ -1,4 +1,3 @@
-
 add_executable(baker
   main.cpp
   Baker.cpp

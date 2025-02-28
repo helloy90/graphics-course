@@ -31,8 +31,8 @@ void main(void)
 {
   mat4 currentModelMatrix = instanceMatrices.matrices[gl_InstanceIndex];
 
-  const vec4 wNorm = vec4(decode_normal(floatBitsToUint(vPosNorm.w)),     0.0f);
-  vec4 wTang = vec4(decode_normal(floatBitsToUint(vTexCoordAndTang.z)), 0.0f);
+  const vec4 wNorm = decode_normal(floatBitsToUint(vPosNorm.w));
+  vec4 wTang = decode_normal(floatBitsToUint(vTexCoordAndTang.z));
 
   vOut.wPos   = (currentModelMatrix * vec4(vPosNorm.xyz, 1.0f)).xyz;
   vOut.wNorm  = normalize(mat3(transpose(inverse(currentModelMatrix))) * wNorm.xyz);

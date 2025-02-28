@@ -18,7 +18,8 @@ void Baker::run()
 
   auto model = *maybeModel;
 
-  if (!checkModelSuitability(model)) {
+  if (!checkModelSuitability(model))
+  {
     spdlog::error("Aborting bakery.");
     return;
   }
@@ -32,10 +33,13 @@ void Baker::run()
   saveFormatted(model);
 }
 
-bool Baker::checkModelSuitability(tinygltf::Model& model) {
+bool Baker::checkModelSuitability(tinygltf::Model& model)
+{
   // Check images
-  for (auto& image : model.images) {
-    if (std::filesystem::path(image.uri).extension() == ".jpeg") {
+  for (auto& image : model.images)
+  {
+    if (std::filesystem::path(image.uri).extension() == ".jpeg")
+    {
       spdlog::error("Tinygltf does not support jpeg images!");
       return false;
     }
@@ -226,7 +230,7 @@ Baker::BakedMeshes Baker::processMeshes(const tinygltf::Model& model) const
         auto& vtx = result.vertices.emplace_back();
         glm::vec3 pos;
         glm::vec3 normal{0};
-        glm::vec4 tangent{0};
+        glm::vec4 tangent{0, 0, 1, 1};
         glm::vec2 texcoord{0};
         std::memcpy(&pos, ptrs[1], sizeof(pos));
 
@@ -235,11 +239,8 @@ Baker::BakedMeshes Baker::processMeshes(const tinygltf::Model& model) const
         // Try implementing this!
         if (hasNormals)
           std::memcpy(&normal, ptrs[2], sizeof(normal));
-        if (hasTangents) {
+        if (hasTangents)
           std::memcpy(&tangent, ptrs[3], sizeof(tangent));
-        } else {
-
-        }
         if (hasTexcoord)
           std::memcpy(&texcoord, ptrs[4], sizeof(texcoord));
 
@@ -421,10 +422,12 @@ void Baker::changeAccessors(tinygltf::Model& model, BakedMeshes& baked_meshes)
       }
       for (const auto& accessor : accessors)
       {
-        if (!primitive.attributes.contains(accessor.first))
-        {
-          continue;
-        }
+        // adding missing tangents
+        // if (!primitive.attributes.contains(accessor.first))
+        // {
+        //   spdlog::info("skipping accessor - {}", accessor.first);
+        //   continue;
+        // }
         primitive.attributes[accessor.first] = static_cast<int>(model.accessors.size());
         auto& currentAccessor = model.accessors.emplace_back(accessor.second);
         currentAccessor.byteOffset += renderElement.vertexOffset * sizeof(Vertex);

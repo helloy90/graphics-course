@@ -32,6 +32,12 @@ public:
     return resId;
   }
 
+  void reserve(std::size_t size)
+  {
+    storage.reserve(size);
+    names.reserve(size);
+  }
+
   Res::Id tryGetResourceId(const char* name)
   {
     auto it = names.find(name);

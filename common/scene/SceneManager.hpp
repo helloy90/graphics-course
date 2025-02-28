@@ -88,6 +88,10 @@ public:
 
   Material::Id materialPlaceholder;
 
+  void localCopyBufferToImage(
+    const etna::Buffer& buffer, const etna::Image& image, uint32_t layer_count);
+  void generateMipmapsVkStyle(const etna::Image& image, uint32_t mip_levels, uint32_t layer_count);
+
 private:
   struct ProcessedInstances
   {
@@ -136,10 +140,6 @@ private:
     std::string name, vk::Format format, vk::ClearColorValue clear_color);
 
   void generatePlaceholderMaterial();
-
-  void localCopyBufferToImage(
-    const etna::Buffer& buffer, const etna::Image& image, uint32_t layer_count);
-  void generateMipmapsVkStyle(const etna::Image& image, uint32_t mip_levels, uint32_t layer_count);
 
   ProcessedInstances processInstances(const tinygltf::Model& model) const;
   ProcessedMeshes processMeshes(const tinygltf::Model& model) const;

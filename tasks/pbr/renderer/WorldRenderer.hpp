@@ -31,7 +31,8 @@ public:
   void rebuildRenderPipelines();
   void setupTerrainGeneration(vk::Format texture_format, vk::Extent3D extent);
   void generateTerrain();
-  void loadLights(); 
+  void loadLights();
+  void loadCubemap();
 
   void debugInput(const Keyboard& kb);
   void update(const FramePacket& packet);
@@ -48,6 +49,8 @@ private:
 
   void renderTerrain(
     vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout);
+
+  void renderCubemap(vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout);
 
   void deferredShading(
     vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout);
@@ -79,6 +82,8 @@ private:
   TerrainGenerationParams generationParams;
   uint32_t maxNumberOfSamples;
 
+  etna::Image cubemapTexture;
+
   etna::Image renderTarget;
 
   std::optional<GBuffer> gBuffer;
@@ -96,6 +101,7 @@ private:
   etna::GraphicsPipeline terrainGenerationPipeline;
   etna::GraphicsPipeline terrainRenderPipeline;
   etna::GraphicsPipeline deferredShadingPipeline;
+  etna::GraphicsPipeline cubemapRenderPipeline;
 
   std::optional<etna::GpuSharedResource<etna::Buffer>> histogramBuffer;
   std::optional<etna::GpuSharedResource<etna::Buffer>> histogramInfoBuffer;

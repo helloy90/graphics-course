@@ -11,6 +11,7 @@
 #include "etna/DescriptorSet.hpp"
 #include "etna/Etna.hpp"
 #include "imgui.h"
+#include "stb_image.h"
 
 #include "shaders/postprocessing/UniformHistogramInfo.h"
 #include "shaders/Light.h"
@@ -24,7 +25,7 @@ WorldRenderer::WorldRenderer()
   , maxInstancesInScene{4096}
   , binsAmount(128)
   , wireframeEnabled(false)
-  , tonemappingEnabled(true)
+  , tonemappingEnabled(false)
 {
 }
 
@@ -60,6 +61,7 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
   gBuffer.emplace(resolution, renderTargetFormat);
 
   params.terrainInChunks = shader_uvec2(64, 64);
+  params.terrainOffset = shader_vec2(-64, -64);
   params.chunk = shader_uvec2(16, 16);
 
   instanceMatricesBuffer.emplace(
@@ -116,6 +118,9 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
 
   oneShotCommands = ctx.createOneShotCmdMgr();
 
+  transferHelper = std::make_unique<etna::BlockingTransferHelper>(
+    etna::BlockingTransferHelper::CreateInfo{.stagingSize = 4096 * 4096 * 6});
+
   instancesAmount.resize(maxInstancesInScene, 0);
 }
 
@@ -148,6 +153,9 @@ void WorldRenderer::loadShaders()
   etna::create_program(
     "lights_displacement", {PBR_RENDERER_SHADERS_ROOT "displace_lights.comp.spv"});
 
+  etna::create_program(
+    "cubemap_render",
+    {PBR_RENDERER_SHADERS_ROOT "skybox.vert.spv", PBR_RENDERER_SHADERS_ROOT "skybox.frag.spv"});
   etna::create_program(
     "deferred_shading",
     {PBR_RENDERER_SHADERS_ROOT "decoy.vert.spv", PBR_RENDERER_SHADERS_ROOT "shading.frag.spv"});
@@ -251,6 +259,16 @@ void WorldRenderer::setupRenderPipelines()
         },
     });
 
+  cubemapRenderPipeline = pipelineManager.createGraphicsPipeline(
+    "cubemap_render",
+    etna::GraphicsPipeline::CreateInfo{
+      .fragmentShaderOutput =
+        {
+          .colorAttachmentFormats = {renderTargetFormat},
+          .depthAttachmentFormat = vk::Format::eD32Sfloat,
+        },
+    });
+
   deferredShadingPipeline = pipelineManager.createGraphicsPipeline(
     "deferred_shading",
     etna::GraphicsPipeline::CreateInfo{
@@ -312,7 +330,7 @@ void WorldRenderer::setupTerrainGeneration(vk::Format texture_format, vk::Extent
   lightDisplacementPipeline = pipelineManager.createComputePipeline("lights_displacement", {});
 
   params.extent = shader_uvec2(extent.width, extent.height);
-  params.heightAmplifier = 500.0f;
+  params.heightAmplifier = 200.0f;
   params.heightOffset = 0.6f;
   generationParams = {.extent = params.extent, .numberOfSamples = 3, .persistence = 0.5};
 }
@@ -371,16 +389,81 @@ void WorldRenderer::loadLights()
     .memoryUsage = VMA_MEMORY_USAGE_GPU_ONLY,
     .name = fmt::format("Lights")});
 
-  transferHelper =
-    std::make_unique<etna::BlockingTransferHelper>(etna::BlockingTransferHelper::CreateInfo{
-      .stagingSize = std::max(directionalLightsSize, lightsSize)});
-
   transferHelper->uploadBuffer(
     *oneShotCommands, directionalLightsBuffer, 0, std::as_bytes(std::span(directionalLights)));
   transferHelper->uploadBuffer(*oneShotCommands, lightsBuffer, 0, std::as_bytes(std::span(lights)));
 
   params.directionalLightsAmount = static_cast<uint32_t>(directionalLights.size());
   params.lightsAmount = static_cast<uint32_t>(lights.size());
+}
+
+void WorldRenderer::loadCubemap()
+{
+  const uint32_t layerCount = 6;
+  std::string path = GRAPHICS_COURSE_RESOURCES_ROOT "/textures/Cubemaps/Glacier/";
+  std::vector<std::string> filenames = {
+    path + "glacier_front.bmp",
+    path + "glacier_back.bmp",
+    path + "glacier_up.bmp",
+    path + "glacier_down.bmp",
+    path + "glacier_left.bmp",
+    path + "glacier_right.bmp",
+  };
+
+  if (filenames.size() != layerCount)
+  {
+    ETNA_PANIC("Amount of textures is not equal to amount of image layers!");
+  }
+
+  unsigned char* textures[layerCount];
+  int width, height, channels;
+  for (uint32_t i = 0; i < layerCount; i++)
+  {
+    textures[i] = stbi_load(filenames[i].c_str(), &width, &height, &channels, STBI_rgb_alpha);
+    if (textures[i] == nullptr)
+    {
+      ETNA_PANIC("Texture {} is not loaded!", filenames[i].c_str());
+    }
+  }
+
+  uint32_t mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1;
+
+  const vk::DeviceSize cubemapSize = width * height * 4 * layerCount;
+  const vk::DeviceSize layerSize = cubemapSize / layerCount;
+
+  etna::Buffer cubemapBuffer = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
+    .size = cubemapSize,
+    .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer |
+      vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eTransferSrc |
+      vk::BufferUsageFlagBits::eTransferDst,
+    .name = "cubemap_buffer",
+  });
+
+  for (uint32_t i = 0; i < layerCount; i++)
+  {
+    auto source = std::span<unsigned char>(textures[i], layerSize);
+    transferHelper->uploadBuffer(
+      *oneShotCommands, cubemapBuffer, static_cast<uint32_t>(layerSize * i), std::as_bytes(source));
+  }
+
+  cubemapTexture = etna::get_context().createImage(etna::Image::CreateInfo{
+    .extent = vk::Extent3D{static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1},
+    .name = "cubemap_image",
+    .format = vk::Format::eR8G8B8A8Srgb,
+    .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst |
+      vk::ImageUsageFlagBits::eTransferSrc,
+    .layers = layerCount,
+    .mipLevels = mipLevels,
+    .flags = vk::ImageCreateFlagBits::eCubeCompatible});
+
+  sceneMgr->localCopyBufferToImage(cubemapBuffer, cubemapTexture, layerCount);
+
+  sceneMgr->generateMipmapsVkStyle(cubemapTexture, mipLevels, layerCount);
+
+  for (int i = 0; i < 6; i++)
+  {
+    stbi_image_free(textures[i]);
+  }
 }
 
 
@@ -764,7 +847,11 @@ void WorldRenderer::deferredShading(
      etna::Binding{5, lightsBuffer.genBinding()},
      etna::Binding{6, directionalLightsBuffer.genBinding()},
      etna::Binding{
-       7, terrainMap.genBinding(terrainSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)}});
+       7,
+       cubemapTexture.genBinding(
+         staticMeshSampler.get(),
+         vk::ImageLayout::eShaderReadOnlyOptimal,
+         {.type = vk::ImageViewType::eCube})}});
 
   auto vkSet = set.getVkSet();
 
@@ -775,6 +862,69 @@ void WorldRenderer::deferredShading(
     pipeline_layout, vk::ShaderStageFlagBits::eFragment, 0, sizeof(glm::uvec2), &resolution);
 
   cmd_buf.draw(3, 1, 0, 0);
+}
+
+void WorldRenderer::renderCubemap(
+  vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout)
+{
+  ZoneScoped;
+
+  auto shaderInfo = etna::get_shader_program("cubemap_render");
+  auto set = etna::create_descriptor_set(
+    shaderInfo.getDescriptorLayoutId(0),
+    cmd_buf,
+    {etna::Binding{0, constants.genBinding()},
+     etna::Binding{
+       1,
+       cubemapTexture.genBinding(
+         staticMeshSampler.get(),
+         vk::ImageLayout::eShaderReadOnlyOptimal,
+         {.type = vk::ImageViewType::eCube})}});
+
+  auto vkSet = set.getVkSet();
+
+  cmd_buf.bindDescriptorSets(
+    vk::PipelineBindPoint::eGraphics, pipeline_layout, 0, 1, &vkSet, 0, nullptr);
+
+  cmd_buf.pushConstants(
+    pipeline_layout, vk::ShaderStageFlagBits::eFragment, 0, sizeof(glm::uvec2), &resolution);
+
+  cmd_buf.draw(3, 1, 0, 0);
+}
+
+
+void WorldRenderer::tonemappingShaderStart(
+  vk::CommandBuffer cmd_buf,
+  const etna::ComputePipeline& current_pipeline,
+  std::string shader_program,
+  std::vector<etna::Binding> bindings,
+  std::optional<uint32_t> push_constant,
+  glm::uvec2 group_count)
+{
+  ZoneScoped;
+  auto vkPipelineLayout = current_pipeline.getVkPipelineLayout();
+  cmd_buf.bindPipeline(vk::PipelineBindPoint::eCompute, current_pipeline.getVkPipeline());
+
+  auto shaderProgramInfo = etna::get_shader_program(shader_program.c_str());
+
+  auto set =
+    etna::create_descriptor_set(shaderProgramInfo.getDescriptorLayoutId(0), cmd_buf, bindings);
+
+  auto vkSet = set.getVkSet();
+
+  cmd_buf.bindDescriptorSets(
+    vk::PipelineBindPoint::eCompute, vkPipelineLayout, 0, 1, &vkSet, 0, nullptr);
+
+  if (push_constant.has_value())
+  {
+    auto pushConst = push_constant.value();
+    cmd_buf.pushConstants(
+      vkPipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(pushConst), &pushConst);
+  }
+
+  etna::flush_barriers(cmd_buf);
+
+  cmd_buf.dispatch(group_count.x, group_count.y, 1);
 }
 
 void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_image)
@@ -843,7 +993,6 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
         cmd_buf, currentConstants, staticMeshPipeline.getVkPipelineLayout(), currentBuffer);
     }
 
-
     gBuffer->prepareForRead(cmd_buf);
 
     etna::set_state(
@@ -869,13 +1018,31 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
       etna::RenderTargetState renderTargets(
         cmd_buf,
         {{0, 0}, {resolution.x, resolution.y}},
-        {{.image = renderTarget.get(), .view = renderTarget.getView({})}},
-        {.image = mainViewDepth.get(), .view = mainViewDepth.getView({})});
+        {{.image = renderTarget.get(),
+          .view = renderTarget.getView({}),
+          .loadOp = vk::AttachmentLoadOp::eLoad}},
+        {});
 
       cmd_buf.bindPipeline(
         vk::PipelineBindPoint::eGraphics, deferredShadingPipeline.getVkPipeline());
       deferredShading(cmd_buf, currentConstants, deferredShadingPipeline.getVkPipelineLayout());
     }
+
+    gBuffer->continueDepthWrite(cmd_buf);
+    etna::flush_barriers(cmd_buf);
+    
+    {
+      ETNA_PROFILE_GPU(cmd_buf, renderSkybox);
+      etna::RenderTargetState renderTargets(
+        cmd_buf,
+        {{0, 0}, {resolution.x, resolution.y}},
+        {{.image = renderTarget.get(), .view = renderTarget.getView({}), .loadOp = vk::AttachmentLoadOp::eLoad}},
+        gBuffer->genDepthAttachmentParams(vk::AttachmentLoadOp::eLoad));
+
+      cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, cubemapRenderPipeline.getVkPipeline());
+      renderCubemap(cmd_buf, currentConstants, cubemapRenderPipeline.getVkPipelineLayout());
+    }
+
 
     if (tonemappingEnabled)
     {
@@ -1141,41 +1308,6 @@ void WorldRenderer::updateConstants(etna::Buffer& constants)
   std::memcpy(constants.data(), &params, sizeof(UniformParams));
 
   constants.unmap();
-}
-
-
-void WorldRenderer::tonemappingShaderStart(
-  vk::CommandBuffer cmd_buf,
-  const etna::ComputePipeline& current_pipeline,
-  std::string shader_program,
-  std::vector<etna::Binding> bindings,
-  std::optional<uint32_t> push_constant,
-  glm::uvec2 group_count)
-{
-  ZoneScoped;
-  auto vkPipelineLayout = current_pipeline.getVkPipelineLayout();
-  cmd_buf.bindPipeline(vk::PipelineBindPoint::eCompute, current_pipeline.getVkPipeline());
-
-  auto shaderProgramInfo = etna::get_shader_program(shader_program.c_str());
-
-  auto set =
-    etna::create_descriptor_set(shaderProgramInfo.getDescriptorLayoutId(0), cmd_buf, bindings);
-
-  auto vkSet = set.getVkSet();
-
-  cmd_buf.bindDescriptorSets(
-    vk::PipelineBindPoint::eCompute, vkPipelineLayout, 0, 1, &vkSet, 0, nullptr);
-
-  if (push_constant.has_value())
-  {
-    auto pushConst = push_constant.value();
-    cmd_buf.pushConstants(
-      vkPipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(pushConst), &pushConst);
-  }
-
-  etna::flush_barriers(cmd_buf);
-
-  cmd_buf.dispatch(group_count.x, group_count.y, 1);
 }
 
 bool WorldRenderer::isVisible(

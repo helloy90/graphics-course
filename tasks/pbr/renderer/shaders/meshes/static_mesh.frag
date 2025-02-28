@@ -38,6 +38,20 @@ void main()
   // const float ambient = 0.05;
   // out_fragColor.rgb = (diffuse + ambient) * surfaceColor;
   // out_fragColor.a = 1.0f;
+  // vec2 texCoord_dx = dFdx(surf.texCoord);
+  // vec2 texCoord_dy = dFdy(surf.texCoord);
+
+  // if (length(texCoord_dx) <= 0.01) {
+  //   texCoord_dx = vec2(1.0, 0.0);
+  // }
+
+  // if (length(texCoord_dy) <= 0.01) {
+  //   texCoord_dy = vec2(0.0, 1.0);
+  // }
+
+  // vec3 reconstructTangent = 
+  //   (texCoord_dy.t * dFdx(surf.wPos) - texCoord_dx.t * dFdy(surf.wPos)) / 
+  //     (texCoord_dx.s * texCoord_dy.t - texCoord_dy.s * texCoord_dx.t);
 
   gAlbedo = texture(baseColorTexture, surf.texCoord) * materialParams.baseColorFactor;
   vec4 normal = 2 * texture(normalTexture, surf.texCoord) - 1;
