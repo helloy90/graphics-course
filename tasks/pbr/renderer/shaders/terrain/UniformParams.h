@@ -6,8 +6,11 @@
 struct UniformParams
 {
   shader_mat4 view;
+  shader_mat4 invView;
   shader_mat4 proj;
+  shader_mat4 invProj;
   shader_mat4 projView;
+  shader_mat4 invProjView;
   shader_vec3 cameraWorldPosition;
 
   shader_uint _padding;

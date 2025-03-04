@@ -915,7 +915,7 @@ void SceneManager::selectScene(std::filesystem::path path)
 void SceneManager::selectBakedScene(std::filesystem::path path)
 {
   ZoneScopedN("selectBakedScene");
-  ;
+
   auto maybeModel = loadModel(path);
   if (!maybeModel.has_value())
     return;

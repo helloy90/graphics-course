@@ -14,6 +14,8 @@
 #include "wsi/Keyboard.hpp"
 
 #include "FramePacket.hpp"
+#include "shaders/DirectionalLight.h"
+#include "shaders/Light.h"
 #include "shaders/terrain/UniformParams.h"
 #include "shaders/terrain/TerrainGenerationParams.h"
 #include "GBuffer.hpp"
@@ -31,6 +33,7 @@ public:
   void rebuildRenderPipelines();
   void setupTerrainGeneration(vk::Format texture_format, vk::Extent3D extent);
   void generateTerrain();
+  void displaceLights();
   void loadLights();
   void loadCubemap();
 
@@ -87,6 +90,9 @@ private:
   etna::Image renderTarget;
 
   std::optional<GBuffer> gBuffer;
+
+  std::vector<Light> lights;
+  std::vector<DirectionalLight> directionalLights;
   etna::Buffer lightsBuffer;
   etna::Buffer directionalLightsBuffer;
 

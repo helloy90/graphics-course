@@ -45,86 +45,189 @@ float heaviside(float x) {
     return 0.0;
 }
 
-float trowbridge_reitz_d(float squaredRoughness, float NdotH) {
-    float fraction = squaredRoughness / (NdotH * NdotH * (squaredRoughness * squaredRoughness - 1.0) + 1.0);
-    return fraction * fraction / PI;
+float getAttenuation(float range, float pointDistance) {
+    float distanceSq = pointDistance * pointDistance;
+    if (range <= 0) {
+        return 1.0 / (distanceSq);
+    }
+    return max(min(1.0 - pow(pointDistance / range, 4.0), 1.0), 0.0) / (distanceSq);
 }
 
-float visibility_term(float squaredRoughness, float product) {
-    return abs(product) + sqrt(squaredRoughness * squaredRoughness + (1 - squaredRoughness * squaredRoughness) * (product * product));
+vec3 getLightIntensity(Light light, vec3 pointToLight) {
+    float attenuation = getAttenuation(light.radius, length(pointToLight));
+
+    return attenuation * light.intensity * light.color;
 }
 
-float visibility(float squaredRoughness, float HdotL, float NdotL, float HdotV, float NdotV) {
-    return 1 / (visibility_term(squaredRoughness, NdotL) * visibility_term(squaredRoughness, NdotV));
+vec3 getLightIntensity(DirectionalLight light, vec3 pointToLight) {
+    float attenuation = 1.0f;
+
+    return attenuation * light.intensity * light.color;
 }
 
-vec3 conductor_frensel(vec3 baseColor, vec3 baseColorGrazingReflection, vec3 bsdf, float VdotH_term) {
-    return bsdf * (baseColor + (baseColorGrazingReflection - baseColor) * VdotH_term);
+float D_GGX(float alphaRoughness, float NdotH) {
+    float alphaRoughnessSq = alphaRoughness * alphaRoughness;
+    float denom = NdotH * NdotH * (alphaRoughnessSq - 1.0) + 1.0;
+    return alphaRoughnessSq / (PI * denom * denom);
 }
 
-vec3 specular_brdf(float squaredRoughness, float NdotH, float HdotL, float NdotL, float HdotV, float NdotV) {
-    float vis = visibility(squaredRoughness, HdotL, NdotL, HdotV, NdotV);
-    float ggx_D = trowbridge_reitz_d(squaredRoughness, NdotH);
-    return vec3(vis * ggx_D);
+float visibility_GGX_Correlated(float alphaRoughness, float NdotL, float NdotV) {
+    float alphaRoughnessSq = alphaRoughness * alphaRoughness;
+    float GGXV = NdotL * sqrt(NdotV * NdotV * (1.0 - alphaRoughnessSq) + alphaRoughnessSq);
+    float GGXL = NdotV * sqrt(NdotL * NdotL * (1.0 - alphaRoughnessSq) + alphaRoughnessSq);
+    float GGX = GGXL + GGXV;
+    if (GGX > 0.0) {
+        return 0.5 / GGX;
+    }
+    return 0.0;
 }
 
-vec3 diffuse_brdf(vec3 color) {
+vec3 BRDFSpecular_GGX(float alphaRoughness, float NdotL, float NdotV, float NdotH) {
+    float visibility = visibility_GGX_Correlated(alphaRoughness, NdotL, NdotV);
+    float distribution = D_GGX(alphaRoughness, NdotH);
+
+    return vec3(visibility * distribution);
+}
+
+vec3 frenselSchlick(vec3 f0, float theta) {
+    return f0 + (vec3(1.0) - f0) * pow(clamp(1.0 - abs(theta), 0.0, 1.0), 5.0);
+}
+
+vec3 diffuseBrdf(vec3 color) {
     return color / PI;
 }
 
-vec3 frensel_mix(float f0, vec3 base, vec3 layer, float VdotH_term) {
-    float frensel = f0 + (1.0 - f0) * VdotH_term;
-    return mix(base, layer, frensel);
-}
-// all vectors should be in one coordinate system
-vec3 computeLightPBR(vec3 baseColor, vec3 pos, vec3 lightDir, vec3 normal, vec3 reflection, vec4 material) {
+// vec3 frensel_mix(float f0, vec3 base, vec3 layer, float VdotH_term) {
+//     float frensel = f0 + (1.0 - f0) * VdotH_term;
+//     return mix(base, layer, frensel);
+// }
+
+// all vectors should be in world coordinate system
+vec3 computeLightPBR(vec3 baseColor, vec3 pos, Light light, vec3 normal, /*vec3 reflection,*/ vec4 material) {
     const float roughness = material.g;
     const float metallic = material.b;
 
-    const float squaredRoughness = roughness;// * roughness;
+    const float alphaRoughness = roughness * roughness;
 
-    const vec3 fromPosToCamera = normalize(-pos); // V
-    const vec3 fromPosToLight = normalize(lightDir - pos); // L
+    const vec3 pointToLight = light.worldPos.xyz - pos;
+
+    const vec3 fromPosToCamera = normalize(uniformParams.cameraWorldPosition - pos); // V
+    const vec3 fromPosToLight = normalize(pointToLight); // L
     const vec3 surfaceNormal = normalize(normal); // N
     const vec3 halfVector = normalize(fromPosToLight + fromPosToCamera); // H
 
-    const float VdotH = clampedDot(inverse(mat3(uniformParams.view)) * fromPosToCamera, inverse(mat3(uniformParams.view)) * halfVector);
+    const float VdotH = clampedDot(fromPosToCamera, halfVector);
     const float HdotL = clampedDot(halfVector, fromPosToLight);
     const float NdotL = clampedDot(surfaceNormal, fromPosToLight);
-    const float HdotV = clampedDot(halfVector, fromPosToCamera);
-    const float NdotV = clampedDot(surfaceNormal, fromPosToCamera);
+    const float NdotV = clampedDot(surfaceNormal, fromPosToCamera) + 0.00001;
     const float NdotH = clampedDot(surfaceNormal, halfVector);
 
-    const float VdotH_term = pow(clamp(1.0 - abs(VdotH), 0.0, 1.0), 5.0);
+    // const vec3 specular_brdf_value = 
+    //     specular_brdf(
+    //         alphaRoughness,
+    //         NdotH,
+    //         HdotL, 
+    //         NdotL, 
+    //         VdotH, 
+    //         NdotV
+    //     );
 
-    const vec3 specular_brdf_value = 
-        specular_brdf(
-            squaredRoughness,
-            NdotH,
-            HdotL, 
-            NdotL, 
-            HdotV, 
-            NdotV
-        );
+    // const vec3 metal_brdf = 
+    //     conductor_frensel(
+    //         baseColor, //* reflection, 
+    //         vec3(1.0), // 90 angle reflection is almost white
+    //         specular_brdf_value,
+    //         VdotH_term
+    //     );
 
-    const vec3 metal_brdf = 
-        conductor_frensel(
-            baseColor * reflection, 
-            vec3(1.0), // 90 angle reflection almost white
-            specular_brdf_value,
-            VdotH_term
-        );
+    // // if indexOfReflection = 1.5 then f0 = 0.04
+    // const vec3 dielectric_brdf = 
+    //     frensel_mix(
+    //         0.04, // f0 precompute
+    //         diffuse_brdf(baseColor), 
+    //         specular_brdf_value, 
+    //         VdotH_term
+    //     );
 
-    // if indexOfReflection = 1.5 then f0 = 0.04
-    const vec3 dielectric_brdf = 
-        frensel_mix(
-            0.04, // f0 precompute
-            diffuse_brdf(baseColor), 
-            specular_brdf_value, 
-            VdotH_term
-        );
+    // index of reflection = 1.5, reflectance = 0.04
+    vec3 lightIntensity = getLightIntensity(light, pointToLight);
 
-    return mix(dielectric_brdf, metal_brdf, metallic);
+    vec3 f0 = vec3(0.04); //mix(vec3(0.04), baseColor, metallic);
+    vec3 dielectricFrensel = frenselSchlick(f0, VdotH);
+    vec3 metalFrensel = frenselSchlick(baseColor, VdotH);
+    vec3 diffuse = lightIntensity * NdotL * diffuseBrdf(baseColor);
+
+    vec3 specularMetal = lightIntensity * NdotL * BRDFSpecular_GGX(alphaRoughness, NdotL, NdotV, NdotH);
+    vec3 specularDielectric = specularMetal;
+
+    vec3 metalBrdf = metalFrensel * specularMetal;
+    vec3 dielectricBrdf = mix(diffuse, specularDielectric, dielectricFrensel);
+
+    return mix(dielectricBrdf, metalBrdf, metallic);
+}
+
+// all vectors should be in world coordinate system
+vec3 computeLightPBR(vec3 baseColor, vec3 pos, DirectionalLight light, vec3 normal, /*vec3 reflection,*/ vec4 material) {
+    const float roughness = material.g;
+    const float metallic = material.b;
+
+    const float alphaRoughness = roughness * roughness;
+
+    const vec3 pointToLight = -light.direction;
+
+    const vec3 fromPosToCamera = normalize(uniformParams.cameraWorldPosition - pos); // V
+    const vec3 fromPosToLight = normalize(pointToLight); // L
+    const vec3 surfaceNormal = normalize(normal); // N
+    const vec3 halfVector = normalize(fromPosToLight + fromPosToCamera); // H
+
+    const float VdotH = clampedDot(fromPosToCamera, halfVector);
+    const float HdotL = clampedDot(halfVector, fromPosToLight);
+    const float NdotL = clampedDot(surfaceNormal, fromPosToLight);
+    const float NdotV = clampedDot(surfaceNormal, fromPosToCamera) + 0.00001;
+    const float NdotH = clampedDot(surfaceNormal, halfVector);
+
+    // const vec3 specular_brdf_value = 
+    //     specular_brdf(
+    //         alphaRoughness,
+    //         NdotH,
+    //         HdotL, 
+    //         NdotL, 
+    //         VdotH, 
+    //         NdotV
+    //     );
+
+    // const vec3 metal_brdf = 
+    //     conductor_frensel(
+    //         baseColor, //* reflection, 
+    //         vec3(1.0), // 90 angle reflection is almost white
+    //         specular_brdf_value,
+    //         VdotH_term
+    //     );
+
+    // // if indexOfReflection = 1.5 then f0 = 0.04
+    // const vec3 dielectric_brdf = 
+    //     frensel_mix(
+    //         0.04, // f0 precompute
+    //         diffuse_brdf(baseColor), 
+    //         specular_brdf_value, 
+    //         VdotH_term
+    //     );
+
+    // index of reflection = 1.5, reflectance = 0.04
+    vec3 lightIntensity = getLightIntensity(light, pointToLight);
+
+    vec3 f0 = vec3(0.04); //mix(vec3(0.04), baseColor, metallic);
+    vec3 dielectricFrensel = frenselSchlick(f0, VdotH);
+    vec3 metalFrensel = frenselSchlick(baseColor, VdotH);
+    vec3 diffuse = lightIntensity * NdotL * diffuseBrdf(baseColor);
+
+    vec3 specularMetal = lightIntensity * NdotL * BRDFSpecular_GGX(alphaRoughness, NdotL, NdotV, NdotH);
+    vec3 specularDielectric = specularMetal;
+
+    vec3 metalBrdf = metalFrensel * specularMetal;
+    vec3 dielectricBrdf = mix(diffuse, specularDielectric, dielectricFrensel);
+
+    return mix(dielectricBrdf, metalBrdf, metallic);
 }
 // -----------------------------------------------
 
@@ -138,51 +241,47 @@ void main() {
 
     const vec4 screenSpacePosition = vec4(texCoord * 2.0 - 1.0, depth, 1.0);
 
-    vec4 viewSpacePosition = inverse(uniformParams.proj) * screenSpacePosition;
+    vec4 viewSpacePosition = uniformParams.invProj * screenSpacePosition;
     viewSpacePosition /= viewSpacePosition.w;
 
-    const vec3 viewSpaceNormal = normalize((transpose(inverse(uniformParams.view)) * vec4(normal, 0.0)).xyz);
+    const vec3 viewSpaceNormal = normalize((transpose(uniformParams.invView) * vec4(normal, 0.0)).xyz);
     
-    const vec3 worldSpacePosition = (inverse(uniformParams.projView) * screenSpacePosition).xyz;
+    vec4 worldSpacePosition = (uniformParams.invProjView * screenSpacePosition);
+    worldSpacePosition /= worldSpacePosition.w;
 
-    const vec3 reflection = texture(cubemap, reflect(worldSpacePosition, normal)).rgb;
+    // const vec3 reflection = texture(cubemap, reflect(worldSpacePosition, normal)).rgb;
 
     vec3 color = vec3(0);
 
     for (uint i = 0; i < uniformParams.directionalLightsAmount; i++) {
         DirectionalLight currentLight = directionalLightsBuffer[i];
 
-        vec3 viewSpaceLightDirection = normalize(uniformParams.view * vec4(currentLight.direction, 0.0)).xyz;
+        // vec3 viewSpaceLightDirection = normalize(uniformParams.view * vec4(-currentLight.direction, 0.0)).xyz;
+        
+        // float normalLighting = clamp(dot(normal, currentLight.direction), 0.0, 1.0);
+        // vec3 diffuse = albedo * normalLighting * currentLight.color * currentLight.intensity;
 
-        color += 
-            computeLightPBR(albedo, viewSpacePosition.xyz, viewSpaceLightDirection, viewSpaceNormal, reflection, material) 
-            * currentLight.color 
-            * currentLight.intensity;
+        vec3 pbrColor = computeLightPBR(albedo, worldSpacePosition.xyz, currentLight, normal, /*reflection,*/ material);
+        color += pbrColor;
     }
 
     for (uint i = 0; i < uniformParams.lightsAmount; i++) {
         Light currentLight = lightsBuffer[i];
 
-        vec4 viewSpaceLightPosition = uniformParams.view * currentLight.worldPos;
-        viewSpaceLightPosition /= viewSpaceLightPosition.w;
+        // vec4 viewSpaceLightPosition = uniformParams.view * currentLight.worldPos;
+        // viewSpaceLightPosition /= viewSpaceLightPosition.w;
 
-        float dist = length(viewSpaceLightPosition - viewSpacePosition);
+        float dist = length(currentLight.worldPos.xyz - worldSpacePosition.xyz);
         if (dist > currentLight.radius) {
             continue;
         }
 
-        vec3 lightDir = normalize(viewSpaceLightPosition.xyz - viewSpacePosition.xyz);
+        float attenuation = 1 / (dist * dist);
 
-        float attenuation = 1 / (uniformParams.constant + uniformParams.linear * dist + uniformParams.quadratic * (dist * dist));
+        // vec3 lightDir = normalize(viewSpaceLightPosition.xyz - viewSpacePosition.xyz);
 
-        float normalLighting = clamp(dot(viewSpaceNormal, lightDir), 0.0, 1.0);
-        vec3 diffuse = albedo * normalLighting * currentLight.color * currentLight.intensity * attenuation;
-
-        color += 
-            (dot(viewSpaceNormal, -lightDir) < 0 ? vec3(0) : computeLightPBR(albedo, viewSpacePosition.xyz, lightDir, viewSpaceNormal, reflection, material)) 
-            * currentLight.color
-            * currentLight.intensity
-            * attenuation;
+        vec3 pbrColor = computeLightPBR(albedo, worldSpacePosition.xyz, currentLight, normal, /*reflection,*/ material);
+        color += pbrColor;
     }
 
     fragColor = vec4(color, 1);

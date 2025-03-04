@@ -23,6 +23,8 @@ layout(location = 0) in VS_OUT
   vec3 wPos;
   vec3 wNorm;
   vec3 wTangent;
+  // vec3 wBitangent;
+  // vec3 wNormOut;
   vec2 texCoord;
 } surf;
 
@@ -38,25 +40,11 @@ void main()
   // const float ambient = 0.05;
   // out_fragColor.rgb = (diffuse + ambient) * surfaceColor;
   // out_fragColor.a = 1.0f;
-  // vec2 texCoord_dx = dFdx(surf.texCoord);
-  // vec2 texCoord_dy = dFdy(surf.texCoord);
-
-  // if (length(texCoord_dx) <= 0.01) {
-  //   texCoord_dx = vec2(1.0, 0.0);
-  // }
-
-  // if (length(texCoord_dy) <= 0.01) {
-  //   texCoord_dy = vec2(0.0, 1.0);
-  // }
-
-  // vec3 reconstructTangent = 
-  //   (texCoord_dy.t * dFdx(surf.wPos) - texCoord_dx.t * dFdy(surf.wPos)) / 
-  //     (texCoord_dx.s * texCoord_dy.t - texCoord_dy.s * texCoord_dx.t);
 
   gAlbedo = texture(baseColorTexture, surf.texCoord) * materialParams.baseColorFactor;
   vec4 normal = 2 * texture(normalTexture, surf.texCoord) - 1;
-  vec3 bitangent = normalize(cross(surf.wNorm, surf.wTangent));
-  gNormal = normalize(bitangent * normal.x + surf.wTangent * normal.y + surf.wNorm * normal.z);
+  vec3 bitangent = cross(surf.wNorm, surf.wTangent);
+  gNormal = normalize(normal.x * surf.wTangent + normal.y * bitangent + normal.z * surf.wNorm);//normalize(bitangent * normal.x + surf.wTangent * normal.y + surf.wNorm * normal.z);
   gMaterial = texture(metallicRoughnessTexture, surf.texCoord);
   gMaterial.g *= materialParams.roughnessFactor;
   gMaterial.b *= materialParams.metallicFactor;

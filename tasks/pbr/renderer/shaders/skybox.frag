@@ -17,7 +17,7 @@ layout(push_constant) uniform resolution_t {
 };
 
 void main() {
-    const vec3 screenSpacePosition = vec3(gl_FragCoord.xy / resolution * 2.0 - 1.0, 1.0);
-    vec3 texCoord = normalize(inverse(mat3(uniformParams.projView)) * screenSpacePosition);
+    const vec4 screenSpacePosition = vec4(gl_FragCoord.xy / resolution * 2.0 - 1.0, 1.0, 1.0);
+    vec3 texCoord = normalize((uniformParams.invProjView * screenSpacePosition).xyz);
     fragColor = vec4(texture(cubemap, texCoord).rgb, 1.0);
 }
