@@ -8,6 +8,7 @@
 #include <glm/glm.hpp>
 #include <tiny_gltf.h>
 
+
 class Baker
 {
 public:
@@ -23,12 +24,20 @@ private:
     // First 2 floats are tex coords, 3rd is a packed tangent, 4th is padding
     glm::vec4 texCoordAndTangentAndPadding;
 
-    // TODO: Maybe implement like this later 
+    // TODO: Maybe implement like this later
     // glm::vec3 coords;
     // uint32_t normal;
     // glm::vec2 texture;
     // uint32_t tangent;
     // uint32_t padding = 0;
+  };
+
+  struct RealVertex
+  {
+    glm::vec3 position;
+    glm::vec3 normal;
+    glm::vec4 tangent;
+    glm::vec2 texCoord;
   };
 
   static_assert(sizeof(Vertex) == sizeof(float) * 8);
@@ -39,7 +48,6 @@ private:
     std::uint32_t vertexCount;
     std::uint32_t indexOffset;
     std::uint32_t indexCount;
-    // std::array<std::optional<std::array<std::vector<double>, 2>>, 4> accessorsMinMaxArray;
     std::optional<std::array<std::vector<double>, 2>> positionMinMax;
     std::optional<std::array<std::vector<double>, 2>> texcoordMinMax;
 
@@ -61,21 +69,33 @@ private:
     std::vector<Mesh> meshes;
   };
 
-
-  tinygltf::TinyGLTF loader;
-  std::filesystem::path filepath;
+  struct Meshes
+  {
+    std::vector<RealVertex> vertices;
+    std::vector<std::uint32_t> indices;
+    std::vector<RenderElement> relems;
+    std::vector<Mesh> meshes;
+  };
 
   std::optional<tinygltf::Model> loadFile();
   void bakeFile(const tinygltf::Model& model);
 
-  BakedMeshes processMeshes(const tinygltf::Model& model) const;
+  Meshes processMeshes(const tinygltf::Model& model);
+  BakedMeshes bakeMeshes(const Meshes& meshes);
+
+  void calculateTangents(Meshes& mesh);
 
   bool checkModelSuitability(tinygltf::Model& model);
+
+  void makeIntermediateModel(const tinygltf::Model& model, Meshes& meshes);
 
   void changeBuffer(tinygltf::Model& model, BakedMeshes& baked_meshes);
   void changeBufferViews(tinygltf::Model& model, BakedMeshes& baked_meshes);
   void changeAccessors(tinygltf::Model& model, BakedMeshes& baked_meshes);
   void saveFormatted(tinygltf::Model& model);
 
-  uint32_t encodeNormalized(glm::vec4 vector) const;
+  tinygltf::TinyGLTF loader;
+  std::filesystem::path filepath;
+
+  bool reconstructTangents = false;
 };
