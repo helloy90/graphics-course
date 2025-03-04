@@ -39,9 +39,6 @@ void main(void)
   vec4 wTang = decode_normal(floatBitsToUint(vTexCoordAndTang.z));
 
   vOut.wPos   = (currentModelMatrix * vec4(vPosNorm.xyz, 1.0f)).xyz;
-  // vOut.wNorm  = mat3(transpose(inverse(currentModelMatrix))) * wNorm.xyz;
-  // vOut.wTangent = vec4(mat3(transpose(inverse(currentModelMatrix))) * wTang.xyz, wTang.w);
-  // vOut.wBitangent = cross(vOut.wNorm, vOut.wTangent.xyz) * wTang.w;
   vec3 normalSpace =  mat3(transpose(inverse(currentModelMatrix))) * wNorm.xyz;
   vec3 tangentSpace = mat3(transpose(inverse(currentModelMatrix))) * wTang.xyz;
   vec3 BitangentSpace = cross(normalSpace, tangentSpace) * wTang.w;

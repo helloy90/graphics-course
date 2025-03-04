@@ -4,8 +4,6 @@
 
 #include "../MaterialRenderParams.h"
 
-// layout(location = 0) out vec4 out_fragColor;
-
 layout (location = 0) out vec4 gAlbedo;
 layout (location = 1) out vec3 gNormal;
 layout (location = 2) out vec4 gMaterial;
@@ -30,25 +28,10 @@ layout(location = 0) in VS_OUT
 
 void main()
 {
-  // const vec3 wLightPos = vec3(10, 10, 10);
-  // const vec3 surfaceColor = vec3(1.0f, 1.0f, 1.0f);
-
-  // const vec3 lightColor = vec3(1.0f, 1.0f, 1.0f);
-
-  // const vec3 lightDir   = normalize(wLightPos - surf.wPos);
-  // const vec3 diffuse = max(dot(surf.wNorm, lightDir), 0.0f) * lightColor;
-  // const float ambient = 0.05;
-  // out_fragColor.rgb = (diffuse + ambient) * surfaceColor;
-  // out_fragColor.a = 1.0f;
-
-  gAlbedo = texture(baseColorTexture, surf.texCoord) * materialParams.baseColorFactor;
-  // vec4 normal = 2 * texture(normalTexture, surf.texCoord) - 1;
-  // vec3 bitangent = cross(surf.wNorm, surf.wTangent.xyz) * surf.wTangent.w;
-  gNormal = surf.wNormOut;//normalize(normal.x * surf.wTangent.xyz + normal.y * bitangent + normal.z * surf.wNorm);//normalize(bitangent * normal.x + surf.wTangent * normal.y + surf.wNorm * normal.z);
+  float currentLod = textureQueryLod(baseColorTexture, surf.texCoord).x;
+  gAlbedo = textureLod(baseColorTexture, surf.texCoord, currentLod) * materialParams.baseColorFactor;
+  gNormal = surf.wNormOut;
   gMaterial = texture(metallicRoughnessTexture, surf.texCoord);
   gMaterial.g *= materialParams.roughnessFactor;
   gMaterial.b *= materialParams.metallicFactor;
-  // gAlbedo = vec4(1);
-  // gNormal = surf.wNorm;
-  // gMaterial = vec4(0, 0.5, 0, 1);
 }
