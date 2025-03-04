@@ -340,7 +340,7 @@ void WorldRenderer::loadLights()
   params.quadratic = 0.07f;
 
   lights = {
-    Light{.pos = {0, 22, 0}, .radius = 0, .worldPos = {}, .color = {1, 1, 1}, .intensity = 15},
+    Light{.pos = {0, 27, 0}, .radius = 0, .worldPos = {}, .color = {1, 1, 1}, .intensity = 15},
     Light{.pos = {0, 5, 0}, .radius = 0, .worldPos = {}, .color = {1, 0, 1}, .intensity = 15},
     Light{.pos = {0, 5, 25}, .radius = 0, .worldPos = {}, .color = {1, 1, 1}, .intensity = 15},
     Light{.pos = {3, 5, 50}, .radius = 0, .worldPos = {}, .color = {0.5, 1, 0.5}, .intensity = 15},
@@ -486,6 +486,7 @@ void WorldRenderer::update(const FramePacket& packet)
     params.invProj = glm::inverse(params.proj);
     params.projView = params.proj * params.view;
     params.invProjView = glm::inverse(params.projView);
+    params.invProjViewMat3 = glm::mat4x4(glm::inverse(glm::mat3x3(params.projView)));
     params.cameraWorldPosition = packet.mainCam.position;
     // spdlog::info("camera position - {}, {}, {}", params.cameraWorldPosition.x,
     // params.cameraWorldPosition.y, params.cameraWorldPosition.z);

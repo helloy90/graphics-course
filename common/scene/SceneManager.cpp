@@ -1,7 +1,4 @@
 #include "SceneManager.hpp"
-#include "resource/Material.hpp"
-#include "resource/Texture2D.hpp"
-#include "scene/SceneManager.hpp"
 
 #include <cstdint>
 #include <stack>
@@ -9,15 +6,12 @@
 #include <stb_image.h>
 #include <spdlog/spdlog.h>
 #include <fmt/std.h>
-#include <glm/ext/matrix_transform.hpp>
-#include <glm/gtc/quaternion.hpp>
+#include <tracy/Tracy.hpp>
 
 #include <etna/GlobalContext.hpp>
 #include <etna/OneShotCmdMgr.hpp>
 #include <etna/Etna.hpp>
 #include <etna/RenderTargetStates.hpp>
-#include <string>
-#include <tracy/Tracy.hpp>
 
 
 static std::uint32_t encode_normal(glm::vec3 normal)
