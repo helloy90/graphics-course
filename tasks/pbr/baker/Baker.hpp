@@ -85,7 +85,7 @@ private:
 
   void calculateTangents(Meshes& mesh);
 
-  bool checkModelSuitability(tinygltf::Model& model);
+  void checkModelSuitability(tinygltf::Model& model);
 
   void makeIntermediateModel(const tinygltf::Model& model, Meshes& meshes);
 

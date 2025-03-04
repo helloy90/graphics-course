@@ -63,18 +63,14 @@ void Baker::run()
 
   auto model = *maybeModel;
 
-  if (!checkModelSuitability(model))
-  {
-    spdlog::error("Aborting bakery.");
-    return;
-  }
+  checkModelSuitability(model);
 
   auto meshes = processMeshes(model);
   if (reconstructTangents)
   {
     calculateTangents(meshes);
   }
-  
+
   // makeIntermediateModel(model, meshes);
 
   auto bakedMeshes = bakeMeshes(meshes);
@@ -89,18 +85,39 @@ void Baker::run()
   saveFormatted(model);
 }
 
-bool Baker::checkModelSuitability(tinygltf::Model& model)
+void Baker::checkModelSuitability(tinygltf::Model& model)
 {
-  // Check images
   for (auto& image : model.images)
   {
-    if (std::filesystem::path(image.uri).extension() == ".jpeg")
+    // image.name = image.uri;
+    auto path = std::filesystem::path(image.uri);
+    image.name = std::filesystem::path(image.uri).replace_extension().generic_string<char>();
+    if (path.extension() == ".jpg")
     {
-      spdlog::error("Tinygltf does not support jpeg images!");
-      return false;
+      image.mimeType = "image/jpeg";
     }
+    else if (path.extension() == ".jpeg")
+    {
+      spdlog::warn(
+        "Tinygltf does not support .jpeg images - {}, changing extention to .jpg", image.uri);
+      path.extension() = ".jpg";
+      // image.name = path.filename().generic_string<char>();
+      image.mimeType = "image/jpeg";
+    }
+    else if (path.extension() == ".png")
+    {
+      image.mimeType = "image/png";
+    }
+    else if (path.extension() == ".bmp")
+    {
+      image.mimeType = "image/bmp";
+    }
+    else if (path.extension() == ".gif")
+    {
+      image.mimeType = "image/gif";
+    }
+    image.uri = "";
   }
-  return true;
 }
 
 std::optional<tinygltf::Model> Baker::loadFile()
