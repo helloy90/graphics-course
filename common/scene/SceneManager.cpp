@@ -1,6 +1,7 @@
 #include "SceneManager.hpp"
 #include "resource/Material.hpp"
 #include "resource/Texture2D.hpp"
+#include "scene/SceneManager.hpp"
 
 #include <cstdint>
 #include <stack>
@@ -15,6 +16,7 @@
 #include <etna/OneShotCmdMgr.hpp>
 #include <etna/Etna.hpp>
 #include <etna/RenderTargetStates.hpp>
+#include <string>
 #include <tracy/Tracy.hpp>
 
 
@@ -83,15 +85,19 @@ std::vector<vk::Format> SceneManager::parseTextures(const tinygltf::Model& model
   texturesInfo.resize(model.images.size());
 
   bool oldExtention = false;
-  for (const auto& extention : model.extensionsRequired) {
-    if (extention == "KHR_materials_pbrSpecularGlossiness") {
+  for (const auto& extention : model.extensionsRequired)
+  {
+    if (extention == "KHR_materials_pbrSpecularGlossiness")
+    {
       oldExtention = true;
       break;
     }
   }
 
-  if (oldExtention) {
-    for (auto& format : texturesInfo) {
+  if (oldExtention)
+  {
+    for (auto& format : texturesInfo)
+    {
       format = vk::Format::eR8G8B8A8Unorm;
     }
     return texturesInfo;
@@ -177,6 +183,88 @@ void SceneManager::processTextures(
 void SceneManager::processMaterials(const tinygltf::Model& model)
 {
   ZoneScopedN("processMaterials");
+
+  bool oldExtention = false;
+  for (const auto& extention : model.extensionsRequired)
+  {
+    if (extention == "KHR_materials_pbrSpecularGlossiness")
+    {
+      oldExtention = true;
+      break;
+    }
+  }
+
+  if (oldExtention)
+  {
+    // auto checkValue = [&](const tinygltf::Value& value) -> bool {
+    //   return static_cast<int32_t>(value.Type()) != 0;
+    // };
+    for (const auto& modelMaterial : model.materials)
+    {
+      Material material;
+
+      auto diffuseFactor =
+        modelMaterial.extensions.at("KHR_materials_pbrSpecularGlossiness").Get("diffuseFactor");
+
+      material.baseColorFactor = {
+        diffuseFactor.Get(0).GetNumberAsDouble(),
+        diffuseFactor.Get(1).GetNumberAsDouble(),
+        diffuseFactor.Get(2).GetNumberAsDouble(),
+        diffuseFactor.Get(3).GetNumberAsDouble()};
+
+      auto glossinessFactor =
+        modelMaterial.extensions.at("KHR_materials_pbrSpecularGlossiness").Get("glossinessFactor");
+      material.roughnessFactor = 1.0f - glossinessFactor.GetNumberAsDouble();
+
+      material.metallicFactor = 0.0f; // assume
+
+      auto diffuseTexture =
+        modelMaterial.extensions.at("KHR_materials_pbrSpecularGlossiness").Get("diffuseTexture");
+      if (diffuseTexture.IsObject())
+      {
+        auto index = diffuseTexture.Get("index");
+        material.baseColorTexture = static_cast<Texture2D::Id>(index.GetNumberAsInt());
+      }
+      else
+      {
+        if (baseColorPlaceholder == Texture2D::Id::Invalid)
+        {
+          baseColorPlaceholder = generatePlaceholderTexture(
+            "base_color_placeholder", vk::Format::eR8G8B8A8Srgb, {1.0f, 1.0f, 1.0f, 1.0f});
+        }
+        material.baseColorTexture = baseColorPlaceholder;
+      }
+
+      if (metallicRoughnessPlaceholder == Texture2D::Id::Invalid)
+      {
+        metallicRoughnessPlaceholder = generatePlaceholderTexture(
+          "metallic_roughness_placeholder", vk::Format::eR8G8B8A8Unorm, {0.0f, 1.0f, 1.0f, 1.0f});
+      }
+      material.metallicRoughnessTexture = metallicRoughnessPlaceholder;
+
+      if (normalPlaceholder == Texture2D::Id::Invalid)
+      {
+        normalPlaceholder = generatePlaceholderTexture(
+          "normal_placeholder", vk::Format::eR8G8B8A8Snorm, {0.0f, 0.0f, 0.5f, 0.0f});
+      }
+      material.normalTexture = normalPlaceholder;
+
+      auto id = materialManager.loadResource(
+        ("material_" + modelMaterial.name).c_str(), std::move(material));
+      spdlog::info(
+        "Material loaded, name - {}, material id = {}, used texture ids - [\n"
+        "base color - {},\n"
+        "metallic/roughness - {},\n"
+        "normal - {}\n]",
+        modelMaterial.name,
+        static_cast<uint32_t>(id),
+        static_cast<uint32_t>(material.baseColorTexture),
+        static_cast<uint32_t>(material.metallicRoughnessTexture),
+        static_cast<uint32_t>(material.normalTexture));
+    }
+    return;
+  }
+
   for (const auto& modelMaterial : model.materials)
   {
     Material material;
