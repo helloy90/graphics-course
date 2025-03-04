@@ -28,5 +28,5 @@ void main() {
 
     gAlbedo = vec4(0.5, 0.5, 0.5, 1);
     gNormal = normal;
-    gMaterial = vec4(0, 0.6, 0, 1);
+    gMaterial = vec4(0, 0.6, 0.05, 1);
 }

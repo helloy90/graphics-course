@@ -23,9 +23,9 @@ layout (location = 0) out VS_OUT
 {
   vec3 wPos;
   vec3 wNorm;
-  vec3 wTangent;
-  // vec3 wBitangent;
-  // vec3 wNormOut;
+  vec4 wTangent;
+  vec3 wBitangent;
+  vec3 wNormOut;
   vec2 texCoord;
 } vOut;
 
@@ -39,15 +39,15 @@ void main(void)
   vec4 wTang = decode_normal(floatBitsToUint(vTexCoordAndTang.z));
 
   vOut.wPos   = (currentModelMatrix * vec4(vPosNorm.xyz, 1.0f)).xyz;
-  vOut.wNorm  = mat3(transpose(inverse(currentModelMatrix))) * wNorm.xyz;
-  vOut.wTangent = mat3(transpose(inverse(currentModelMatrix))) * wTang.xyz;
-  // vOut.wBitangent = cross(vOut.wNorm, vOut.wTangent) * wTang.w;
-  // vec3 normalSpace =  mat3(transpose(inverse(currentModelMatrix))) * wNorm.xyz;
-  // vec3 tangentSpace = mat3(transpose(inverse(currentModelMatrix))) * wTang.xyz;
-  // vec3 BitangentSpace = cross(normalSpace, tangentSpace) * wTang.w;
+  // vOut.wNorm  = mat3(transpose(inverse(currentModelMatrix))) * wNorm.xyz;
+  // vOut.wTangent = vec4(mat3(transpose(inverse(currentModelMatrix))) * wTang.xyz, wTang.w);
+  // vOut.wBitangent = cross(vOut.wNorm, vOut.wTangent.xyz) * wTang.w;
+  vec3 normalSpace =  mat3(transpose(inverse(currentModelMatrix))) * wNorm.xyz;
+  vec3 tangentSpace = mat3(transpose(inverse(currentModelMatrix))) * wTang.xyz;
+  vec3 BitangentSpace = cross(normalSpace, tangentSpace) * wTang.w;
   vOut.texCoord = vTexCoordAndTang.xy;
-  // vec3 normal = texture(normalTexture, vOut.texCoord).rgb;
-  // vOut.wNormOut = normalize(normal.x * tangentSpace + normal.y * BitangentSpace + normal.z * normalSpace);
+  vec3 normal = texture(normalTexture, vOut.texCoord).rgb;
+  vOut.wNormOut = normalize(normal.x * tangentSpace + normal.y * BitangentSpace + normal.z * normalSpace);
 
   gl_Position   = uniformParams.projView * vec4(vOut.wPos, 1.0);
 }

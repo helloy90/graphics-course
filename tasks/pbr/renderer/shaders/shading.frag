@@ -97,13 +97,8 @@ vec3 diffuseBrdf(vec3 color) {
     return color / PI;
 }
 
-// vec3 frensel_mix(float f0, vec3 base, vec3 layer, float VdotH_term) {
-//     float frensel = f0 + (1.0 - f0) * VdotH_term;
-//     return mix(base, layer, frensel);
-// }
-
-// all vectors should be in world coordinate system
-vec3 computeLightPBR(vec3 baseColor, vec3 pos, Light light, vec3 normal, /*vec3 reflection,*/ vec4 material) {
+// for now is in world space
+vec3 computeLightPBR(vec3 baseColor, vec3 pos, Light light, vec3 normal, vec3 reflection, vec4 material) {
     const float roughness = material.g;
     const float metallic = material.b;
 
@@ -122,39 +117,11 @@ vec3 computeLightPBR(vec3 baseColor, vec3 pos, Light light, vec3 normal, /*vec3 
     const float NdotV = clampedDot(surfaceNormal, fromPosToCamera) + 0.00001;
     const float NdotH = clampedDot(surfaceNormal, halfVector);
 
-    // const vec3 specular_brdf_value = 
-    //     specular_brdf(
-    //         alphaRoughness,
-    //         NdotH,
-    //         HdotL, 
-    //         NdotL, 
-    //         VdotH, 
-    //         NdotV
-    //     );
-
-    // const vec3 metal_brdf = 
-    //     conductor_frensel(
-    //         baseColor, //* reflection, 
-    //         vec3(1.0), // 90 angle reflection is almost white
-    //         specular_brdf_value,
-    //         VdotH_term
-    //     );
-
-    // // if indexOfReflection = 1.5 then f0 = 0.04
-    // const vec3 dielectric_brdf = 
-    //     frensel_mix(
-    //         0.04, // f0 precompute
-    //         diffuse_brdf(baseColor), 
-    //         specular_brdf_value, 
-    //         VdotH_term
-    //     );
-
-    // index of reflection = 1.5, reflectance = 0.04
     vec3 lightIntensity = getLightIntensity(light, pointToLight);
 
-    vec3 f0 = vec3(0.04); //mix(vec3(0.04), baseColor, metallic);
+    vec3 f0 = vec3(0.04);
     vec3 dielectricFrensel = frenselSchlick(f0, VdotH);
-    vec3 metalFrensel = frenselSchlick(baseColor, VdotH);
+    vec3 metalFrensel = frenselSchlick(baseColor * reflection, VdotH);
     vec3 diffuse = lightIntensity * NdotL * diffuseBrdf(baseColor);
 
     vec3 specularMetal = lightIntensity * NdotL * BRDFSpecular_GGX(alphaRoughness, NdotL, NdotV, NdotH);
@@ -166,8 +133,8 @@ vec3 computeLightPBR(vec3 baseColor, vec3 pos, Light light, vec3 normal, /*vec3 
     return mix(dielectricBrdf, metalBrdf, metallic);
 }
 
-// all vectors should be in world coordinate system
-vec3 computeLightPBR(vec3 baseColor, vec3 pos, DirectionalLight light, vec3 normal, /*vec3 reflection,*/ vec4 material) {
+// for now is in world space
+vec3 computeLightPBR(vec3 baseColor, vec3 pos, DirectionalLight light, vec3 normal, vec3 reflection, vec4 material) {
     const float roughness = material.g;
     const float metallic = material.b;
 
@@ -186,39 +153,11 @@ vec3 computeLightPBR(vec3 baseColor, vec3 pos, DirectionalLight light, vec3 norm
     const float NdotV = clampedDot(surfaceNormal, fromPosToCamera) + 0.00001;
     const float NdotH = clampedDot(surfaceNormal, halfVector);
 
-    // const vec3 specular_brdf_value = 
-    //     specular_brdf(
-    //         alphaRoughness,
-    //         NdotH,
-    //         HdotL, 
-    //         NdotL, 
-    //         VdotH, 
-    //         NdotV
-    //     );
-
-    // const vec3 metal_brdf = 
-    //     conductor_frensel(
-    //         baseColor, //* reflection, 
-    //         vec3(1.0), // 90 angle reflection is almost white
-    //         specular_brdf_value,
-    //         VdotH_term
-    //     );
-
-    // // if indexOfReflection = 1.5 then f0 = 0.04
-    // const vec3 dielectric_brdf = 
-    //     frensel_mix(
-    //         0.04, // f0 precompute
-    //         diffuse_brdf(baseColor), 
-    //         specular_brdf_value, 
-    //         VdotH_term
-    //     );
-
-    // index of reflection = 1.5, reflectance = 0.04
     vec3 lightIntensity = getLightIntensity(light, pointToLight);
 
-    vec3 f0 = vec3(0.04); //mix(vec3(0.04), baseColor, metallic);
+    vec3 f0 = vec3(0.04);
     vec3 dielectricFrensel = frenselSchlick(f0, VdotH);
-    vec3 metalFrensel = frenselSchlick(baseColor, VdotH);
+    vec3 metalFrensel = frenselSchlick(baseColor * reflection, VdotH);
     vec3 diffuse = lightIntensity * NdotL * diffuseBrdf(baseColor);
 
     vec3 specularMetal = lightIntensity * NdotL * BRDFSpecular_GGX(alphaRoughness, NdotL, NdotV, NdotH);
@@ -249,38 +188,27 @@ void main() {
     vec4 worldSpacePosition = (uniformParams.invProjView * screenSpacePosition);
     worldSpacePosition /= worldSpacePosition.w;
 
-    // const vec3 reflection = texture(cubemap, reflect(worldSpacePosition, normal)).rgb;
+    const vec3 reflection = texture(cubemap, reflect((worldSpacePosition.xyz - uniformParams.cameraWorldPosition), normal)).rgb * 20;
 
-    vec3 color = vec3(0);
+    // change to IBL later
+    vec3 color = vec3(0.02);
 
     for (uint i = 0; i < uniformParams.directionalLightsAmount; i++) {
         DirectionalLight currentLight = directionalLightsBuffer[i];
 
-        // vec3 viewSpaceLightDirection = normalize(uniformParams.view * vec4(-currentLight.direction, 0.0)).xyz;
-        
-        // float normalLighting = clamp(dot(normal, currentLight.direction), 0.0, 1.0);
-        // vec3 diffuse = albedo * normalLighting * currentLight.color * currentLight.intensity;
-
-        vec3 pbrColor = computeLightPBR(albedo, worldSpacePosition.xyz, currentLight, normal, /*reflection,*/ material);
+        vec3 pbrColor = computeLightPBR(albedo, worldSpacePosition.xyz, currentLight, normal, reflection, material);
         color += pbrColor;
     }
 
     for (uint i = 0; i < uniformParams.lightsAmount; i++) {
         Light currentLight = lightsBuffer[i];
 
-        // vec4 viewSpaceLightPosition = uniformParams.view * currentLight.worldPos;
-        // viewSpaceLightPosition /= viewSpaceLightPosition.w;
-
         float dist = length(currentLight.worldPos.xyz - worldSpacePosition.xyz);
         if (dist > currentLight.radius) {
             continue;
         }
 
-        float attenuation = 1 / (dist * dist);
-
-        // vec3 lightDir = normalize(viewSpaceLightPosition.xyz - viewSpacePosition.xyz);
-
-        vec3 pbrColor = computeLightPBR(albedo, worldSpacePosition.xyz, currentLight, normal, /*reflection,*/ material);
+        vec3 pbrColor = computeLightPBR(albedo, worldSpacePosition.xyz, currentLight, normal, reflection, material);
         color += pbrColor;
     }
 

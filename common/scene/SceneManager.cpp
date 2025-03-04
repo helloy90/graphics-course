@@ -79,9 +79,24 @@ std::optional<tinygltf::Model> SceneManager::loadModel(std::filesystem::path pat
 std::vector<vk::Format> SceneManager::parseTextures(const tinygltf::Model& model)
 {
   ZoneScopedN("parseTextures");
-  ;
   std::vector<vk::Format> texturesInfo;
   texturesInfo.resize(model.images.size());
+
+  bool oldExtention = false;
+  for (const auto& extention : model.extensionsRequired) {
+    if (extention == "KHR_materials_pbrSpecularGlossiness") {
+      oldExtention = true;
+      break;
+    }
+  }
+
+  if (oldExtention) {
+    for (auto& format : texturesInfo) {
+      format = vk::Format::eR8G8B8A8Unorm;
+    }
+    return texturesInfo;
+  }
+
   for (const auto& material : model.materials)
   {
     if (material.pbrMetallicRoughness.baseColorTexture.index != -1)
@@ -96,9 +111,10 @@ std::vector<vk::Format> SceneManager::parseTextures(const tinygltf::Model& model
     }
     if (material.normalTexture.index != -1)
     {
-      texturesInfo[material.normalTexture.index] = vk::Format::eR8G8B8A8Snorm;
+      texturesInfo[material.normalTexture.index] = vk::Format::eR8G8B8A8Unorm;
     }
   }
+
   return texturesInfo;
 }
 

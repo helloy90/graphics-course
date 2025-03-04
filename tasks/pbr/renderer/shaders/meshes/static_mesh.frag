@@ -22,9 +22,9 @@ layout(location = 0) in VS_OUT
 {
   vec3 wPos;
   vec3 wNorm;
-  vec3 wTangent;
-  // vec3 wBitangent;
-  // vec3 wNormOut;
+  vec4 wTangent;
+  vec3 wBitangent;
+  vec3 wNormOut;
   vec2 texCoord;
 } surf;
 
@@ -42,9 +42,9 @@ void main()
   // out_fragColor.a = 1.0f;
 
   gAlbedo = texture(baseColorTexture, surf.texCoord) * materialParams.baseColorFactor;
-  vec4 normal = 2 * texture(normalTexture, surf.texCoord) - 1;
-  vec3 bitangent = cross(surf.wNorm, surf.wTangent);
-  gNormal = normalize(normal.x * surf.wTangent + normal.y * bitangent + normal.z * surf.wNorm);//normalize(bitangent * normal.x + surf.wTangent * normal.y + surf.wNorm * normal.z);
+  // vec4 normal = 2 * texture(normalTexture, surf.texCoord) - 1;
+  // vec3 bitangent = cross(surf.wNorm, surf.wTangent.xyz) * surf.wTangent.w;
+  gNormal = surf.wNormOut;//normalize(normal.x * surf.wTangent.xyz + normal.y * bitangent + normal.z * surf.wNorm);//normalize(bitangent * normal.x + surf.wTangent * normal.y + surf.wNorm * normal.z);
   gMaterial = texture(metallicRoughnessTexture, surf.texCoord);
   gMaterial.g *= materialParams.roughnessFactor;
   gMaterial.b *= materialParams.metallicFactor;
