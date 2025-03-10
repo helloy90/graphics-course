@@ -8,6 +8,10 @@
 #include <etna/BlockingTransferHelper.hpp>
 #include <etna/VertexInput.hpp>
 
+#include "../resource/ResourceManager.hpp"
+#include "resource/Material.hpp"
+#include "resource/Texture2D.hpp"
+
 
 // Bounds for each render element
 struct Bounds
@@ -24,10 +28,9 @@ struct RenderElement
   std::uint32_t indexOffset;
   std::uint32_t indexCount;
 
+  Material::Id material;
 
   auto operator<=>(const RenderElement& other) const = default;
-  // Not implemented!
-  // Material* material;
 };
 
 struct HashRenderElement
@@ -68,6 +71,9 @@ public:
   // Every relem is a single draw call
   std::span<const RenderElement> getRenderElements() { return renderElements; }
 
+  const Texture2D& getTexture(Texture2D::Id id) const { return texture2dManager.getResource(id); }
+  const Material& getMaterial(Material::Id id) const { return materialManager.getResource(id); }
+
   std::span<const Bounds> getRenderElementsBounds() { return renderElementsBounds; }
 
   vk::Buffer getVertexBuffer() { return unifiedVbuf.get(); }
@@ -75,16 +81,23 @@ public:
 
   etna::VertexByteStreamFormatDescription getVertexFormatDescription();
 
-private:
-  std::optional<tinygltf::Model> loadModel(std::filesystem::path path);
+  // for now one placeholder for all materials
+  Texture2D::Id baseColorPlaceholder;
+  Texture2D::Id metallicRoughnessPlaceholder;
+  Texture2D::Id normalPlaceholder;
 
+  Material::Id materialPlaceholder;
+
+  void localCopyBufferToImage(
+    const etna::Buffer& buffer, const etna::Image& image, uint32_t layer_count);
+  void generateMipmapsVkStyle(const etna::Image& image, uint32_t mip_levels, uint32_t layer_count);
+
+private:
   struct ProcessedInstances
   {
     std::vector<glm::mat4x4> matrices;
     std::vector<std::uint32_t> meshes;
   };
-
-  ProcessedInstances processInstances(const tinygltf::Model& model) const;
 
   struct Vertex
   {
@@ -93,7 +106,6 @@ private:
     // First 2 floats are tex coords, 3rd is a packed tangent, 4th is padding
     glm::vec4 texCoordAndTangentAndPadding;
   };
-
   static_assert(sizeof(Vertex) == sizeof(float) * 8);
 
   struct ProcessedMeshes
@@ -104,7 +116,6 @@ private:
     std::vector<Mesh> meshes;
     std::vector<Bounds> bounds;
   };
-  ProcessedMeshes processMeshes(const tinygltf::Model& model) const;
 
   struct BakedMeshes
   {
@@ -114,6 +125,24 @@ private:
     std::vector<Mesh> meshes;
     std::vector<Bounds> bounds;
   };
+
+  std::optional<tinygltf::Model> loadModel(std::filesystem::path path);
+
+  std::vector<vk::Format> parseTextures(const tinygltf::Model& model);
+
+  void processTextures(
+    const tinygltf::Model& model,
+    std::vector<vk::Format> textures_info,
+    std::filesystem::path path);
+  void processMaterials(const tinygltf::Model& model);
+
+  Texture2D::Id generatePlaceholderTexture(
+    std::string name, vk::Format format, vk::ClearColorValue clear_color);
+
+  void generatePlaceholderMaterial();
+
+  ProcessedInstances processInstances(const tinygltf::Model& model) const;
+  ProcessedMeshes processMeshes(const tinygltf::Model& model) const;
   BakedMeshes processBakedMeshes(const tinygltf::Model& model) const;
   void uploadData(std::span<const Vertex> vertices, std::span<const std::uint32_t>);
 
@@ -127,6 +156,9 @@ private:
   std::vector<glm::mat4x4> instanceMatrices;
   std::vector<std::uint32_t> instanceMeshes;
   std::vector<Bounds> renderElementsBounds;
+
+  MaterialManager materialManager;
+  Texture2DManager texture2dManager;
 
   etna::Buffer unifiedVbuf;
   etna::Buffer unifiedIbuf;
