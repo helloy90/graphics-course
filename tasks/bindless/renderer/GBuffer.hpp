@@ -16,21 +16,27 @@ public:
   void prepareForRender(vk::CommandBuffer cmd_buf);
 
   // no flush
+  void continueDepthWrite(vk::CommandBuffer cmd_buf);
+
+  // no flush
   void prepareForRead(vk::CommandBuffer cmd_buf);
 
   std::vector<etna::RenderTargetState::AttachmentParams> genColorAttachmentParams(
     vk::AttachmentLoadOp load_op = vk::AttachmentLoadOp::eClear);
 
   etna::RenderTargetState::AttachmentParams genDepthAttachmentParams(
-    vk::AttachmentLoadOp load_op = vk::AttachmentLoadOp::eClear);
+    vk::AttachmentLoadOp load_op = vk::AttachmentLoadOp::eClear,
+    vk::AttachmentStoreOp store_op = vk::AttachmentStoreOp::eStore);
 
   etna::Binding genAlbedoBinding(uint32_t index);
   etna::Binding genNormalBinding(uint32_t index);
+  etna::Binding genMaterialBinding(uint32_t index);
   etna::Binding genDepthBinding(uint32_t index);
 
 private:
   etna::Image albedo;
   etna::Image normal;
+  etna::Image material;
   etna::Image depth;
 
   etna::Sampler sampler;

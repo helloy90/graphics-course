@@ -26,7 +26,7 @@ App::App()
   // note - maybe bad (see shadowmap)
   ImGuiRenderer::enableImGuiForWindow(mainWindow->native());
 
-  renderer->loadScene(GRAPHICS_COURSE_RESOURCES_ROOT "/scenes/Avocado/Avocado_baked.gltf");
+  renderer->loadScene(GRAPHICS_COURSE_RESOURCES_ROOT "/scenes/lovely_town/scene_baked.gltf");
 }
 
 void App::run()
@@ -56,9 +56,9 @@ void App::processInput(float dt)
     mainWindow->askToClose();
 
   if (is_held_down(mainWindow->keyboard[KeyboardKey::kLeftShift]))
-    camMoveSpeed = 50;
-  else
     camMoveSpeed = 10;
+  else
+    camMoveSpeed = 2;
 
   if (mainWindow->mouse[MouseButton::mbRight] == ButtonState::Rising)
     mainWindow->captureMouse = !mainWindow->captureMouse;

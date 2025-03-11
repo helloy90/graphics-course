@@ -9,6 +9,7 @@
 #include <etna/VertexInput.hpp>
 
 #include "../resource/ResourceManager.hpp"
+// #include "etna/DescriptorSet.hpp"
 #include "resource/Material.hpp"
 #include "resource/Texture2D.hpp"
 
@@ -79,6 +80,9 @@ public:
   vk::Buffer getVertexBuffer() { return unifiedVbuf.get(); }
   vk::Buffer getIndexBuffer() { return unifiedIbuf.get(); }
 
+  // std::vector<etna::Binding> getTexturesBindings() const;
+  // etna::Binding getMaterialsBinding() const;
+
   etna::VertexByteStreamFormatDescription getVertexFormatDescription();
 
   // for now one placeholder for all materials
@@ -144,7 +148,7 @@ private:
   ProcessedInstances processInstances(const tinygltf::Model& model) const;
   ProcessedMeshes processMeshes(const tinygltf::Model& model) const;
   BakedMeshes processBakedMeshes(const tinygltf::Model& model) const;
-  void uploadData(std::span<const Vertex> vertices, std::span<const std::uint32_t>);
+  void uploadData(std::span<const Vertex> vertices, std::span<const std::uint32_t> indices);
 
 private:
   tinygltf::TinyGLTF loader;
@@ -162,4 +166,6 @@ private:
 
   etna::Buffer unifiedVbuf;
   etna::Buffer unifiedIbuf;
+
+  etna::Buffer unifiedMaterialsbuf;
 };

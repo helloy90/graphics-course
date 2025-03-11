@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <optional>
 
 #include <etna/Image.hpp>
@@ -10,10 +11,13 @@
 #include <etna/GpuSharedResource.hpp>
 #include <glm/glm.hpp>
 
+#include "etna/DescriptorSet.hpp"
 #include "scene/SceneManager.hpp"
 #include "wsi/Keyboard.hpp"
 
 #include "FramePacket.hpp"
+#include "shaders/DirectionalLight.h"
+#include "shaders/Light.h"
 #include "shaders/terrain/UniformParams.h"
 #include "shaders/terrain/TerrainGenerationParams.h"
 #include "GBuffer.hpp"
@@ -31,7 +35,9 @@ public:
   void rebuildRenderPipelines();
   void setupTerrainGeneration(vk::Format texture_format, vk::Extent3D extent);
   void generateTerrain();
-  void loadLights(); 
+  void displaceLights();
+  void loadLights();
+  void loadCubemap();
 
   void debugInput(const Keyboard& kb);
   void update(const FramePacket& packet);
@@ -48,6 +54,8 @@ private:
 
   void renderTerrain(
     vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout);
+
+  void renderCubemap(vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout);
 
   void deferredShading(
     vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout);
@@ -79,11 +87,18 @@ private:
   TerrainGenerationParams generationParams;
   uint32_t maxNumberOfSamples;
 
+  etna::Image cubemapTexture;
+
   etna::Image renderTarget;
 
   std::optional<GBuffer> gBuffer;
+
+  std::vector<Light> lights;
+  std::vector<DirectionalLight> directionalLights;
   etna::Buffer lightsBuffer;
   etna::Buffer directionalLightsBuffer;
+
+  std::optional<etna::PersistentDescriptorSet> bindlessDescriptorSet;
 
   UniformParams params;
 
@@ -92,16 +107,17 @@ private:
   std::optional<etna::GpuSharedResource<etna::Buffer>> constantsBuffer;
   std::vector<uint32_t> instancesAmount;
 
-  etna::GraphicsPipeline staticMeshPipeline{};
-  etna::GraphicsPipeline terrainGenerationPipeline;
-  etna::GraphicsPipeline terrainRenderPipeline;
-  etna::GraphicsPipeline deferredShadingPipeline;
-
   std::optional<etna::GpuSharedResource<etna::Buffer>> histogramBuffer;
   std::optional<etna::GpuSharedResource<etna::Buffer>> histogramInfoBuffer;
   std::optional<etna::GpuSharedResource<etna::Buffer>> distributionBuffer;
 
   std::uint32_t binsAmount;
+
+  etna::GraphicsPipeline staticMeshPipeline{};
+  etna::GraphicsPipeline terrainGenerationPipeline;
+  etna::GraphicsPipeline terrainRenderPipeline;
+  etna::GraphicsPipeline deferredShadingPipeline;
+  etna::GraphicsPipeline cubemapRenderPipeline;
 
   etna::ComputePipeline terrainNormalPipeline;
   etna::ComputePipeline lightDisplacementPipeline;
@@ -113,6 +129,7 @@ private:
   etna::ComputePipeline postprocessComputePipeline;
 
   etna::Sampler terrainSampler;
+  etna::Sampler staticMeshSampler;
 
   bool wireframeEnabled;
   bool tonemappingEnabled;

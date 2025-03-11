@@ -33,8 +33,8 @@ vec3 getPosition(uint vertex) {
     currentInstanceIndex / uniformParams.terrainInChunks.x
   );
   uvec2 coordsOfVertexInChunk = uvec2(vertex / 2, vertex % 2);
-  //start position is (0, 0, 0)
-  uvec2 worldCoords = (coordsOfChunkInGrid + coordsOfVertexInChunk) * uniformParams.chunk;
+  //start position is terrainOffset
+  vec2 worldCoords = uniformParams.terrainOffset + vec2((coordsOfChunkInGrid + coordsOfVertexInChunk) * uniformParams.chunk);
   return toTerrainCoords(vec3(worldCoords, 0));
 }
 

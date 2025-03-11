@@ -8,7 +8,7 @@ struct Light
 {
   shader_vec3 pos;
   float radius;
-  shader_vec4 worldPos; //last coord is for depth
+  shader_vec4 worldPos; // last coord is for depth
   shader_vec3 color;
   float intensity;
 };

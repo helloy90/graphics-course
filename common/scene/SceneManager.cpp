@@ -1,6 +1,5 @@
 #include "SceneManager.hpp"
 
-#include <cstdint>
 #include <stack>
 
 #include <stb_image.h>
@@ -963,19 +962,26 @@ SceneManager::BakedMeshes SceneManager::processBakedMeshes(const tinygltf::Model
 void SceneManager::uploadData(
   std::span<const Vertex> vertices, std::span<const std::uint32_t> indices)
 {
-  unifiedVbuf = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
+  auto& ctx = etna::get_context();
+
+  unifiedVbuf = ctx.createBuffer(etna::Buffer::CreateInfo{
     .size = vertices.size_bytes(),
     .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer,
     .memoryUsage = VMA_MEMORY_USAGE_GPU_ONLY,
     .name = "unifiedVbuf",
   });
 
-  unifiedIbuf = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
+  unifiedIbuf = ctx.createBuffer(etna::Buffer::CreateInfo{
     .size = indices.size_bytes(),
     .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer,
     .memoryUsage = VMA_MEMORY_USAGE_GPU_ONLY,
     .name = "unifiedIbuf",
   });
+
+  // unifiedMaterialsbuf = ctx.createBuffer(etna::Buffer::CreateInfo{
+  //   .size = materialManager.size() * sizeof(Material),
+  //   .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer
+  // });
 
   transferHelper.uploadBuffer<Vertex>(*oneShotCommands, unifiedVbuf, 0, vertices);
   transferHelper.uploadBuffer<std::uint32_t>(*oneShotCommands, unifiedIbuf, 0, indices);
@@ -1035,6 +1041,24 @@ void SceneManager::selectBakedScene(std::filesystem::path path)
 
   uploadData(verts, inds);
 }
+
+
+// std::vector<etna::Binding> SceneManager::getTexturesBindings() const {
+//   std::vector<etna::Binding> bindings;
+//   bindings.reserve(texture2dManager.size());
+//   for (uint32_t i = 0; i < texture2dManager.size(); i++) {
+//     auto& currentTexture = texture2dManager.getResource(static_cast<Texture2D::Id>(i));
+//     bindings.emplace_back(etna::Binding{
+//       0, currentTexture.texture.genBinding({}, vk::ImageLayout::eShaderReadOnlyOptimal), i
+//     });
+//   }
+
+//   return bindings;
+// }
+
+// etna::Binding SceneManager::getMaterialsBinding() const {
+
+// }
 
 etna::VertexByteStreamFormatDescription SceneManager::getVertexFormatDescription()
 {

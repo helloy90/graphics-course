@@ -13,16 +13,19 @@ layout(std140, set = 0, binding = 0) readonly buffer instanceMatrices_t {
   mat4 matrices[];
 } instanceMatrices;
 
-layout (binding = 1) uniform params {
+layout(binding = 1) uniform params {
   UniformParams uniformParams;
 };
 
+layout(binding = 3) uniform sampler2D normalTexture;
 
-layout (location = 0 ) out VS_OUT
+layout (location = 0) out VS_OUT
 {
   vec3 wPos;
   vec3 wNorm;
-  vec3 wTangent;
+  vec4 wTangent;
+  vec3 wBitangent;
+  vec3 wNormOut;
   vec2 texCoord;
 } vOut;
 
@@ -32,13 +35,16 @@ void main(void)
 {
   mat4 currentModelMatrix = instanceMatrices.matrices[gl_InstanceIndex];
 
-  const vec4 wNorm = vec4(decode_normal(floatBitsToUint(vPosNorm.w)),     0.0f);
-  const vec4 wTang = vec4(decode_normal(floatBitsToUint(vTexCoordAndTang.z)), 0.0f);
+  const vec4 wNorm = decode_normal(floatBitsToUint(vPosNorm.w));
+  vec4 wTang = decode_normal(floatBitsToUint(vTexCoordAndTang.z));
 
   vOut.wPos   = (currentModelMatrix * vec4(vPosNorm.xyz, 1.0f)).xyz;
-  vOut.wNorm  = normalize(mat3(transpose(inverse(currentModelMatrix))) * wNorm.xyz);
-  vOut.wTangent = normalize(mat3(transpose(inverse(currentModelMatrix))) * wTang.xyz);
+  vec3 normalSpace =  mat3(transpose(inverse(currentModelMatrix))) * wNorm.xyz;
+  vec3 tangentSpace = mat3(transpose(inverse(currentModelMatrix))) * wTang.xyz;
+  vec3 BitangentSpace = cross(normalSpace, tangentSpace) * wTang.w;
   vOut.texCoord = vTexCoordAndTang.xy;
+  vec3 normal = texture(normalTexture, vOut.texCoord).rgb;
+  vOut.wNormOut = normalize(normal.x * tangentSpace + normal.y * BitangentSpace + normal.z * normalSpace);
 
   gl_Position   = uniformParams.projView * vec4(vOut.wPos, 1.0);
 }
