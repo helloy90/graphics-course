@@ -11,7 +11,6 @@
 #include <etna/GpuSharedResource.hpp>
 #include <glm/glm.hpp>
 
-#include "etna/DescriptorSet.hpp"
 #include "scene/SceneManager.hpp"
 #include "wsi/Keyboard.hpp"
 
@@ -98,7 +97,7 @@ private:
   etna::Buffer lightsBuffer;
   etna::Buffer directionalLightsBuffer;
 
-  std::optional<etna::PersistentDescriptorSet> bindlessDescriptorSet;
+  std::optional<etna::PersistentDescriptorSet> meshesDescriptorSet;
 
   UniformParams params;
 

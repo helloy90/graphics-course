@@ -4,7 +4,6 @@
 #include <etna/DescriptorSet.hpp>
 #include <etna/Etna.hpp>
 #include <etna/GlobalContext.hpp>
-#include <vulkan/vulkan_enums.hpp>
 
 
 GBuffer::GBuffer(glm::uvec2 resolution, vk::Format render_target_format)
@@ -17,28 +16,36 @@ GBuffer::GBuffer(glm::uvec2 resolution, vk::Format render_target_format)
     .name = "albedo",
     .format = render_target_format,
     .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled |
-      vk::ImageUsageFlagBits::eStorage,});
+      vk::ImageUsageFlagBits::eStorage,
+    .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+    .allocationCreate = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT});
 
   normal = ctx.createImage(etna::Image::CreateInfo{
     .extent = vk::Extent3D{resolution.x, resolution.y, 1},
     .name = "normal",
     .format = vk::Format::eR8G8B8A8Snorm,
     .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled |
-      vk::ImageUsageFlagBits::eStorage,});
+      vk::ImageUsageFlagBits::eStorage,
+    .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+    .allocationCreate = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT});
 
   material = ctx.createImage(etna::Image::CreateInfo{
     .extent = vk::Extent3D{resolution.x, resolution.y, 1},
     .name = "material",
     .format = vk::Format::eR8G8B8A8Unorm,
     .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled |
-      vk::ImageUsageFlagBits::eStorage,});
+      vk::ImageUsageFlagBits::eStorage,
+    .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+    .allocationCreate = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT});
 
   depth = ctx.createImage(etna::Image::CreateInfo{
     .extent = vk::Extent3D{resolution.x, resolution.y, 1},
     .name = "depth",
     .format = vk::Format::eD32Sfloat,
     .imageUsage =
-      vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled});
+      vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled,
+    .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+    .allocationCreate = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT});
 
   sampler = etna::Sampler(
     etna::Sampler::CreateInfo{.filter = vk::Filter::eLinear, .name = "gBuffer_sampler"});

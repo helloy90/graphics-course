@@ -50,7 +50,9 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
     return ctx.createBuffer(etna::Buffer::CreateInfo{
       .size = sizeof(TerrainGenerationParams),
       .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
-      .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
+      .memoryUsage = VMA_MEMORY_USAGE_AUTO,
+      .allocationCreate =
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
       .name = fmt::format("generationConstants{}", i)});
   });
 
@@ -66,7 +68,9 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
         .size = sizeof(glm::mat4x4) * maxInstancesInScene,
         .bufferUsage = vk::BufferUsageFlagBits::eVertexBuffer |
           vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
-        .memoryUsage = VMA_MEMORY_USAGE_CPU_TO_GPU,
+        .memoryUsage = VMA_MEMORY_USAGE_AUTO,
+        .allocationCreate =
+          VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
         .name = fmt::format("sameInstanceMatrices{}", i)});
     });
 
@@ -74,7 +78,9 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
     return ctx.createBuffer(etna::Buffer::CreateInfo{
       .size = sizeof(UniformParams),
       .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
-      .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
+      .memoryUsage = VMA_MEMORY_USAGE_AUTO,
+      .allocationCreate =
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
       .name = fmt::format("constants{}", i)});
   });
 
@@ -84,7 +90,7 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
         .size = binsAmount * sizeof(int32_t),
         .bufferUsage =
           vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
-        .memoryUsage = VMA_MEMORY_USAGE_GPU_ONLY,
+        .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
         .name = fmt::format("histogram{}", i)});
     });
 
@@ -93,7 +99,7 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
       .size = sizeof(UniformHistogramInfo),
       .bufferUsage =
         vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
-      .memoryUsage = VMA_MEMORY_USAGE_GPU_ONLY,
+      .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
       .name = fmt::format("histogram_info{}", i)});
   });
 
@@ -103,7 +109,7 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
         .size = binsAmount * sizeof(float),
         .bufferUsage =
           vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
-        .memoryUsage = VMA_MEMORY_USAGE_GPU_ONLY,
+        .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
         .name = fmt::format("distribution{}", i)});
     });
 
@@ -125,6 +131,11 @@ void WorldRenderer::loadScene(std::filesystem::path path)
 {
   sceneMgr->selectBakedScene(path);
 
+  // auto shaderInfo = etna::get_shader_program("static_mesh_material");
+  // meshesDescriptorSet =
+  //   etna::create_persistent_descriptor_set(shaderInfo.getDescriptorLayoutId(0), sceneMgr->getBindlessBindings(), true);
+  params.instancesCount = sceneMgr->getInstanceMeshes().size();
+  params.relemsCount = sceneMgr->getRenderElements().size();
 }
 
 void WorldRenderer::loadShaders()
@@ -136,7 +147,8 @@ void WorldRenderer::loadShaders()
   etna::create_program("static_mesh", {BINDLESS_RENDERER_SHADERS_ROOT "static_mesh.vert.spv"});
   etna::create_program(
     "terrain_generator",
-    {BINDLESS_RENDERER_SHADERS_ROOT "decoy.vert.spv", BINDLESS_RENDERER_SHADERS_ROOT "generator.frag.spv"});
+    {BINDLESS_RENDERER_SHADERS_ROOT "decoy.vert.spv",
+     BINDLESS_RENDERER_SHADERS_ROOT "generator.frag.spv"});
 
   etna::create_program(
     "terrain_normal_map_calculation", {BINDLESS_RENDERER_SHADERS_ROOT "calculate_normal.comp.spv"});
@@ -153,17 +165,21 @@ void WorldRenderer::loadShaders()
 
   etna::create_program(
     "cubemap_render",
-    {BINDLESS_RENDERER_SHADERS_ROOT "skybox.vert.spv", BINDLESS_RENDERER_SHADERS_ROOT "skybox.frag.spv"});
+    {BINDLESS_RENDERER_SHADERS_ROOT "skybox.vert.spv",
+     BINDLESS_RENDERER_SHADERS_ROOT "skybox.frag.spv"});
   etna::create_program(
     "deferred_shading",
-    {BINDLESS_RENDERER_SHADERS_ROOT "decoy.vert.spv", BINDLESS_RENDERER_SHADERS_ROOT "shading.frag.spv"});
+    {BINDLESS_RENDERER_SHADERS_ROOT "decoy.vert.spv",
+     BINDLESS_RENDERER_SHADERS_ROOT "shading.frag.spv"});
 
   etna::create_program(
     "min_max_calculation", {BINDLESS_RENDERER_SHADERS_ROOT "calculate_min_max.comp.spv"});
-  etna::create_program("histogram_calculation", {BINDLESS_RENDERER_SHADERS_ROOT "histogram.comp.spv"});
+  etna::create_program(
+    "histogram_calculation", {BINDLESS_RENDERER_SHADERS_ROOT "histogram.comp.spv"});
   etna::create_program(
     "histogram_processing", {BINDLESS_RENDERER_SHADERS_ROOT "process_histogram.comp.spv"});
-  etna::create_program("postprocess_compute", {BINDLESS_RENDERER_SHADERS_ROOT "postprocess.comp.spv"});
+  etna::create_program(
+    "postprocess_compute", {BINDLESS_RENDERER_SHADERS_ROOT "postprocess.comp.spv"});
 }
 
 void WorldRenderer::setupRenderPipelines()
@@ -379,12 +395,12 @@ void WorldRenderer::loadLights()
   directionalLightsBuffer = ctx.createBuffer(etna::Buffer::CreateInfo{
     .size = directionalLightsSize,
     .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
-    .memoryUsage = VMA_MEMORY_USAGE_GPU_ONLY,
+    .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
     .name = fmt::format("DirectionalLights")});
   lightsBuffer = ctx.createBuffer(etna::Buffer::CreateInfo{
     .size = lightsSize,
     .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
-    .memoryUsage = VMA_MEMORY_USAGE_GPU_ONLY,
+    .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
     .name = fmt::format("Lights")});
 
   transferHelper->uploadBuffer(

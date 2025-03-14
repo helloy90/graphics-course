@@ -6,6 +6,7 @@
 #include <spdlog/spdlog.h>
 #include <fmt/std.h>
 #include <tracy/Tracy.hpp>
+#include <glm/gtc/type_precision.hpp>
 
 #include <etna/GlobalContext.hpp>
 #include <etna/OneShotCmdMgr.hpp>
@@ -322,9 +323,9 @@ void SceneManager::processMaterials(const tinygltf::Model& model)
       materialManager.loadResource(("material_" + modelMaterial.name).c_str(), std::move(material));
     spdlog::info(
       "Material loaded, name - {}, material id = {}, used texture ids - [\n"
-      "base color - {},\n"
-      "metallic/roughness - {},\n"
-      "normal - {}\n]",
+      "\tbase color - {},\n"
+      "\tmetallic/roughness - {},\n"
+      "\tnormal - {}\n]",
       modelMaterial.name,
       static_cast<uint32_t>(id),
       static_cast<uint32_t>(material.baseColorTexture),
@@ -411,7 +412,14 @@ void SceneManager::generatePlaceholderMaterial()
      .normalTexture = normalPlaceholder});
 
   spdlog::info(
-    "Placeholder material created, material id - {}", static_cast<uint32_t>(materialPlaceholder));
+    "Placeholder material created, material id = {}, used texture ids - [\n"
+    "\tbase color - {},\n"
+    "\tmetallic/roughness - {},\n"
+    "\tnormal - {}\n]",
+    static_cast<uint32_t>(materialPlaceholder),
+    static_cast<uint32_t>(baseColorPlaceholder),
+    static_cast<uint32_t>(metallicRoughnessPlaceholder),
+    static_cast<uint32_t>(normalPlaceholder));
 }
 
 void SceneManager::localCopyBufferToImage(
@@ -967,24 +975,155 @@ void SceneManager::uploadData(
   unifiedVbuf = ctx.createBuffer(etna::Buffer::CreateInfo{
     .size = vertices.size_bytes(),
     .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer,
-    .memoryUsage = VMA_MEMORY_USAGE_GPU_ONLY,
+    .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
     .name = "unifiedVbuf",
   });
 
   unifiedIbuf = ctx.createBuffer(etna::Buffer::CreateInfo{
     .size = indices.size_bytes(),
     .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer,
-    .memoryUsage = VMA_MEMORY_USAGE_GPU_ONLY,
+    .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
     .name = "unifiedIbuf",
   });
 
-  // unifiedMaterialsbuf = ctx.createBuffer(etna::Buffer::CreateInfo{
-  //   .size = materialManager.size() * sizeof(Material),
-  //   .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer
-  // });
-
   transferHelper.uploadBuffer<Vertex>(*oneShotCommands, unifiedVbuf, 0, vertices);
   transferHelper.uploadBuffer<std::uint32_t>(*oneShotCommands, unifiedIbuf, 0, indices);
+
+  unifiedMaterialsbuf = ctx.createBuffer(etna::Buffer::CreateInfo{
+    .size = materialManager.size() * sizeof(MaterialGLSLCompat),
+    .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+    .name = "unifiedMaterialbuf"});
+
+  // maybe unnesessary
+  std::vector<MaterialGLSLCompat> materialData;
+  materialData.reserve(materialManager.size());
+  for (const auto& material : materialManager)
+  {
+    materialData.emplace_back(MaterialGLSLCompat{
+      .baseColorFactor = material.baseColorFactor,
+      .roughnessFactor = material.roughnessFactor,
+      .metallicFactor = material.metallicFactor,
+      .baseColorTexture = static_cast<uint32_t>(material.baseColorTexture),
+      .metallicRoughnessTexture = static_cast<uint32_t>(material.metallicRoughnessTexture),
+      .normalTexture = static_cast<uint32_t>(material.normalTexture),
+    });
+  }
+
+  transferHelper.uploadBuffer<MaterialGLSLCompat>(
+    *oneShotCommands, unifiedMaterialsbuf, 0, std::span(materialData));
+
+
+  unifiedRelemsbuf = ctx.createBuffer(etna::Buffer::CreateInfo{
+    .size = renderElements.size() * sizeof(RenderElementGLSLCompat),
+    .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+    .name = "unifiedRelemsbuf"});
+
+  // maybe unnesessary
+  std::vector<RenderElementGLSLCompat> renderElementsData;
+  renderElementsData.reserve(renderElements.size());
+  for (const auto& relem : renderElements)
+  {
+    renderElementsData.emplace_back(RenderElementGLSLCompat{
+      .vertexOffset = relem.vertexOffset,
+      .indexOffset = relem.indexOffset,
+      .indexCount = relem.indexCount,
+      .material = static_cast<std::uint32_t>(relem.material)});
+  }
+
+  transferHelper.uploadBuffer<RenderElementGLSLCompat>(
+    *oneShotCommands, unifiedRelemsbuf, 0, std::span(renderElementsData));
+
+  unifiedBoundsbuf = ctx.createBuffer(etna::Buffer::CreateInfo{
+    .size = renderElementsBounds.size() * sizeof(Bounds),
+    .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+    .name = "unifiedBoundsbuf"});
+  unifiedMeshesbuf = ctx.createBuffer(etna::Buffer::CreateInfo{
+    .size = meshes.size() * sizeof(Mesh),
+    .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+    .name = "unifiedMeshesbuf"});
+  unifiedInstanceMatricesbuf = ctx.createBuffer(etna::Buffer::CreateInfo{
+    .size = instanceMatrices.size() * sizeof(glm::mat4x4),
+    .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+    .name = "unifiedInstanceMatricesbuf"});
+  unifiedInstanceMeshesbuf = ctx.createBuffer(etna::Buffer::CreateInfo{
+    .size = instanceMeshes.size() * sizeof(std::uint32_t),
+    .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+    .name = "unifiedInstanceMeshesbuf"});
+
+  transferHelper.uploadBuffer<Bounds>(
+    *oneShotCommands, unifiedBoundsbuf, 0, std::span(renderElementsBounds));
+  transferHelper.uploadBuffer<Mesh>(*oneShotCommands, unifiedMeshesbuf, 0, std::span(meshes));
+  transferHelper.uploadBuffer<glm::mat4x4>(
+    *oneShotCommands, unifiedInstanceMatricesbuf, 0, std::span(instanceMatrices));
+  transferHelper.uploadBuffer<std::uint32_t>(
+    *oneShotCommands, unifiedInstanceMeshesbuf, 0, std::span(instanceMeshes));
+
+  // filled on GPU in culling
+  unifiedDrawInstanceIndicesbuf = ctx.createBuffer(etna::Buffer::CreateInfo{
+    .size = instanceMeshes.size() * sizeof(std::uint32_t),
+    .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+    .name = "unifiedDrawInstanceIndicesbuf"});
+
+  unifiedRelemInstanceOffsetsbuf = ctx.createBuffer(etna::Buffer::CreateInfo{
+    .size = renderElements.size() * sizeof(std::uint32_t),
+    .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+    .name = "unifiedRelemInstanceOffsetsbuf"});
+
+  std::vector<std::uint32_t> relemInstanceOffsets(renderElements.size(), 0);
+  // calculate total amounts first
+  for (const auto& meshIdx : instanceMeshes)
+  {
+    const auto& currentMesh = meshes[meshIdx];
+    for (std::uint32_t relemIdx = currentMesh.firstRelem;
+         relemIdx < currentMesh.firstRelem + currentMesh.relemCount - 1;
+         relemIdx++)
+    {
+      relemInstanceOffsets[relemIdx]++;
+    }
+  }
+
+  // then convert amounts to respective offsets
+  std::uint32_t offset = 0;
+  std::uint32_t previousAmount = 0;
+  for (auto& amount : relemInstanceOffsets)
+  {
+    previousAmount = amount;
+    amount = offset;
+    offset += previousAmount;
+  }
+
+  transferHelper.uploadBuffer<std::uint32_t>(
+    *oneShotCommands, unifiedRelemInstanceOffsetsbuf, 0, std::span(relemInstanceOffsets));
+
+  unifiedDrawCommandsbuf = ctx.createBuffer(etna::Buffer::CreateInfo{
+    .size = renderElements.size() * sizeof(vk::DrawIndexedIndirectCommand),
+    .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer |
+      vk::BufferUsageFlagBits::eIndirectBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+    .name = "unifiedDrawCommandsbuf"});
+
+  std::vector<vk::DrawIndexedIndirectCommand> drawCommands;
+  drawCommands.reserve(renderElements.size());
+  for (uint32_t i = 0; i < renderElements.size(); i++)
+  {
+    drawCommands.emplace_back(vk::DrawIndexedIndirectCommand{
+      .indexCount = renderElements[i].indexCount,
+      .instanceCount = 0,
+      .firstIndex = renderElements[i].indexOffset,
+      .vertexOffset = static_cast<std::int32_t>(renderElements[i].vertexOffset),
+      .firstInstance = relemInstanceOffsets[i]});
+  }
+
+  transferHelper.uploadBuffer<vk::DrawIndexedIndirectCommand>(
+    *oneShotCommands, unifiedDrawCommandsbuf, 0, std::span(drawCommands));
 }
 
 void SceneManager::selectScene(std::filesystem::path path)
@@ -997,6 +1136,7 @@ void SceneManager::selectScene(std::filesystem::path path)
 
   processTextures(model, parseTextures(model), path.parent_path());
   processMaterials(model);
+  generatePlaceholderMaterial();
 
   // By aggregating all SceneManager fields mutations here,
   // we guarantee that we don't forget to clear something
@@ -1028,6 +1168,7 @@ void SceneManager::selectBakedScene(std::filesystem::path path)
 
   processTextures(model, parseTextures(model), path.parent_path());
   processMaterials(model);
+  generatePlaceholderMaterial();
 
   auto [instMats, instMeshes] = processInstances(model);
   instanceMatrices = std::move(instMats);
@@ -1043,22 +1184,21 @@ void SceneManager::selectBakedScene(std::filesystem::path path)
 }
 
 
-// std::vector<etna::Binding> SceneManager::getTexturesBindings() const {
-//   std::vector<etna::Binding> bindings;
-//   bindings.reserve(texture2dManager.size());
-//   for (uint32_t i = 0; i < texture2dManager.size(); i++) {
-//     auto& currentTexture = texture2dManager.getResource(static_cast<Texture2D::Id>(i));
-//     bindings.emplace_back(etna::Binding{
-//       0, currentTexture.texture.genBinding({}, vk::ImageLayout::eShaderReadOnlyOptimal), i
-//     });
-//   }
+std::vector<etna::Binding> SceneManager::getBindlessBindings() const
+{
+  std::vector<etna::Binding> bindings;
+  bindings.reserve(texture2dManager.size() + 1);
+  for (uint32_t i = 0; i < texture2dManager.size(); i++)
+  {
+    auto& currentTexture = texture2dManager.getResource(static_cast<Texture2D::Id>(i));
+    bindings.emplace_back(etna::Binding{
+      0, currentTexture.texture.genBinding({}, vk::ImageLayout::eShaderReadOnlyOptimal), i});
+  }
 
-//   return bindings;
-// }
+  bindings.emplace_back(etna::Binding{1, unifiedMaterialsbuf.genBinding()});
 
-// etna::Binding SceneManager::getMaterialsBinding() const {
-
-// }
+  return bindings;
+}
 
 etna::VertexByteStreamFormatDescription SceneManager::getVertexFormatDescription()
 {

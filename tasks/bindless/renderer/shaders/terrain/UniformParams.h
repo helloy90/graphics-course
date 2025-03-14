@@ -16,6 +16,9 @@ struct UniformParams
 
   shader_uint _padding;
 
+  shader_uint instancesCount;
+  shader_uint relemsCount;
+
   shader_uvec2 extent;
   shader_uvec2 chunk;
   shader_uvec2 terrainInChunks;

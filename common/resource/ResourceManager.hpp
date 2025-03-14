@@ -1,6 +1,5 @@
 #pragma once
 
-#include <glm/gtc/type_precision.hpp>
 #include <vector>
 
 #include <etna/Assert.hpp>
@@ -83,9 +82,7 @@ public:
   const Res& getResource(const char* name) const { return getResource(getResourceId(name)); }
 
   auto begin() const { return storage.begin(); }
-  auto begin() { return storage.begin(); }
   auto end() const { return storage.end(); }
-  auto end() { return storage.end(); }
 
   std::size_t size() const
   {

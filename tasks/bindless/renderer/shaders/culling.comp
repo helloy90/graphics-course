@@ -1,0 +1,75 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+
+#include "terrain/UniformParams.h"
+
+layout(local_size_x = 128) in;
+
+struct RenderElement {
+    uint vertexOffset;
+    uint indexOffset;
+    uint indexCount;
+    uint material;
+};
+
+struct Bounds {
+    vec3 origin;
+    vec3 extents;
+};
+
+struct Mesh {
+    uint firstRelem;
+    uint relemCount;
+};
+
+struct vkDrawIndexedIndirectCommand {
+    uint indexCount;
+    uint instanceCount;
+    uint firstIndex;
+    int vertexOffset;
+    uint firstInstance;
+};
+
+layout(binding = 0) buffer relems_t {
+    RenderElement relems[];
+};
+layout(binding = 1) buffer bounds_t {
+    Bounds bounds[];
+};
+layout(binding = 2) buffer meshes_t {
+    Mesh relems[];
+};
+layout(binding = 3) buffer instance_matrices_t {
+    mat4 instanceMatrices[];
+};
+layout(binding = 4) buffer instance_meshes_t {
+    uint instanceMeshes[];
+};
+layout(binding = 5) buffer relem_instance_offsets_t {
+    uint relemInstanceOffsets[];
+};
+layout(binding = 6) buffer draw_instance_indices_t {
+    uint drawInstanceIndices[];
+};
+layout(binding = 7) buffer draw_commands_t {
+    vkDrawIndexedIndirectCommand drawCommands[];
+};
+
+layout(binding = 8) uniform params_t {
+    UniformParams params;
+};
+
+void main() {
+    uint currentInstanceIdx = gl_GlobalInvocationID.x;
+
+    if (currentInstanceIdx >= params.instancesCount) {
+        return;
+    }
+
+    if (currentInstanceIdx < params.relemsCount) {
+        drawCommands[currentInstanceIdx].instanceCount = 0
+    }
+    memoryBarrierBuffer();
+
+    
+}

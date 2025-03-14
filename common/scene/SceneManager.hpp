@@ -8,8 +8,8 @@
 #include <etna/BlockingTransferHelper.hpp>
 #include <etna/VertexInput.hpp>
 
-#include "../resource/ResourceManager.hpp"
-// #include "etna/DescriptorSet.hpp"
+#include "resource/ResourceManager.hpp"
+#include "etna/DescriptorSet.hpp"
 #include "resource/Material.hpp"
 #include "resource/Texture2D.hpp"
 
@@ -29,7 +29,7 @@ struct RenderElement
   std::uint32_t indexOffset;
   std::uint32_t indexCount;
 
-  Material::Id material;
+  Material::Id material = Material::Id::Invalid;
 
   auto operator<=>(const RenderElement& other) const = default;
 };
@@ -79,9 +79,9 @@ public:
 
   vk::Buffer getVertexBuffer() { return unifiedVbuf.get(); }
   vk::Buffer getIndexBuffer() { return unifiedIbuf.get(); }
+  vk::Buffer getMaterialBuffer() { return unifiedMaterialsbuf.get(); }
 
-  // std::vector<etna::Binding> getTexturesBindings() const;
-  // etna::Binding getMaterialsBinding() const;
+  std::vector<etna::Binding> getBindlessBindings() const;
 
   etna::VertexByteStreamFormatDescription getVertexFormatDescription();
 
@@ -97,6 +97,23 @@ public:
   void generateMipmapsVkStyle(const etna::Image& image, uint32_t mip_levels, uint32_t layer_count);
 
 private:
+  struct RenderElementGLSLCompat {
+    std::uint32_t vertexOffset;
+    std::uint32_t indexOffset;
+    std::uint32_t indexCount;
+    std::uint32_t material;
+  };
+
+  struct MaterialGLSLCompat { 
+    glm::vec4 baseColorFactor;
+    float roughnessFactor;
+    float metallicFactor;
+    uint32_t baseColorTexture;
+    uint32_t metallicRoughnessTexture;
+    uint32_t normalTexture;
+    uint32_t padding = 0;
+  };
+
   struct ProcessedInstances
   {
     std::vector<glm::mat4x4> matrices;
@@ -166,6 +183,17 @@ private:
 
   etna::Buffer unifiedVbuf;
   etna::Buffer unifiedIbuf;
-
+    
   etna::Buffer unifiedMaterialsbuf;
+
+  etna::Buffer unifiedRelemsbuf;
+  etna::Buffer unifiedBoundsbuf;
+  etna::Buffer unifiedMeshesbuf;
+  etna::Buffer unifiedInstanceMatricesbuf;
+  etna::Buffer unifiedInstanceMeshesbuf;
+  etna::Buffer unifiedRelemInstanceOffsetsbuf;
+
+  etna::Buffer unifiedDrawInstanceIndicesbuf;
+
+  etna::Buffer unifiedDrawCommandsbuf;
 };
