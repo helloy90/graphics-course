@@ -5,19 +5,43 @@
 #include "../terrain/UniformParams.h"
 #include "unpack_attributes_baked.glsl"
 
-
 layout(location = 0) in vec4 vPosNorm;
 layout(location = 1) in vec4 vTexCoordAndTang;
 
-layout(std140, set = 0, binding = 0) readonly buffer instanceMatrices_t {
-  mat4 matrices[];
-} instanceMatrices;
+struct RenderElement {
+    uint vertexOffset;
+    uint indexOffset;
+    uint indexCount;
+    uint material;
+};
 
-layout(binding = 1) uniform params {
+struct Material { 
+  vec4 baseColorFactor;
+  float roughnessFactor;
+  float metallicFactor;
+  uint baseColorTexture;
+  uint metallicRoughnessTexture;
+  uint normalTexture;
+  uint32_t padding = 0;
+};
+
+layout(binding = 0) readonly buffer relems_t {
+  RenderElement relems[];
+};
+
+layout(std140, set = 0, binding = 1) readonly buffer instance_matrices_t {
+  mat4 instanceMatrices[];
+};
+
+layout(binding = 2) readonly buffer draw_instance_indices_t {
+  uint drawInstanceIndices[];
+};
+
+layout(binding = 3) uniform params {
   UniformParams uniformParams;
 };
 
-layout(binding = 3) uniform sampler2D normalTexture;
+// layout(binding = 4) uniform sampler2D normalTexture;
 
 layout (location = 0) out VS_OUT
 {
@@ -31,14 +55,15 @@ layout (location = 0) out VS_OUT
 
 out gl_PerVertex { vec4 gl_Position; };
 
-void main(void)
-{
-  mat4 currentModelMatrix = instanceMatrices.matrices[gl_InstanceIndex];
+void main(void) {
+  mat4 currentModelMatrix = instanceMatrices[drawInstanceIndices[gl_InstanceIndex]];
+
+  Material currentMaterial = 
 
   const vec4 wNorm = decode_normal(floatBitsToUint(vPosNorm.w));
   vec4 wTang = decode_normal(floatBitsToUint(vTexCoordAndTang.z));
 
-  vOut.wPos   = (currentModelMatrix * vec4(vPosNorm.xyz, 1.0f)).xyz;
+  vOut.wPos = (currentModelMatrix * vec4(vPosNorm.xyz, 1.0f)).xyz;
   vec3 normalSpace =  mat3(transpose(inverse(currentModelMatrix))) * wNorm.xyz;
   vec3 tangentSpace = mat3(transpose(inverse(currentModelMatrix))) * wTang.xyz;
   vec3 BitangentSpace = cross(normalSpace, tangentSpace) * wTang.w;
@@ -46,5 +71,5 @@ void main(void)
   vec3 normal = texture(normalTexture, vOut.texCoord).rgb;
   vOut.wNormOut = normalize(normal.x * tangentSpace + normal.y * BitangentSpace + normal.z * normalSpace);
 
-  gl_Position   = uniformParams.projView * vec4(vOut.wPos, 1.0);
+  gl_Position = uniformParams.projView * vec4(vOut.wPos, 1.0);
 }

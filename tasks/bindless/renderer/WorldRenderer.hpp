@@ -45,23 +45,25 @@ public:
     vk::CommandBuffer cmd_buf, vk::Image target_image); // vk::ImageView target_image_view);
 
 private:
+  void cullMeshes(
+    vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout);
+
   void renderScene(
-    vk::CommandBuffer cmd_buf,
-    etna::Buffer& constants,
-    vk::PipelineLayout pipeline_layout,
-    etna::Buffer& instance_buffer);
+    vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout);
+  // ,    etna::Buffer& instance_buffer);
 
   void renderTerrain(
     vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout);
 
-  void renderCubemap(vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout);
+  void renderCubemap(
+    vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout);
 
   void deferredShading(
     vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout);
 
-  bool isVisible(const Bounds& bounds, const glm::mat4& proj_view, const glm::mat4& transform);
+  // bool isVisible(const Bounds& bounds, const glm::mat4& proj_view, const glm::mat4& transform);
 
-  void parseInstanceInfo(etna::Buffer& buffer);
+  // void parseInstanceInfo(etna::Buffer& buffer);
 
   void updateConstants(etna::Buffer& constants);
 
@@ -101,10 +103,10 @@ private:
 
   UniformParams params;
 
-  std::size_t maxInstancesInScene;
-  std::optional<etna::GpuSharedResource<etna::Buffer>> instanceMatricesBuffer;
+  // std::size_t maxInstancesInScene;
+  // std::optional<etna::GpuSharedResource<etna::Buffer>> instanceMatricesBuffer;
   std::optional<etna::GpuSharedResource<etna::Buffer>> constantsBuffer;
-  std::vector<uint32_t> instancesAmount;
+  // std::vector<uint32_t> instancesAmount;
 
   std::optional<etna::GpuSharedResource<etna::Buffer>> histogramBuffer;
   std::optional<etna::GpuSharedResource<etna::Buffer>> histogramInfoBuffer;
@@ -117,6 +119,8 @@ private:
   etna::GraphicsPipeline terrainRenderPipeline;
   etna::GraphicsPipeline deferredShadingPipeline;
   etna::GraphicsPipeline cubemapRenderPipeline;
+
+  etna::ComputePipeline cullingPipeline;
 
   etna::ComputePipeline terrainNormalPipeline;
   etna::ComputePipeline lightDisplacementPipeline;

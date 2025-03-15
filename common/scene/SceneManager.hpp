@@ -7,6 +7,8 @@
 #include <etna/Buffer.hpp>
 #include <etna/BlockingTransferHelper.hpp>
 #include <etna/VertexInput.hpp>
+#include <vector>
+#include <vulkan/vulkan_handles.hpp>
 
 #include "resource/ResourceManager.hpp"
 #include "etna/DescriptorSet.hpp"
@@ -17,8 +19,8 @@
 // Bounds for each render element
 struct Bounds
 {
-  glm::vec3 origin;
-  glm::vec3 extents;
+  glm::vec3 minPos;
+  glm::vec3 maxPos;
 };
 
 // A single render element (relem) corresponds to a single draw call
@@ -79,7 +81,17 @@ public:
 
   vk::Buffer getVertexBuffer() { return unifiedVbuf.get(); }
   vk::Buffer getIndexBuffer() { return unifiedIbuf.get(); }
-  vk::Buffer getMaterialBuffer() { return unifiedMaterialsbuf.get(); }
+
+  const etna::Buffer& getMaterialBuffer() const { return unifiedMaterialsbuf; }
+
+  const etna::Buffer& getRelemsBuffer() const { return unifiedRelemsbuf; }
+  const etna::Buffer& getBoundsBuffer() const { return unifiedBoundsbuf; }
+  const etna::Buffer& getMeshesBuffer() const { return unifiedMeshesbuf; }
+  const etna::Buffer& getInstanceMeshesBuffer() const { return unifiedInstanceMeshesbuf; }
+  const etna::Buffer& getInstanceMatricesBuffer() const { return unifiedInstanceMatricesbuf; }
+  const etna::Buffer& getRelemInstanceOffsetsBuffer() const { return unifiedRelemInstanceOffsetsbuf; }
+  const etna::Buffer& getDrawInstanceIndicesBuffer() const { return unifiedDrawInstanceIndicesbuf; }
+  const etna::Buffer& getDrawCommandsBuffer() const { return unifiedDrawCommandsbuf; }
 
   std::vector<etna::Binding> getBindlessBindings() const;
 

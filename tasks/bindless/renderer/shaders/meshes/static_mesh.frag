@@ -8,9 +8,9 @@ layout (location = 0) out vec4 gAlbedo;
 layout (location = 1) out vec3 gNormal;
 layout (location = 2) out vec4 gMaterial;
 
-layout(binding = 2) uniform sampler2D baseColorTexture;
-layout(binding = 3) uniform sampler2D normalTexture;
-layout(binding = 4) uniform sampler2D metallicRoughnessTexture;
+// layout(binding = 3) uniform sampler2D baseColorTexture;
+// layout(binding = 4) uniform sampler2D normalTexture;
+// layout(binding = 5) uniform sampler2D metallicRoughnessTexture;
 
 layout(push_constant) uniform params {
   MaterialRenderParams materialParams;

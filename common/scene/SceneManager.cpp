@@ -1,4 +1,5 @@
 #include "SceneManager.hpp"
+#include "etna/DescriptorSet.hpp"
 
 #include <stack>
 
@@ -12,6 +13,7 @@
 #include <etna/OneShotCmdMgr.hpp>
 #include <etna/Etna.hpp>
 #include <etna/RenderTargetStates.hpp>
+#include <vector>
 
 
 static std::uint32_t encode_normal(glm::vec3 normal)
@@ -755,6 +757,13 @@ SceneManager::ProcessedMeshes SceneManager::processMeshes(const tinygltf::Model&
         .indexCount = static_cast<std::uint32_t>(accessors[0]->count),
         .material = static_cast<Material::Id>(prim.material)});
 
+      glm::vec3 minPos = {
+        accessors[1]->minValues[0], accessors[1]->minValues[1], accessors[1]->minValues[2]};
+      glm::vec3 maxPos = {
+        accessors[1]->maxValues[0], accessors[1]->maxValues[1], accessors[1]->maxValues[2]};
+
+      result.bounds.push_back(Bounds{minPos, maxPos});
+
       const std::size_t vertexCount = accessors[1]->count;
 
       std::array ptrs{
@@ -802,16 +811,6 @@ SceneManager::ProcessedMeshes SceneManager::processMeshes(const tinygltf::Model&
                     : 0,
       };
 
-
-      glm::vec3 minpos = {
-        std::numeric_limits<float>::max(),
-        std::numeric_limits<float>::max(),
-        std::numeric_limits<float>::max()};
-
-      glm::vec3 maxpos = {
-        std::numeric_limits<float>::min(),
-        std::numeric_limits<float>::min(),
-        std::numeric_limits<float>::min()};
       for (std::size_t i = 0; i < vertexCount; ++i)
       {
         auto& vtx = result.vertices.emplace_back();
@@ -838,9 +837,6 @@ SceneManager::ProcessedMeshes SceneManager::processMeshes(const tinygltf::Model&
         vtx.texCoordAndTangentAndPadding =
           glm::vec4(texcoord, std::bit_cast<float>(encode_normal(tangent)), 0);
 
-        minpos = glm::min(minpos, pos);
-        maxpos = glm::max(maxpos, pos);
-
         ptrs[1] += strides[1];
         if (hasNormals)
           ptrs[2] += strides[2];
@@ -849,9 +845,6 @@ SceneManager::ProcessedMeshes SceneManager::processMeshes(const tinygltf::Model&
         if (hasTexcoord)
           ptrs[4] += strides[4];
       }
-
-      result.bounds.push_back(
-        Bounds{.origin = (maxpos + minpos) / 2.0f, .extents = (maxpos - minpos) / 2.0f});
 
       // Indices are guaranteed to have no stride
       ETNA_VERIFY(bufViews[0]->byteStride == 0);
@@ -922,6 +915,13 @@ SceneManager::BakedMeshes SceneManager::processBakedMeshes(const tinygltf::Model
         .indexCount = static_cast<uint32_t>(indicesAccessor.count),
         .material = static_cast<Material::Id>(prim.material)});
 
+      glm::vec3 minPos = {
+        vertexAccessor.minValues[0], vertexAccessor.minValues[1], vertexAccessor.minValues[2]};
+      glm::vec3 maxPos = {
+        vertexAccessor.maxValues[0], vertexAccessor.maxValues[1], vertexAccessor.maxValues[2]};
+
+      result.bounds.push_back(Bounds{minPos, maxPos});
+
       auto positionBufferView = model.bufferViews[vertexAccessor.bufferView];
       auto positionPtr =
         reinterpret_cast<const std::byte*>(model.buffers[positionBufferView.buffer].data.data()) +
@@ -931,28 +931,13 @@ SceneManager::BakedMeshes SceneManager::processBakedMeshes(const tinygltf::Model
         : tinygltf::GetComponentSizeInBytes(vertexAccessor.componentType) *
           tinygltf::GetNumComponentsInType(vertexAccessor.type);
 
-      glm::vec3 minpos = {
-        std::numeric_limits<float>::max(),
-        std::numeric_limits<float>::max(),
-        std::numeric_limits<float>::max()};
-
-      glm::vec3 maxpos = {
-        std::numeric_limits<float>::min(),
-        std::numeric_limits<float>::min(),
-        std::numeric_limits<float>::min()};
       for (std::size_t i = 0; i < vertexAccessor.count; i++)
       {
         glm::vec3 pos;
         std::memcpy(&pos, positionPtr, sizeof(pos));
 
-        minpos = glm::min(minpos, pos);
-        maxpos = glm::max(maxpos, pos);
-
         positionPtr += positionStride;
       }
-
-      result.bounds.push_back(
-        Bounds{.origin = (maxpos + minpos) / 2.0f, .extents = (maxpos - minpos) / 2.0f});
     }
 
     auto buffer = model.buffers[0].data.data();
@@ -1064,7 +1049,7 @@ void SceneManager::uploadData(
   transferHelper.uploadBuffer<std::uint32_t>(
     *oneShotCommands, unifiedInstanceMeshesbuf, 0, std::span(instanceMeshes));
 
-  // filled on GPU in culling
+  // filled on GPU when culling
   unifiedDrawInstanceIndicesbuf = ctx.createBuffer(etna::Buffer::CreateInfo{
     .size = instanceMeshes.size() * sizeof(std::uint32_t),
     .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
@@ -1182,7 +1167,6 @@ void SceneManager::selectBakedScene(std::filesystem::path path)
 
   uploadData(verts, inds);
 }
-
 
 std::vector<etna::Binding> SceneManager::getBindlessBindings() const
 {
