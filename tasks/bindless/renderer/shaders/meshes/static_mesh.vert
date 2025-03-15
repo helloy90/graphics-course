@@ -1,5 +1,6 @@
-#version 450
+#version 460
 #extension GL_ARB_separate_shader_objects : enable
+#extension GL_EXT_nonuniform_qualifier : enable
 #extension GL_GOOGLE_include_directive : require
 
 #include "../terrain/UniformParams.h"
@@ -22,22 +23,27 @@ struct Material {
   uint baseColorTexture;
   uint metallicRoughnessTexture;
   uint normalTexture;
-  uint32_t padding = 0;
+  uint padding;
 };
 
-layout(binding = 0) readonly buffer relems_t {
+layout(set = 0, binding = 0) uniform sampler2D textures[];
+layout(set = 0, binding = 1) buffer materials_t {
+  Material materials[];
+};
+
+layout(set = 1, binding = 0) readonly buffer relems_t {
   RenderElement relems[];
 };
 
-layout(std140, set = 0, binding = 1) readonly buffer instance_matrices_t {
+layout(std140, set = 1, binding = 1) readonly buffer instance_matrices_t {
   mat4 instanceMatrices[];
 };
 
-layout(binding = 2) readonly buffer draw_instance_indices_t {
+layout(set = 1, binding = 2) readonly buffer draw_instance_indices_t {
   uint drawInstanceIndices[];
 };
 
-layout(binding = 3) uniform params {
+layout(set = 1, binding = 3) uniform params {
   UniformParams uniformParams;
 };
 
@@ -51,14 +57,15 @@ layout (location = 0) out VS_OUT
   vec3 wBitangent;
   vec3 wNormOut;
   vec2 texCoord;
+  uint relemIdx;
 } vOut;
 
 out gl_PerVertex { vec4 gl_Position; };
 
 void main(void) {
   mat4 currentModelMatrix = instanceMatrices[drawInstanceIndices[gl_InstanceIndex]];
-
-  Material currentMaterial = 
+  vOut.relemIdx = gl_DrawID;
+  RenderElement currentRelem = relems[gl_DrawID];
 
   const vec4 wNorm = decode_normal(floatBitsToUint(vPosNorm.w));
   vec4 wTang = decode_normal(floatBitsToUint(vTexCoordAndTang.z));
@@ -68,7 +75,7 @@ void main(void) {
   vec3 tangentSpace = mat3(transpose(inverse(currentModelMatrix))) * wTang.xyz;
   vec3 BitangentSpace = cross(normalSpace, tangentSpace) * wTang.w;
   vOut.texCoord = vTexCoordAndTang.xy;
-  vec3 normal = texture(normalTexture, vOut.texCoord).rgb;
+  vec3 normal = texture(textures[nonuniformEXT(materials[currentRelem.material].normalTexture)], vOut.texCoord).rgb;
   vOut.wNormOut = normalize(normal.x * tangentSpace + normal.y * BitangentSpace + normal.z * normalSpace);
 
   gl_Position = uniformParams.projView * vec4(vOut.wPos, 1.0);

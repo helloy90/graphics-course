@@ -1,4 +1,4 @@
-#version 450
+#version 460
 #extension GL_GOOGLE_include_directive : require
 
 #include "terrain/UniformParams.h"
@@ -37,7 +37,7 @@ layout(binding = 1) buffer bounds_t {
     Bounds bounds[];
 };
 layout(binding = 2) buffer meshes_t {
-    Mesh relems[];
+    Mesh meshes[];
 };
 layout(binding = 3) buffer instance_meshes_t {
     uint instanceMeshes[];
@@ -73,14 +73,13 @@ void main() {
 
     // maybe its better to use for loop here for instance index 0
     if (instanceIdx < params.relemsCount) {
-        drawCommands[instanceIdx].instanceCount = 0
+        drawCommands[instanceIdx].instanceCount = 0;
     }
     memoryBarrierBuffer();
 
-    uint currentInstance = instanceMatrices[instanceIdx];
+    uint currentInstance = instanceMeshes[instanceIdx];
     Mesh currentMesh = meshes[currentInstance];
 
-    vec4 corners[8] = {};
     for (uint relemIdx = currentMesh.firstRelem;
          relemIdx < currentMesh.firstRelem + currentMesh.relemCount - 1;
          relemIdx++) {
@@ -89,7 +88,7 @@ void main() {
         vec3 currentMinPos = bounds[relemIdx].minPos;
         vec3 currentMaxPos = bounds[relemIdx].maxPos;
 
-        corners = {
+        vec4 corners[8] = {
             {currentMaxPos.x, currentMaxPos.y, currentMaxPos.z, 1.0},
             {currentMinPos.x, currentMaxPos.y, currentMaxPos.z, 1.0},
             {currentMaxPos.x, currentMinPos.y, currentMaxPos.z, 1.0},

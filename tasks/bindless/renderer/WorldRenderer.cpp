@@ -1,13 +1,10 @@
 #include "WorldRenderer.hpp"
 
-#include <cstddef>
 #include <etna/GlobalContext.hpp>
 #include <etna/PipelineManager.hpp>
 #include <etna/Profiling.hpp>
 #include <etna/RenderTargetStates.hpp>
 #include <tracy/Tracy.hpp>
-#include <vulkan/vulkan_enums.hpp>
-#include <vulkan/vulkan_structs.hpp>
 
 #include "etna/DescriptorSet.hpp"
 #include "etna/Etna.hpp"
@@ -15,7 +12,6 @@
 #include "stb_image.h"
 
 #include "shaders/postprocessing/UniformHistogramInfo.h"
-#include "shaders/MaterialRenderParams.h"
 
 
 WorldRenderer::WorldRenderer()
