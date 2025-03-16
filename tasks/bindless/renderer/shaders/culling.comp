@@ -14,7 +14,9 @@ struct RenderElement {
 
 struct Bounds {
     vec3 minPos;
+    uint _padding0;
     vec3 maxPos;
+    uint _padding1;
 };
 
 struct Mesh {
@@ -77,11 +79,11 @@ void main() {
     }
     memoryBarrierBuffer();
 
-    uint currentInstance = instanceMeshes[instanceIdx];
-    Mesh currentMesh = meshes[currentInstance];
+    uint currentMeshInstance = instanceMeshes[instanceIdx];
+    Mesh currentMesh = meshes[currentMeshInstance];
 
     for (uint relemIdx = currentMesh.firstRelem;
-         relemIdx < currentMesh.firstRelem + currentMesh.relemCount - 1;
+         relemIdx < currentMesh.firstRelem + currentMesh.relemCount;
          relemIdx++) {
         bool visible = false;
 
@@ -100,7 +102,7 @@ void main() {
         };
 
         for (uint i = 0; i < 8; i++) {
-            vec4 corner = params.projView * (instanceMatrices[currentInstance] * corners[i]);
+            vec4 corner = params.projView * (instanceMatrices[instanceIdx] * corners[i]);
 
             visible = visible 
                 || within(-corner.w, corner.x, corner.w) 
@@ -110,7 +112,7 @@ void main() {
 
         if (visible) {
             uint drawInstance = atomicAdd(drawCommands[relemIdx].instanceCount, 1);
-            drawInstanceIndices[relemInstanceOffsets[relemIdx] + drawInstance] = currentInstance;
+            drawInstanceIndices[relemInstanceOffsets[relemIdx] + drawInstance] = instanceIdx;
         }
     }
 }

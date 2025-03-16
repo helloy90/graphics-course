@@ -191,7 +191,10 @@ void main() {
     const vec3 reflection = texture(cubemap, reflect((worldSpacePosition.xyz - uniformParams.cameraWorldPosition), normal)).rgb * 20;
 
     // change to IBL later
-    vec3 color = vec3(0.02);
+    vec3 color = vec3(0);
+
+    vec3 skyboxTexCoord = (uniformParams.invProjViewMat3 * screenSpacePosition).xyz;
+    vec3 skyboxColor = texture(cubemap, normalize(skyboxTexCoord)).rgb;
 
     for (uint i = 0; i < uniformParams.directionalLightsAmount; i++) {
         DirectionalLight currentLight = directionalLightsBuffer[i];
@@ -212,5 +215,5 @@ void main() {
         color += pbrColor;
     }
 
-    fragColor = vec4(color, 1);
+    fragColor = vec4(depth >= 1.0 ? skyboxColor : color, 1);
 }

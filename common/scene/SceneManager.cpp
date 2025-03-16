@@ -15,6 +15,8 @@
 #include <etna/RenderTargetStates.hpp>
 #include <vector>
 
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/string_cast.hpp>
 
 static std::uint32_t encode_normal(glm::vec3 normal)
 {
@@ -34,6 +36,8 @@ SceneManager::SceneManager()
   , normalPlaceholder(Texture2D::Id::Invalid)
   , oneShotCommands{etna::get_context().createOneShotCmdMgr()}
   , transferHelper{etna::BlockingTransferHelper::CreateInfo{.stagingSize = 4096 * 4096 * 4}}
+  , defaultSampler(
+      etna::Sampler::CreateInfo{.filter = vk::Filter::eLinear, .name = "default_sampler"})
 {
 }
 
@@ -757,10 +761,18 @@ SceneManager::ProcessedMeshes SceneManager::processMeshes(const tinygltf::Model&
         .indexCount = static_cast<std::uint32_t>(accessors[0]->count),
         .material = static_cast<Material::Id>(prim.material)});
 
-      glm::vec3 minPos = {
-        accessors[1]->minValues[0], accessors[1]->minValues[1], accessors[1]->minValues[2]};
-      glm::vec3 maxPos = {
-        accessors[1]->maxValues[0], accessors[1]->maxValues[1], accessors[1]->maxValues[2]};
+
+      const auto& positionAccessor = accessors[1];
+      glm::vec4 minPos = {
+        positionAccessor->minValues[0],
+        positionAccessor->minValues[1],
+        positionAccessor->minValues[2],
+        0};
+      glm::vec4 maxPos = {
+        positionAccessor->maxValues[0],
+        positionAccessor->maxValues[1],
+        positionAccessor->maxValues[2],
+        0};
 
       result.bounds.push_back(Bounds{minPos, maxPos});
 
@@ -915,10 +927,10 @@ SceneManager::BakedMeshes SceneManager::processBakedMeshes(const tinygltf::Model
         .indexCount = static_cast<uint32_t>(indicesAccessor.count),
         .material = static_cast<Material::Id>(prim.material)});
 
-      glm::vec3 minPos = {
-        vertexAccessor.minValues[0], vertexAccessor.minValues[1], vertexAccessor.minValues[2]};
-      glm::vec3 maxPos = {
-        vertexAccessor.maxValues[0], vertexAccessor.maxValues[1], vertexAccessor.maxValues[2]};
+      glm::vec4 minPos = {
+        vertexAccessor.minValues[0], vertexAccessor.minValues[1], vertexAccessor.minValues[2], 0};
+      glm::vec4 maxPos = {
+        vertexAccessor.maxValues[0], vertexAccessor.maxValues[1], vertexAccessor.maxValues[2], 0};
 
       result.bounds.push_back(Bounds{minPos, maxPos});
 
@@ -991,8 +1003,7 @@ void SceneManager::uploadData(
       .metallicFactor = material.metallicFactor,
       .baseColorTexture = static_cast<uint32_t>(material.baseColorTexture),
       .metallicRoughnessTexture = static_cast<uint32_t>(material.metallicRoughnessTexture),
-      .normalTexture = static_cast<uint32_t>(material.normalTexture),
-    });
+      .normalTexture = static_cast<uint32_t>(material.normalTexture)});
   }
 
   transferHelper.uploadBuffer<MaterialGLSLCompat>(
@@ -1068,7 +1079,7 @@ void SceneManager::uploadData(
   {
     const auto& currentMesh = meshes[meshIdx];
     for (std::uint32_t relemIdx = currentMesh.firstRelem;
-         relemIdx < currentMesh.firstRelem + currentMesh.relemCount - 1;
+         relemIdx < currentMesh.firstRelem + currentMesh.relemCount;
          relemIdx++)
     {
       relemInstanceOffsets[relemIdx]++;
@@ -1176,7 +1187,10 @@ std::vector<etna::Binding> SceneManager::getBindlessBindings() const
   {
     auto& currentTexture = texture2dManager.getResource(static_cast<Texture2D::Id>(i));
     bindings.emplace_back(etna::Binding{
-      0, currentTexture.texture.genBinding({}, vk::ImageLayout::eShaderReadOnlyOptimal), i});
+      0,
+      currentTexture.texture.genBinding(
+        defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal),
+      i});
   }
 
   bindings.emplace_back(etna::Binding{1, unifiedMaterialsbuf.genBinding()});

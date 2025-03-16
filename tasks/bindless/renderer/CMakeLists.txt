@@ -27,6 +27,4 @@ target_add_shaders(bindless_renderer
   shaders/postprocessing/postprocess.comp
   shaders/shading.frag
   shaders/culling.comp
-  shaders/skybox.vert
-  shaders/skybox.frag
 )

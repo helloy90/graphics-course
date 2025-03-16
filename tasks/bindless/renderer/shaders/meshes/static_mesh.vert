@@ -23,11 +23,13 @@ struct Material {
   uint baseColorTexture;
   uint metallicRoughnessTexture;
   uint normalTexture;
-  uint padding;
+  uint _padding0;
+  uint _padding1;
+  uint _padding2;
 };
 
-layout(set = 0, binding = 0) uniform sampler2D textures[];
-layout(set = 0, binding = 1) buffer materials_t {
+layout(set = 0, binding = 0) uniform sampler2D textures[32];
+layout(set = 0, binding = 1) readonly buffer materials_t {
   Material materials[];
 };
 
@@ -47,8 +49,6 @@ layout(set = 1, binding = 3) uniform params {
   UniformParams uniformParams;
 };
 
-// layout(binding = 4) uniform sampler2D normalTexture;
-
 layout (location = 0) out VS_OUT
 {
   vec3 wPos;
@@ -57,15 +57,18 @@ layout (location = 0) out VS_OUT
   vec3 wBitangent;
   vec3 wNormOut;
   vec2 texCoord;
-  uint relemIdx;
+  flat uint relemIdx;
 } vOut;
+
 
 out gl_PerVertex { vec4 gl_Position; };
 
 void main(void) {
-  mat4 currentModelMatrix = instanceMatrices[drawInstanceIndices[gl_InstanceIndex]];
   vOut.relemIdx = gl_DrawID;
-  RenderElement currentRelem = relems[gl_DrawID];
+
+  mat4 currentModelMatrix = instanceMatrices[drawInstanceIndices[gl_InstanceIndex]];
+
+  RenderElement currentRelem = relems[vOut.relemIdx];
 
   const vec4 wNorm = decode_normal(floatBitsToUint(vPosNorm.w));
   vec4 wTang = decode_normal(floatBitsToUint(vTexCoordAndTang.z));
@@ -75,7 +78,10 @@ void main(void) {
   vec3 tangentSpace = mat3(transpose(inverse(currentModelMatrix))) * wTang.xyz;
   vec3 BitangentSpace = cross(normalSpace, tangentSpace) * wTang.w;
   vOut.texCoord = vTexCoordAndTang.xy;
-  vec3 normal = texture(textures[nonuniformEXT(materials[currentRelem.material].normalTexture)], vOut.texCoord).rgb;
+
+  uint normalTextureIdx = materials[currentRelem.material].normalTexture;
+
+  vec3 normal = texture(textures[nonuniformEXT(normalTextureIdx)], vOut.texCoord).rgb;
   vOut.wNormOut = normalize(normal.x * tangentSpace + normal.y * BitangentSpace + normal.z * normalSpace);
 
   gl_Position = uniformParams.projView * vec4(vOut.wPos, 1.0);

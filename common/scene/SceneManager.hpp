@@ -10,6 +10,7 @@
 #include <vector>
 #include <vulkan/vulkan_handles.hpp>
 
+#include "etna/Sampler.hpp"
 #include "resource/ResourceManager.hpp"
 #include "etna/DescriptorSet.hpp"
 #include "resource/Material.hpp"
@@ -19,8 +20,9 @@
 // Bounds for each render element
 struct Bounds
 {
-  glm::vec3 minPos;
-  glm::vec3 maxPos;
+  // w coordinate is padding
+  glm::vec4 minPos; 
+  glm::vec4 maxPos;
 };
 
 // A single render element (relem) corresponds to a single draw call
@@ -82,16 +84,16 @@ public:
   vk::Buffer getVertexBuffer() { return unifiedVbuf.get(); }
   vk::Buffer getIndexBuffer() { return unifiedIbuf.get(); }
 
-  const etna::Buffer& getMaterialBuffer() const { return unifiedMaterialsbuf; }
+  etna::Buffer& getMaterialBuffer() { return unifiedMaterialsbuf; }
 
-  const etna::Buffer& getRelemsBuffer() const { return unifiedRelemsbuf; }
-  const etna::Buffer& getBoundsBuffer() const { return unifiedBoundsbuf; }
-  const etna::Buffer& getMeshesBuffer() const { return unifiedMeshesbuf; }
-  const etna::Buffer& getInstanceMeshesBuffer() const { return unifiedInstanceMeshesbuf; }
-  const etna::Buffer& getInstanceMatricesBuffer() const { return unifiedInstanceMatricesbuf; }
-  const etna::Buffer& getRelemInstanceOffsetsBuffer() const { return unifiedRelemInstanceOffsetsbuf; }
-  const etna::Buffer& getDrawInstanceIndicesBuffer() const { return unifiedDrawInstanceIndicesbuf; }
-  const etna::Buffer& getDrawCommandsBuffer() const { return unifiedDrawCommandsbuf; }
+  etna::Buffer& getRelemsBuffer() { return unifiedRelemsbuf; }
+  etna::Buffer& getBoundsBuffer() { return unifiedBoundsbuf; }
+  etna::Buffer& getMeshesBuffer() { return unifiedMeshesbuf; }
+  etna::Buffer& getInstanceMeshesBuffer() { return unifiedInstanceMeshesbuf; }
+  etna::Buffer& getInstanceMatricesBuffer() { return unifiedInstanceMatricesbuf; }
+  etna::Buffer& getRelemInstanceOffsetsBuffer() { return unifiedRelemInstanceOffsetsbuf; }
+  etna::Buffer& getDrawInstanceIndicesBuffer() { return unifiedDrawInstanceIndicesbuf; }
+  etna::Buffer& getDrawCommandsBuffer() { return unifiedDrawCommandsbuf; }
 
   std::vector<etna::Binding> getBindlessBindings() const;
 
@@ -115,16 +117,21 @@ private:
     std::uint32_t indexCount;
     std::uint32_t material;
   };
+  static_assert(sizeof(RenderElementGLSLCompat) % (sizeof(float) * 4) == 0);
+
 
   struct MaterialGLSLCompat { 
     glm::vec4 baseColorFactor;
     float roughnessFactor;
     float metallicFactor;
-    uint32_t baseColorTexture;
-    uint32_t metallicRoughnessTexture;
-    uint32_t normalTexture;
-    uint32_t padding = 0;
+    std::uint32_t baseColorTexture;
+    std::uint32_t metallicRoughnessTexture;
+    std::uint32_t normalTexture;
+    std::uint32_t _padding0 = 0;
+    std::uint32_t _padding1 = 0;
+    std::uint32_t _padding2 = 0;
   };
+  static_assert(sizeof(MaterialGLSLCompat) % (sizeof(float) * 4) == 0);
 
   struct ProcessedInstances
   {
@@ -192,6 +199,8 @@ private:
 
   MaterialManager materialManager;
   Texture2DManager texture2dManager;
+
+  etna::Sampler defaultSampler;
 
   etna::Buffer unifiedVbuf;
   etna::Buffer unifiedIbuf;

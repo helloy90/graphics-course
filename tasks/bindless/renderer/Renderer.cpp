@@ -24,6 +24,7 @@ void Renderer::initVulkan(std::span<const char*> instance_extensions)
   std::vector<const char*> deviceExtensions;
 
   deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+  deviceExtensions.push_back(VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME);
 
   etna::initialize(etna::InitParams{
     .applicationName = "bindless_renderer",
@@ -31,12 +32,14 @@ void Renderer::initVulkan(std::span<const char*> instance_extensions)
     .instanceExtensions = instanceExtensions,
     .deviceExtensions = deviceExtensions,
     .features =
-      vk::PhysicalDeviceFeatures2{
-        .features =
-          {.tessellationShader = vk::True,
-           .multiDrawIndirect = vk::True,
-           .fillModeNonSolid = vk::True /*debug*/,
-           .fragmentStoresAndAtomics = vk::True}},
+      {.features =
+         {.tessellationShader = vk::True,
+          .multiDrawIndirect = vk::True,
+          .fillModeNonSolid = vk::True /*debug*/,
+          .fragmentStoresAndAtomics = vk::True}},
+    .descriptorIndexingFeatures =
+      {.shaderSampledImageArrayNonUniformIndexing = vk::True,
+       .runtimeDescriptorArray = vk::True},
     .physicalDeviceIndexOverride = {},
     .numFramesInFlight = 2,
   });
