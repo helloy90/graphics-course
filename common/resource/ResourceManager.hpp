@@ -1,6 +1,5 @@
 #pragma once
 
-#include <glm/gtc/type_precision.hpp>
 #include <vector>
 
 #include <etna/Assert.hpp>
@@ -81,6 +80,19 @@ public:
 
   Res getResource(const char* name) { return getResource(getResourceId(name)); }
   const Res& getResource(const char* name) const { return getResource(getResourceId(name)); }
+
+  auto begin() const { return storage.begin(); }
+  auto end() const { return storage.end(); }
+
+  std::size_t size() const
+  {
+    ETNA_VERIFYF(
+      storage.size() == names.size(),
+      "Storage size {} of resource manager does not match assigned names size {}!",
+      storage.size(),
+      names.size());
+    return storage.size();
+  }
 
   void clear()
   {
