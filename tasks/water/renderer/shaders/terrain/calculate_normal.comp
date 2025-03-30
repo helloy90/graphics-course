@@ -1,0 +1,32 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+
+layout(local_size_x = 32, local_size_y = 32) in;
+
+layout(push_constant) uniform terrainChunk {
+    uvec2 chunk;
+};
+
+layout (binding = 0, r32f) readonly uniform image2D heightMap;
+layout (binding = 1, rgba8) writeonly uniform image2D normalMap;
+
+vec3 generateNormal(ivec2 currentTexCoord) {
+  float left = imageLoad(heightMap, currentTexCoord + ivec2(-1, 0)).x;
+  float right = imageLoad(heightMap, currentTexCoord + ivec2(1, 0)).x;
+  float up = imageLoad(heightMap, currentTexCoord + ivec2(0, 1)).x;
+  float down = imageLoad(heightMap, currentTexCoord + ivec2(0, -1)).x;
+
+  vec3 normal = normalize(vec3(left - right, 2.0 / (chunk.x * chunk.y), down - up));
+
+  return normal;
+}
+
+void main() {
+    ivec2 texCoord = ivec2(gl_GlobalInvocationID.xy);
+    uvec2 heightMapSize = imageSize(heightMap);
+    if (texCoord.x >= heightMapSize.x || texCoord.y >= heightMapSize.y) {
+        return;
+    }
+
+    imageStore(normalMap, texCoord, vec4(generateNormal(texCoord), 1.0));
+}
