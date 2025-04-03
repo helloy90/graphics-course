@@ -1,7 +1,7 @@
 #version 460
 #extension GL_GOOGLE_include_directive : require
 
-#include "terrain/UniformParams.h"
+#include "MeshesParams.h"
 
 layout(local_size_x = 128) in;
 
@@ -58,7 +58,11 @@ layout(binding = 7) buffer draw_commands_t {
 };
 
 layout(binding = 8) uniform params_t {
-    UniformParams params;
+    MeshesParams params;
+};
+
+layout(push_constant) uniform proj_view_t {
+    mat4 projView;
 };
 
 
@@ -102,7 +106,7 @@ void main() {
         };
 
         for (uint i = 0; i < 8; i++) {
-            vec4 corner = params.projView * (instanceMatrices[instanceIdx] * corners[i]);
+            vec4 corner = projView * (instanceMatrices[instanceIdx] * corners[i]);
 
             visible = visible 
                 || within(-corner.w, corner.x, corner.w) 

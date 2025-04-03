@@ -3,7 +3,6 @@
 #extension GL_EXT_nonuniform_qualifier : enable
 #extension GL_GOOGLE_include_directive : require
 
-#include "../terrain/UniformParams.h"
 #include "unpack_attributes_baked.glsl"
 
 layout(location = 0) in vec4 vPosNorm;
@@ -45,8 +44,8 @@ layout(set = 1, binding = 2) readonly buffer draw_instance_indices_t {
   uint drawInstanceIndices[];
 };
 
-layout(set = 1, binding = 3) uniform params {
-  UniformParams uniformParams;
+layout(push_constant) uniform proj_view_t {
+    mat4 projView;
 };
 
 layout (location = 0) out VS_OUT
@@ -84,5 +83,5 @@ void main(void) {
   vec3 normal = texture(textures[nonuniformEXT(normalTextureIdx)], vOut.texCoord).rgb;
   vOut.wNormOut = normalize(normal.x * tangentSpace + normal.y * BitangentSpace + normal.z * normalSpace);
 
-  gl_Position = uniformParams.projView * vec4(vOut.wPos, 1.0);
+  gl_Position = projView * vec4(vOut.wPos, 1.0);
 }

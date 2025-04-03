@@ -10,11 +10,10 @@ add_executable(project_renderer
 add_subdirectory(modules)
 
 target_link_libraries(project_renderer
-  PRIVATE glfw etna glm::glm wsi gui scene render_utils terrain_generator tonemapping)
+  PRIVATE glfw etna glm::glm wsi gui scene render_utils 
+  terrain_generator tonemapping static_meshes)
 
 target_add_shaders(project_renderer
-  shaders/meshes/static_mesh.frag
-  shaders/meshes/static_mesh.vert
   shaders/decoy.vert
   shaders/terrain/displace_lights.comp
   shaders/terrain/chunk.vert
@@ -22,5 +21,4 @@ target_add_shaders(project_renderer
   shaders/terrain/process_chunk.tese
   shaders/terrain/terrain.frag
   shaders/shading.frag
-  shaders/culling.comp
 )

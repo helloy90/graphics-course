@@ -1,5 +1,5 @@
 
-add_library(render_utils QuadRenderer.cpp)
+add_library(render_utils QuadRenderer.cpp Utilities.cpp)
 
 target_include_directories(render_utils PUBLIC ..)
 

@@ -11,7 +11,6 @@
 #include <etna/GpuSharedResource.hpp>
 #include <glm/glm.hpp>
 
-#include "scene/SceneManager.hpp"
 #include "wsi/Keyboard.hpp"
 
 #include "FramePacket.hpp"
@@ -20,6 +19,7 @@
 #include "shaders/terrain/UniformParams.h"
 #include "GBuffer.hpp"
 
+#include "modules/StaticMeshes/MeshesRenderModule.hpp"
 #include "modules/TerrainGenerator/TerrainGeneratorModule.hpp"
 #include "modules/Tonemapping/TonemappingModule.hpp"
 
@@ -46,12 +46,6 @@ public:
     vk::CommandBuffer cmd_buf, vk::Image target_image);
 
 private:
-  void cullMeshes(
-    vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout);
-
-  void renderScene(
-    vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout);
-
   void renderTerrain(
     vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout);
 
@@ -61,14 +55,11 @@ private:
   void updateConstants(etna::Buffer& constants);
 
 private:
+  MeshesRenderModule staticMeshesRenderModule;
   TerrainGeneratorModule terrainGenerator;
   TonemappingModule tonemappingModule;
 
-  std::unique_ptr<SceneManager> sceneMgr;
-
   vk::Format renderTargetFormat;
-
-  etna::Image mainViewDepth;
 
   etna::Image cubemapTexture;
 
@@ -81,21 +72,14 @@ private:
   etna::Buffer lightsBuffer;
   etna::Buffer directionalLightsBuffer;
 
-  std::optional<etna::PersistentDescriptorSet> meshesDescriptorSet;
-
   UniformParams params;
 
   std::optional<etna::GpuSharedResource<etna::Buffer>> constantsBuffer;
 
-  etna::GraphicsPipeline staticMeshPipeline{};
   etna::GraphicsPipeline terrainRenderPipeline;
   etna::GraphicsPipeline deferredShadingPipeline;
 
-  etna::ComputePipeline cullingPipeline;
-
   etna::ComputePipeline lightDisplacementPipeline;
-
-  etna::Sampler staticMeshSampler;
 
   bool wireframeEnabled;
   bool tonemappingEnabled;

@@ -106,10 +106,6 @@ public:
 
   Material::Id materialPlaceholder;
 
-  void localCopyBufferToImage(
-    const etna::Buffer& buffer, const etna::Image& image, uint32_t layer_count);
-  void generateMipmapsVkStyle(const etna::Image& image, uint32_t mip_levels, uint32_t layer_count);
-
 private:
   struct RenderElementGLSLCompat {
     std::uint32_t vertexOffset;
