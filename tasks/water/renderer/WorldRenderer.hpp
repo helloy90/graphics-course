@@ -11,7 +11,6 @@
 #include <etna/GpuSharedResource.hpp>
 #include <glm/glm.hpp>
 
-#include "modules/TerrainGenerator/TerrainGeneratorModule.hpp"
 #include "scene/SceneManager.hpp"
 #include "wsi/Keyboard.hpp"
 
@@ -20,6 +19,9 @@
 #include "shaders/Light.h"
 #include "shaders/terrain/UniformParams.h"
 #include "GBuffer.hpp"
+
+#include "modules/TerrainGenerator/TerrainGeneratorModule.hpp"
+#include "modules/Tonemapping/TonemappingModule.hpp"
 
 
 class WorldRenderer
@@ -58,16 +60,9 @@ private:
 
   void updateConstants(etna::Buffer& constants);
 
-  void tonemappingShaderStart(
-    vk::CommandBuffer cmd_buf,
-    const etna::ComputePipeline& current_pipeline,
-    std::string shader_program,
-    std::vector<etna::Binding> bindings,
-    std::optional<uint32_t> push_constant,
-    glm::uvec2 group_count);
-
 private:
   TerrainGeneratorModule terrainGenerator;
+  TonemappingModule tonemappingModule;
 
   std::unique_ptr<SceneManager> sceneMgr;
 
@@ -92,12 +87,6 @@ private:
 
   std::optional<etna::GpuSharedResource<etna::Buffer>> constantsBuffer;
 
-  std::optional<etna::GpuSharedResource<etna::Buffer>> histogramBuffer;
-  std::optional<etna::GpuSharedResource<etna::Buffer>> histogramInfoBuffer;
-  std::optional<etna::GpuSharedResource<etna::Buffer>> distributionBuffer;
-
-  std::uint32_t binsAmount;
-
   etna::GraphicsPipeline staticMeshPipeline{};
   etna::GraphicsPipeline terrainRenderPipeline;
   etna::GraphicsPipeline deferredShadingPipeline;
@@ -105,12 +94,6 @@ private:
   etna::ComputePipeline cullingPipeline;
 
   etna::ComputePipeline lightDisplacementPipeline;
-
-  etna::ComputePipeline calculateMinMaxPipeline;
-  etna::ComputePipeline histogramPipeline;
-  etna::ComputePipeline processHistogramPipeline;
-  etna::ComputePipeline distributionPipeline;
-  etna::ComputePipeline postprocessComputePipeline;
 
   etna::Sampler staticMeshSampler;
 
