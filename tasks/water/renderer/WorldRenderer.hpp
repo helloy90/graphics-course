@@ -11,6 +11,7 @@
 #include <etna/GpuSharedResource.hpp>
 #include <glm/glm.hpp>
 
+#include "modules/TerrainGenerator/TerrainGeneratorModule.hpp"
 #include "scene/SceneManager.hpp"
 #include "wsi/Keyboard.hpp"
 
@@ -18,7 +19,6 @@
 #include "shaders/DirectionalLight.h"
 #include "shaders/Light.h"
 #include "shaders/terrain/UniformParams.h"
-#include "shaders/terrain/TerrainGenerationParams.h"
 #include "GBuffer.hpp"
 
 
@@ -32,8 +32,7 @@ public:
   void allocateResources(glm::uvec2 swapchain_resolution);
   void setupRenderPipelines();
   void rebuildRenderPipelines();
-  void setupTerrainGeneration(vk::Format texture_format, vk::Extent3D extent);
-  void generateTerrain();
+  void loadTerrain();
   void displaceLights();
   void loadLights();
   void loadCubemap();
@@ -68,17 +67,13 @@ private:
     glm::uvec2 group_count);
 
 private:
+  TerrainGeneratorModule terrainGenerator;
+
   std::unique_ptr<SceneManager> sceneMgr;
 
   vk::Format renderTargetFormat;
 
   etna::Image mainViewDepth;
-
-  etna::Image terrainMap;
-  etna::Image terrainNormalMap;
-  std::optional<etna::GpuSharedResource<etna::Buffer>> generationParamsBuffer;
-  TerrainGenerationParams generationParams;
-  uint32_t maxNumberOfSamples;
 
   etna::Image cubemapTexture;
 
@@ -104,13 +99,11 @@ private:
   std::uint32_t binsAmount;
 
   etna::GraphicsPipeline staticMeshPipeline{};
-  etna::GraphicsPipeline terrainGenerationPipeline;
   etna::GraphicsPipeline terrainRenderPipeline;
   etna::GraphicsPipeline deferredShadingPipeline;
 
   etna::ComputePipeline cullingPipeline;
 
-  etna::ComputePipeline terrainNormalPipeline;
   etna::ComputePipeline lightDisplacementPipeline;
 
   etna::ComputePipeline calculateMinMaxPipeline;
@@ -119,7 +112,6 @@ private:
   etna::ComputePipeline distributionPipeline;
   etna::ComputePipeline postprocessComputePipeline;
 
-  etna::Sampler terrainSampler;
   etna::Sampler staticMeshSampler;
 
   bool wireframeEnabled;

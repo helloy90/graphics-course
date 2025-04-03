@@ -7,16 +7,18 @@ add_executable(project_renderer
   GBuffer.cpp
 )
 
+add_subdirectory(modules)
+
 target_link_libraries(project_renderer
-  PRIVATE glfw etna glm::glm wsi gui scene render_utils)
+  PRIVATE glfw etna glm::glm wsi gui scene render_utils terrain_generator)
 
 target_add_shaders(project_renderer
   shaders/meshes/static_mesh.frag
   shaders/meshes/static_mesh.vert
   shaders/decoy.vert
-  shaders/terrain/calculate_normal.comp
+  # shaders/terrain/calculate_normal.comp
   shaders/terrain/displace_lights.comp
-  shaders/terrain/generator.frag
+  # shaders/terrain/generator.frag
   shaders/terrain/chunk.vert
   shaders/terrain/subdivide_chunk.tesc
   shaders/terrain/process_chunk.tese

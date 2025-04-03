@@ -72,8 +72,7 @@ void Renderer::initFrameDelivery(vk::UniqueSurfaceKHR a_surface, ResolutionProvi
   worldRenderer->loadShaders();
   worldRenderer->loadLights();
   worldRenderer->setupRenderPipelines();
-  worldRenderer->setupTerrainGeneration(vk::Format::eR32Sfloat, {4096, 4096, 1});
-  worldRenderer->generateTerrain();
+  worldRenderer->loadTerrain();
   worldRenderer->loadCubemap();
 }
 
