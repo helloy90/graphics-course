@@ -11,6 +11,7 @@
 #include <etna/GpuSharedResource.hpp>
 #include <glm/glm.hpp>
 
+#include "modules/TerrainRender/TerrainRenderModule.hpp"
 #include "wsi/Keyboard.hpp"
 
 #include "FramePacket.hpp"
@@ -19,9 +20,10 @@
 #include "shaders/terrain/UniformParams.h"
 #include "GBuffer.hpp"
 
-#include "modules/StaticMeshes/MeshesRenderModule.hpp"
+#include "modules/StaticMeshesRender/MeshesRenderModule.hpp"
 #include "modules/TerrainGenerator/TerrainGeneratorModule.hpp"
 #include "modules/Tonemapping/TonemappingModule.hpp"
+#include "modules/RenderPacket.hpp"
 
 
 class WorldRenderer
@@ -46,9 +48,6 @@ public:
     vk::CommandBuffer cmd_buf, vk::Image target_image);
 
 private:
-  void renderTerrain(
-    vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout);
-
   void deferredShading(
     vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout);
 
@@ -56,7 +55,8 @@ private:
 
 private:
   MeshesRenderModule staticMeshesRenderModule;
-  TerrainGeneratorModule terrainGenerator;
+  TerrainGeneratorModule terrainGeneratorModule;
+  TerrainRenderModule terrainRenderModule;
   TonemappingModule tonemappingModule;
 
   vk::Format renderTargetFormat;
@@ -73,10 +73,10 @@ private:
   etna::Buffer directionalLightsBuffer;
 
   UniformParams params;
+  RenderPacket renderPacket;
 
   std::optional<etna::GpuSharedResource<etna::Buffer>> constantsBuffer;
 
-  etna::GraphicsPipeline terrainRenderPipeline;
   etna::GraphicsPipeline deferredShadingPipeline;
 
   etna::ComputePipeline lightDisplacementPipeline;

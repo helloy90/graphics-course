@@ -122,13 +122,13 @@ void MeshesRenderModule::setupPipelines(bool wireframe_enabled, vk::Format rende
 
 void MeshesRenderModule::execute(
   vk::CommandBuffer cmd_buf,
-  const glm::mat4x4& proj_view,
+  const RenderPacket& packet,
   glm::uvec2 extent,
   std::vector<etna::RenderTargetState::AttachmentParams> color_attachment_params,
   etna::RenderTargetState::AttachmentParams depth_attachment_params)
 {
   cmd_buf.bindPipeline(vk::PipelineBindPoint::eCompute, cullingPipeline.getVkPipeline());
-  cullMeshes(cmd_buf, cullingPipeline.getVkPipelineLayout(), proj_view);
+  cullMeshes(cmd_buf, cullingPipeline.getVkPipelineLayout(), packet.projView);
 
   {
     ETNA_PROFILE_GPU(cmd_buf, renderScene);
@@ -136,7 +136,7 @@ void MeshesRenderModule::execute(
       cmd_buf, {{0, 0}, {extent.x, extent.y}}, color_attachment_params, depth_attachment_params);
 
     cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, staticMeshPipeline.getVkPipeline());
-    renderScene(cmd_buf, staticMeshPipeline.getVkPipelineLayout(), proj_view);
+    renderScene(cmd_buf, staticMeshPipeline.getVkPipelineLayout(), packet.projView);
   }
 }
 

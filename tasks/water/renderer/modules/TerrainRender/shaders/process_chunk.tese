@@ -2,7 +2,7 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_GOOGLE_include_directive : require
 
-#include "UniformParams.h"
+#include "TerrainParams.h"
 #include "utils.glsl"
 
 layout(quads, fractional_even_spacing, ccw) in;
@@ -15,12 +15,17 @@ layout (location = 0) out VS_OUT {
   vec3 normal;
 };
 
-layout (binding = 0) uniform params {
-  UniformParams uniformParams;
+layout (binding = 0) uniform params_t {
+  TerrainParams params;
 };
 
 layout (binding = 1) uniform sampler2D heightMap;
 layout (binding = 2) uniform sampler2D normalMap;
+
+layout(push_constant) uniform push_constant_t {
+    mat4 projView;
+    vec4 cameraWorldPosition;
+};
 
 void main() {
 
@@ -41,10 +46,10 @@ void main() {
 
   vec2 currentTexCoord = interpolate4Vert2D(texLeftLower, texLeftUpper, texRightLower, texRightUpper, u, v);
 
-  currentVertex.y = (texture(heightMap, currentTexCoord).x - uniformParams.heightOffset) * uniformParams.heightAmplifier;
+  currentVertex.y = (texture(heightMap, currentTexCoord).x - params.heightOffset) * params.heightAmplifier;
 
   pos = currentVertex;
   normal = texture(normalMap, currentTexCoord).xyz;
 
-  gl_Position = uniformParams.projView * vec4(currentVertex, 1.0);
+  gl_Position = projView * vec4(currentVertex, 1.0);
 }

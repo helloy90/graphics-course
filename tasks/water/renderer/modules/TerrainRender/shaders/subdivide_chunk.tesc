@@ -2,7 +2,7 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_GOOGLE_include_directive : require
 
-#include "UniformParams.h"
+#include "TerrainParams.h"
 #include "utils.glsl"
 
 layout (vertices = 4) out;
@@ -12,8 +12,13 @@ layout (location = 0) in uint instanceIndex[];
 layout (location = 0) out vec2 heightMapTextureCoord[];
 layout (location = 1) out vec3 worldPosition[];
 
-layout (binding = 0) uniform params {
-  UniformParams uniformParams;
+layout (binding = 0) uniform params_t {
+  TerrainParams params;
+};
+
+layout(push_constant) uniform push_constant_t {
+    mat4 projView;
+    vec4 cameraWorldPosition;
 };
 
 const float maxDistance = 256.0;
@@ -29,29 +34,29 @@ bool isVisible(vec3 leftLower, vec3 leftUpper, vec3 rightLower, vec3 rightUpper)
 vec3 getPosition(uint vertex) {
   uint currentInstanceIndex = instanceIndex[0];
   uvec2 coordsOfChunkInGrid = uvec2(
-    currentInstanceIndex % uniformParams.terrainInChunks.x, 
-    currentInstanceIndex / uniformParams.terrainInChunks.x
+    currentInstanceIndex % params.terrainInChunks.x, 
+    currentInstanceIndex / params.terrainInChunks.x
   );
   uvec2 coordsOfVertexInChunk = uvec2(vertex / 2, vertex % 2);
   //start position is terrainOffset
-  vec2 worldCoords = uniformParams.terrainOffset + vec2((coordsOfChunkInGrid + coordsOfVertexInChunk) * uniformParams.chunk);
+  vec2 worldCoords = params.terrainOffset + vec2((coordsOfChunkInGrid + coordsOfVertexInChunk) * params.chunk);
   return toTerrainCoords(vec3(worldCoords, 0));
 }
 
 float getNearestDistanceFromCamera(vec3 first, vec3 second) {
   float firstDistance = distance(
     getHorizontalCoords(first),
-    getHorizontalCoords(uniformParams.cameraWorldPosition)
+    getHorizontalCoords(cameraWorldPosition.xyz)
   );
   float secondDistance = distance(
     getHorizontalCoords(second),
-    getHorizontalCoords(uniformParams.cameraWorldPosition)
+    getHorizontalCoords(cameraWorldPosition.xyz)
   );
   return min(firstDistance, secondDistance);
 }
 
 vec2 getPositionInHeightMap(vec3 position) {
-  return clamp(vec2(getHorizontalCoords(position)) / uniformParams.extent, 0.0, 1.0);
+  return 0.5 * vec2(getHorizontalCoords(position)) / params.extent + 0.5;
 }
 
 float getTesselationLevel(float dist) {

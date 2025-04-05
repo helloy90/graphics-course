@@ -1,3 +1,4 @@
-add_subdirectory(StaticMeshes)
+add_subdirectory(StaticMeshesRender)
 add_subdirectory(TerrainGenerator)
 add_subdirectory(Tonemapping)
+add_subdirectory(TerrainRender)

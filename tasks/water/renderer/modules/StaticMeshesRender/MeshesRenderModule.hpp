@@ -13,6 +13,7 @@
 #include "scene/SceneManager.hpp"
 
 #include "../Module.hpp"
+#include "../RenderPacket.hpp"
 #include "shaders/MeshesParams.h"
 
 
@@ -27,10 +28,12 @@ public:
   void setupPipelines(bool wireframe_enabled, vk::Format render_target_format);
   void execute(
     vk::CommandBuffer cmd_buf,
-    const glm::mat4x4& proj_view,
+    const RenderPacket& packet,
     glm::uvec2 extent,
     std::vector<etna::RenderTargetState::AttachmentParams> color_attachment_params,
     etna::RenderTargetState::AttachmentParams depth_attachment_params);
+
+  void drawGui();
 
   const etna::Sampler& getStaticMeshSampler() { return staticMeshSampler; }
 
@@ -41,6 +44,7 @@ private:
   void renderScene(
     vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout, const glm::mat4x4& proj_view);
 
+private:
   MeshesParams params;
   etna::Buffer paramsBuffer;
 
