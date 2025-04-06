@@ -1,5 +1,4 @@
 #include "MeshesRenderModule.hpp"
-#include "StaticMeshesRender/shaders/MeshesParams.h"
 
 #include <tracy/Tracy.hpp>
 

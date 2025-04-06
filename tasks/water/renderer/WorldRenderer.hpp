@@ -11,13 +11,7 @@
 #include <etna/GpuSharedResource.hpp>
 #include <glm/glm.hpp>
 
-
 #include "wsi/Keyboard.hpp"
-
-#include "FramePacket.hpp"
-
-#include "shaders/terrain/UniformParams.h"
-#include "GBuffer.hpp"
 
 #include "modules/Light/LightModule.hpp"
 #include "modules/StaticMeshesRender/MeshesRenderModule.hpp"
@@ -26,6 +20,11 @@
 #include "modules/Tonemapping/TonemappingModule.hpp"
 
 #include "modules/RenderPacket.hpp"
+
+#include "FramePacket.hpp"
+
+#include "shaders/terrain/UniformParams.h"
+#include "GBuffer.hpp"
 
 
 class WorldRenderer
@@ -49,8 +48,6 @@ public:
 private:
   void deferredShading(
     vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout);
-
-  void updateConstants(etna::Buffer& constants);
 
 private:
   LightModule lightModule;

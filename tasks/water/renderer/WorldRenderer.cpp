@@ -1,18 +1,15 @@
 #include "WorldRenderer.hpp"
 
+#include <imgui.h>
+#include <tracy/Tracy.hpp>
+#include <stb_image.h>
+
 #include <etna/GlobalContext.hpp>
 #include <etna/PipelineManager.hpp>
 #include <etna/Profiling.hpp>
 #include <etna/RenderTargetStates.hpp>
-#include <tracy/Tracy.hpp>
 
-#include "etna/DescriptorSet.hpp"
-#include "imgui.h"
-#include "modules/Light/LightModule.hpp"
-#include "modules/TerrainGenerator/TerrainGeneratorModule.hpp"
-#include "modules/TerrainRender/TerrainRenderModule.hpp"
 #include "render_utils/Utilities.hpp"
-#include "stb_image.h"
 
 
 WorldRenderer::WorldRenderer()
@@ -300,7 +297,9 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
     ETNA_PROFILE_GPU(cmd_buf, renderDeferred);
 
     auto& currentConstants = constantsBuffer->get();
-    updateConstants(currentConstants);
+    currentConstants.map();
+    std::memcpy(currentConstants.data(), &params, sizeof(UniformParams));
+    currentConstants.unmap();
 
     etna::set_state(
       cmd_buf,
@@ -428,15 +427,4 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
       cmd_buf.blitImage2(&blitInfo);
     }
   }
-}
-
-void WorldRenderer::updateConstants(etna::Buffer& constants)
-{
-  ZoneScoped;
-
-  constants.map();
-
-  std::memcpy(constants.data(), &params, sizeof(UniformParams));
-
-  constants.unmap();
 }

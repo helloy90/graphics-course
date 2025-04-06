@@ -11,7 +11,6 @@
 
 #include "scene/SceneManager.hpp"
 
-#include "../Module.hpp"
 #include "../RenderPacket.hpp"
 #include "shaders/MeshesParams.h"
 

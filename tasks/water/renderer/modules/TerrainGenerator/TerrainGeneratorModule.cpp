@@ -1,11 +1,11 @@
 #include "TerrainGeneratorModule.hpp"
 
+#include <imgui.h>
+
 #include <etna/Etna.hpp>
 #include <etna/GlobalContext.hpp>
 #include <etna/PipelineManager.hpp>
 #include <etna/RenderTargetStates.hpp>
-
-#include "imgui.h"
 
 
 TerrainGeneratorModule::TerrainGeneratorModule()
