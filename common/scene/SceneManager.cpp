@@ -1,5 +1,6 @@
 #include "SceneManager.hpp"
 #include "etna/DescriptorSet.hpp"
+#include "render_utils/Timer.hpp"
 
 #include <stack>
 
@@ -1002,9 +1003,12 @@ void SceneManager::selectBakedScene(std::filesystem::path path)
 {
   ZoneScopedN("selectBakedScene");
 
+  Timer timer;
+  TIMER_START(timer, loadModel)
   auto maybeModel = loadModel(path);
   if (!maybeModel.has_value())
     return;
+  TIMER_END(timer)
 
   auto model = std::move(*maybeModel);
 

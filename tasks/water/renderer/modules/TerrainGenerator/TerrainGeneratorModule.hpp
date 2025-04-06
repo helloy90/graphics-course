@@ -7,7 +7,6 @@
 #include <etna/GraphicsPipeline.hpp>
 #include <etna/ComputePipeline.hpp>
 #include <etna/OneShotCmdMgr.hpp>
-#include <vulkan/vulkan_enums.hpp>
 
 #include "../Module.hpp"
 #include "/shaders/TerrainGenerationParams.h"

@@ -11,7 +11,7 @@ add_subdirectory(modules)
 
 target_link_libraries(project_renderer
   PRIVATE glfw etna glm::glm wsi gui scene render_utils 
-  terrain_generator tonemapping static_meshes terrain_render)
+  lights_module terrain_generator_module tonemapping_module static_meshes_module terrain_render_module)
 
 target_add_shaders(project_renderer
   shaders/decoy.vert

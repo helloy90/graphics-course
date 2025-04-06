@@ -64,10 +64,11 @@ void TerrainGeneratorModule::loadShaders()
 {
   etna::create_program(
     "terrain_generator",
-    {TERRAIN_GENERATOR_SHADERS_ROOT "decoy.vert.spv",
-     TERRAIN_GENERATOR_SHADERS_ROOT "generator.frag.spv"});
+    {TERRAIN_GENERATOR_MODULE_SHADERS_ROOT "decoy.vert.spv",
+     TERRAIN_GENERATOR_MODULE_SHADERS_ROOT "generator.frag.spv"});
   etna::create_program(
-    "terrain_normal_map_calculation", {TERRAIN_GENERATOR_SHADERS_ROOT "calculate_normal.comp.spv"});
+    "terrain_normal_map_calculation",
+    {TERRAIN_GENERATOR_MODULE_SHADERS_ROOT "calculate_normal.comp.spv"});
 }
 
 void TerrainGeneratorModule::setupPipelines()
@@ -223,7 +224,7 @@ void TerrainGeneratorModule::drawGui()
   static float persistenceMin = 0.0f;
   static float persistenceMax = 1.0f;
 
-  if (ImGui::CollapsingHeader("Terrain Generation"))
+  if (ImGui::CollapsingHeader("Terrain Generation Settings"))
   {
     ImGui::SeparatorText("Generation parameters");
     ImGui::SliderScalar(

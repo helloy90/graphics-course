@@ -9,9 +9,6 @@ struct TerrainParams
   shader_uvec2 chunk;
   shader_uvec2 terrainInChunks;
   shader_vec2 terrainOffset;
-
-  shader_float heightAmplifier;
-  shader_float heightOffset;
 };
 
 

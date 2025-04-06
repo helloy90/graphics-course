@@ -9,11 +9,14 @@
 
 #include "shaders/TerrainParams.h"
 #include "../RenderPacket.hpp"
+#include "../HeightParams.hpp"
 
 class TerrainRenderModule
 {
 public:
   TerrainRenderModule();
+  explicit TerrainRenderModule(TerrainParams par);
+  explicit TerrainRenderModule(HeightParams par);
 
   void allocateResources();
   void loadShaders();
@@ -30,6 +33,8 @@ public:
 
   void drawGui();
 
+  const etna::Buffer& getHeightParamsBuffer() const { return heightParamsBuffer; }
+
 private:
   void renderTerrain(
     vk::CommandBuffer cmd_buf,
@@ -41,8 +46,10 @@ private:
 
 private:
   TerrainParams params;
+  HeightParams heightParams;
 
   etna::Buffer paramsBuffer;
+  etna::Buffer heightParamsBuffer;
 
   etna::GraphicsPipeline terrainRenderPipeline;
 };

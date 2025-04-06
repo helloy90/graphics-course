@@ -1,4 +1,5 @@
 #include "MeshesRenderModule.hpp"
+#include "StaticMeshesRender/shaders/MeshesParams.h"
 
 #include <tracy/Tracy.hpp>
 
@@ -6,8 +7,6 @@
 #include <etna/PipelineManager.hpp>
 #include <etna/Profiling.hpp>
 #include <etna/RenderTargetStates.hpp>
-
-#include "shaders/MeshesParams.h"
 
 
 MeshesRenderModule::MeshesRenderModule()
@@ -37,10 +36,10 @@ void MeshesRenderModule::loadShaders()
 {
   etna::create_program(
     "static_mesh_material",
-    {STATIC_MESHES_SHADERS_ROOT "static_mesh.frag.spv",
-     STATIC_MESHES_SHADERS_ROOT "static_mesh.vert.spv"});
+    {STATIC_MESHES_MODULE_SHADERS_ROOT "static_mesh.frag.spv",
+     STATIC_MESHES_MODULE_SHADERS_ROOT "static_mesh.vert.spv"});
 
-  etna::create_program("culling_meshes", {STATIC_MESHES_SHADERS_ROOT "culling.comp.spv"});
+  etna::create_program("culling_meshes", {STATIC_MESHES_MODULE_SHADERS_ROOT "culling.comp.spv"});
 }
 
 void MeshesRenderModule::loadScene(std::filesystem::path path)
@@ -139,6 +138,8 @@ void MeshesRenderModule::execute(
     renderScene(cmd_buf, staticMeshPipeline.getVkPipelineLayout(), packet.projView);
   }
 }
+
+void MeshesRenderModule::drawGui() {}
 
 void MeshesRenderModule::cullMeshes(
   vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout, const glm::mat4x4& proj_view)

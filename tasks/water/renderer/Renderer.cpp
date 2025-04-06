@@ -70,9 +70,7 @@ void Renderer::initFrameDelivery(vk::UniqueSurfaceKHR a_surface, ResolutionProvi
 
   worldRenderer->allocateResources(resolution);
   worldRenderer->loadShaders();
-  worldRenderer->loadLights();
   worldRenderer->setupRenderPipelines();
-  worldRenderer->loadTerrain();
   worldRenderer->loadCubemap();
 }
 

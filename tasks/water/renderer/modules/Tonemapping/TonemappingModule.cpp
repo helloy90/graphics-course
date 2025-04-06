@@ -57,11 +57,13 @@ void TonemappingModule::allocateResources()
 void TonemappingModule::loadShaders()
 {
   etna::create_program(
-    "min_max_calculation", {TONEMAPPING_SHADERS_ROOT "calculate_min_max.comp.spv"});
-  etna::create_program("histogram_calculation", {TONEMAPPING_SHADERS_ROOT "histogram.comp.spv"});
+    "min_max_calculation", {TONEMAPPING_MODULE_SHADERS_ROOT "calculate_min_max.comp.spv"});
   etna::create_program(
-    "histogram_processing", {TONEMAPPING_SHADERS_ROOT "process_histogram.comp.spv"});
-  etna::create_program("postprocess_compute", {TONEMAPPING_SHADERS_ROOT "postprocess.comp.spv"});
+    "histogram_calculation", {TONEMAPPING_MODULE_SHADERS_ROOT "histogram.comp.spv"});
+  etna::create_program(
+    "histogram_processing", {TONEMAPPING_MODULE_SHADERS_ROOT "process_histogram.comp.spv"});
+  etna::create_program(
+    "postprocess_compute", {TONEMAPPING_MODULE_SHADERS_ROOT "postprocess.comp.spv"});
 }
 
 void TonemappingModule::setupPipelines()

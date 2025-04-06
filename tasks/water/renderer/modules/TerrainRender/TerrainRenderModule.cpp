@@ -2,10 +2,13 @@
 
 #include <tracy/Tracy.hpp>
 
+#include <imgui.h>
+
 #include <etna/Etna.hpp>
 #include <etna/PipelineManager.hpp>
 #include <etna/Profiling.hpp>
 
+#include "HeightParams.hpp"
 #include "shaders/TerrainParams.h"
 
 
@@ -15,9 +18,25 @@ TerrainRenderModule::TerrainRenderModule()
       .chunk = shader_uvec2(16, 16),
       .terrainInChunks = shader_uvec2(64, 64),
       .terrainOffset = shader_vec2(0, 0),
-      .heightAmplifier = 200.0f,
-      .heightOffset = 0.6f,
+
     })
+  , heightParams({.amplifier = shader_float(200.0f), .offset = shader_float(0.6f)})
+{
+}
+
+TerrainRenderModule::TerrainRenderModule(TerrainParams par)
+  : params(par)
+  , heightParams({.amplifier = shader_float(200.0f), .offset = shader_float(0.6f)})
+{
+}
+
+TerrainRenderModule::TerrainRenderModule(HeightParams par)
+  : params(
+      {.extent = shader_uvec2(4096),
+       .chunk = shader_uvec2(16, 16),
+       .terrainInChunks = shader_uvec2(64, 64),
+       .terrainOffset = shader_vec2(0, 0)})
+  , heightParams(par)
 {
 }
 
@@ -31,19 +50,31 @@ void TerrainRenderModule::allocateResources()
       VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
     .name = "terrainParams"});
 
+  heightParamsBuffer = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
+    .size = sizeof(HeightParams),
+    .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_AUTO,
+    .allocationCreate =
+      VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+    .name = "terrainHeightParams"});
+
   paramsBuffer.map();
   std::memcpy(paramsBuffer.data(), &params, sizeof(TerrainParams));
   paramsBuffer.unmap();
+
+  heightParamsBuffer.map();
+  std::memcpy(heightParamsBuffer.data(), &heightParams, sizeof(HeightParams));
+  heightParamsBuffer.unmap();
 }
 
 void TerrainRenderModule::loadShaders()
 {
   etna::create_program(
     "terrain_render",
-    {TERRAIN_RENDER_SHADERS_ROOT "chunk.vert.spv",
-     TERRAIN_RENDER_SHADERS_ROOT "subdivide_chunk.tesc.spv",
-     TERRAIN_RENDER_SHADERS_ROOT "process_chunk.tese.spv",
-     TERRAIN_RENDER_SHADERS_ROOT "terrain.frag.spv"});
+    {TERRAIN_RENDER_MODULE_SHADERS_ROOT "chunk.vert.spv",
+     TERRAIN_RENDER_MODULE_SHADERS_ROOT "subdivide_chunk.tesc.spv",
+     TERRAIN_RENDER_MODULE_SHADERS_ROOT "process_chunk.tese.spv",
+     TERRAIN_RENDER_MODULE_SHADERS_ROOT "terrain.frag.spv"});
 }
 
 void TerrainRenderModule::setupPipelines(bool wireframe_enabled, vk::Format render_target_format)
@@ -117,6 +148,26 @@ void TerrainRenderModule::execute(
   }
 }
 
+void TerrainRenderModule::drawGui()
+{
+  ImGui::Begin("Render Settings");
+
+  if (ImGui::CollapsingHeader("Terrain Render Settings"))
+  {
+    ImGui::SeparatorText("Height Adjustment");
+    ImGui::SliderFloat("Height Amplifier", &heightParams.amplifier, 0, 10000, "%.3f");
+    ImGui::SliderFloat("Height Offset", &heightParams.offset, -1.0f, 1.0f, "%.5f");
+    if (ImGui::Button("Apply"))
+    {
+      heightParamsBuffer.map();
+      std::memcpy(heightParamsBuffer.data(), &heightParams, sizeof(HeightParams));
+      heightParamsBuffer.unmap();
+    }
+  }
+
+  ImGui::End();
+}
+
 void TerrainRenderModule::renderTerrain(
   vk::CommandBuffer cmd_buf,
   vk::PipelineLayout pipeline_layout,
@@ -132,10 +183,11 @@ void TerrainRenderModule::renderTerrain(
     shaderInfo.getDescriptorLayoutId(0),
     cmd_buf,
     {etna::Binding{0, paramsBuffer.genBinding()},
+     etna::Binding{1, heightParamsBuffer.genBinding()},
      etna::Binding{
-       1, terrain_map.genBinding(terrain_sampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+       2, terrain_map.genBinding(terrain_sampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
      etna::Binding{
-       2,
+       3,
        terrain_normal_map.genBinding(
          terrain_sampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)}});
 

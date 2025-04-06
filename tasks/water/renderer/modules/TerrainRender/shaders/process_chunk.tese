@@ -19,8 +19,13 @@ layout (binding = 0) uniform params_t {
   TerrainParams params;
 };
 
-layout (binding = 1) uniform sampler2D heightMap;
-layout (binding = 2) uniform sampler2D normalMap;
+layout (binding = 1) uniform height_params_t {
+  float heightAmplifier;
+  float heightOffset;
+};
+
+layout (binding = 2) uniform sampler2D heightMap;
+layout (binding = 3) uniform sampler2D normalMap;
 
 layout(push_constant) uniform push_constant_t {
     mat4 projView;
@@ -46,7 +51,7 @@ void main() {
 
   vec2 currentTexCoord = interpolate4Vert2D(texLeftLower, texLeftUpper, texRightLower, texRightUpper, u, v);
 
-  currentVertex.y = (texture(heightMap, currentTexCoord).x - params.heightOffset) * params.heightAmplifier;
+  currentVertex.y = (texture(heightMap, currentTexCoord).x - heightOffset) * heightAmplifier;
 
   pos = currentVertex;
   normal = texture(normalMap, currentTexCoord).xyz;

@@ -11,18 +11,20 @@
 #include <etna/GpuSharedResource.hpp>
 #include <glm/glm.hpp>
 
-#include "modules/TerrainRender/TerrainRenderModule.hpp"
+
 #include "wsi/Keyboard.hpp"
 
 #include "FramePacket.hpp"
-#include "shaders/DirectionalLight.h"
-#include "shaders/Light.h"
+
 #include "shaders/terrain/UniformParams.h"
 #include "GBuffer.hpp"
 
+#include "modules/Light/LightModule.hpp"
 #include "modules/StaticMeshesRender/MeshesRenderModule.hpp"
 #include "modules/TerrainGenerator/TerrainGeneratorModule.hpp"
+#include "modules/TerrainRender/TerrainRenderModule.hpp"
 #include "modules/Tonemapping/TonemappingModule.hpp"
+
 #include "modules/RenderPacket.hpp"
 
 
@@ -32,20 +34,17 @@ public:
   WorldRenderer();
 
   void loadScene(std::filesystem::path path);
-  void loadShaders();
   void allocateResources(glm::uvec2 swapchain_resolution);
+  void loadShaders();
   void setupRenderPipelines();
   void rebuildRenderPipelines();
-  void loadTerrain();
-  void displaceLights();
-  void loadLights();
+
   void loadCubemap();
 
   void debugInput(const Keyboard& kb);
   void update(const FramePacket& packet);
   void drawGui();
-  void renderWorld(
-    vk::CommandBuffer cmd_buf, vk::Image target_image);
+  void renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_image);
 
 private:
   void deferredShading(
@@ -54,6 +53,7 @@ private:
   void updateConstants(etna::Buffer& constants);
 
 private:
+  LightModule lightModule;
   MeshesRenderModule staticMeshesRenderModule;
   TerrainGeneratorModule terrainGeneratorModule;
   TerrainRenderModule terrainRenderModule;
@@ -67,19 +67,12 @@ private:
 
   std::optional<GBuffer> gBuffer;
 
-  std::vector<Light> lights;
-  std::vector<DirectionalLight> directionalLights;
-  etna::Buffer lightsBuffer;
-  etna::Buffer directionalLightsBuffer;
-
   UniformParams params;
   RenderPacket renderPacket;
 
   std::optional<etna::GpuSharedResource<etna::Buffer>> constantsBuffer;
 
   etna::GraphicsPipeline deferredShadingPipeline;
-
-  etna::ComputePipeline lightDisplacementPipeline;
 
   bool wireframeEnabled;
   bool tonemappingEnabled;

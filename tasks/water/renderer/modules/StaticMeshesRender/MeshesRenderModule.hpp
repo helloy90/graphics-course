@@ -5,11 +5,10 @@
 #include <etna/ComputePipeline.hpp>
 #include <etna/GraphicsPipeline.hpp>
 #include <etna/DescriptorSet.hpp>
+#include <etna/RenderTargetStates.hpp>
 
 #include <glm/glm.hpp>
 
-#include "etna/RenderTargetStates.hpp"
-#include "etna/Sampler.hpp"
 #include "scene/SceneManager.hpp"
 
 #include "../Module.hpp"
@@ -35,7 +34,7 @@ public:
 
   void drawGui();
 
-  const etna::Sampler& getStaticMeshSampler() { return staticMeshSampler; }
+  const etna::Sampler& getStaticMeshSampler() const { return staticMeshSampler; }
 
 private:
   void cullMeshes(

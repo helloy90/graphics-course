@@ -3,8 +3,8 @@
 #extension GL_GOOGLE_include_directive : require
 
 #include "terrain/UniformParams.h"
-#include "Light.h"
-#include "DirectionalLight.h"
+#include "../modules/Light/Light.h"
+#include "../modules/Light/DirectionalLight.h"
 
 layout(location = 0) out vec4 fragColor;
 
@@ -24,7 +24,13 @@ layout(binding = 6) readonly buffer directionalLights {
     DirectionalLight directionalLightsBuffer[];
 };
 
-layout(binding = 7) uniform samplerCube cubemap;
+layout(binding = 7) readonly uniform light_params_t {
+    uint lightsAmount;
+    uint directionalLightsAmount;
+    float[] _;
+};
+
+layout(binding = 8) uniform samplerCube cubemap;
 
 layout(push_constant) uniform resolution_t {
     uvec2 resolution;
@@ -196,14 +202,14 @@ void main() {
     vec3 skyboxTexCoord = (uniformParams.invProjViewMat3 * screenSpacePosition).xyz;
     vec3 skyboxColor = texture(cubemap, normalize(skyboxTexCoord)).rgb;
 
-    for (uint i = 0; i < uniformParams.directionalLightsAmount; i++) {
+    for (uint i = 0; i < directionalLightsAmount; i++) {
         DirectionalLight currentLight = directionalLightsBuffer[i];
 
         vec3 pbrColor = computeLightPBR(albedo, worldSpacePosition.xyz, currentLight, normal, reflection, material);
         color += pbrColor;
     }
 
-    for (uint i = 0; i < uniformParams.lightsAmount; i++) {
+    for (uint i = 0; i < lightsAmount; i++) {
         Light currentLight = lightsBuffer[i];
 
         float dist = length(currentLight.worldPos.xyz - worldSpacePosition.xyz);

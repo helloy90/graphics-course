@@ -1,16 +1,16 @@
 
-add_library(tonemapping TonemappingModule.cpp)
+add_library(tonemapping_module TonemappingModule.cpp)
 
-target_include_directories(tonemapping PUBLIC ..)
+target_include_directories(tonemapping_module PUBLIC ..)
 
-target_include_directories(tonemapping INTERFACE shaders)
+target_include_directories(tonemapping_module INTERFACE shaders)
 # Allow GLSL code to include helper files and compat
-target_shader_include_directories(tonemapping INTERFACE shaders)
+target_shader_include_directories(tonemapping_module INTERFACE shaders)
 
-target_link_libraries(tonemapping PUBLIC etna render_utils gui)
+target_link_libraries(tonemapping_module PUBLIC etna render_utils gui)
 
 
-target_add_shaders(tonemapping
+target_add_shaders(tonemapping_module
     shaders/calculate_min_max.comp
     shaders/histogram.comp
     shaders/process_histogram.comp

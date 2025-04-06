@@ -12,6 +12,7 @@ public:
     const etna::Buffer& buffer,
     const etna::Image& image,
     uint32_t layer_count);
+    
   static void generateMipmapsVkStyle(
     etna::OneShotCmdMgr& one_shot_cmd_mgr,
     const etna::Image& image,
