@@ -41,23 +41,20 @@ void TerrainGeneratorModule::allocateResources()
     .format = vk::Format::eR8G8B8A8Snorm,
     .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage});
 
-  generationParamsBuffer.emplace(ctx.getMainWorkCount(), [&ctx](std::size_t i) {
-    return ctx.createBuffer(etna::Buffer::CreateInfo{
-      .size = sizeof(TerrainGenerationParams),
-      .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
-      .memoryUsage = VMA_MEMORY_USAGE_AUTO,
-      .allocationCreate =
-        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
-      .name = fmt::format("generationConstants{}", i)});
-  });
+  paramsBuffer = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
+    .size = sizeof(TerrainGenerationParams),
+    .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_AUTO,
+    .allocationCreate =
+      VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+    .name = "terrainGenerationParams"});
 
   oneShotCommands = ctx.createOneShotCmdMgr();
 
   terrainSampler = etna::Sampler(
     etna::Sampler::CreateInfo{.filter = vk::Filter::eLinear, .name = "terrain_sampler"});
 
-  generationParams = {
-    .extent = {extent.width, extent.height}, .numberOfSamples = 3, .persistence = 0.5};
+  params = {.extent = {extent.width, extent.height}, .numberOfSamples = 3, .persistence = 0.5};
 }
 
 void TerrainGeneratorModule::loadShaders()
@@ -92,11 +89,9 @@ void TerrainGeneratorModule::execute()
 
   ETNA_CHECK_VK_RESULT(commandBuffer.begin(vk::CommandBufferBeginInfo{}));
   {
-    auto& currentGenerationConstants = generationParamsBuffer->get();
-    currentGenerationConstants.map();
-    std::memcpy(
-      currentGenerationConstants.data(), &generationParams, sizeof(TerrainGenerationParams));
-    currentGenerationConstants.unmap();
+    paramsBuffer.map();
+    std::memcpy(paramsBuffer.data(), &params, sizeof(TerrainGenerationParams));
+    paramsBuffer.unmap();
 
     etna::set_state(
       commandBuffer,
@@ -121,7 +116,7 @@ void TerrainGeneratorModule::execute()
       auto set = etna::create_descriptor_set(
         shaderInfo.getDescriptorLayoutId(0),
         commandBuffer,
-        {etna::Binding{0, currentGenerationConstants.genBinding()}});
+        {etna::Binding{0, paramsBuffer.genBinding()}});
 
       auto vkSet = set.getVkSet();
 
@@ -230,14 +225,14 @@ void TerrainGeneratorModule::drawGui()
     ImGui::SliderScalar(
       "Number of samples",
       ImGuiDataType_U32,
-      &generationParams.numberOfSamples,
+      &params.numberOfSamples,
       &numberOfSamplesMin,
       &numberOfSamplesMax,
       "%u");
     ImGui::SliderScalar(
       "Persistence",
       ImGuiDataType_Float,
-      &generationParams.persistence,
+      &params.persistence,
       &persistenceMin,
       &persistenceMax,
       "%f");

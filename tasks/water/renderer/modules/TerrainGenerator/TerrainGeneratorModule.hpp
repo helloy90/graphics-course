@@ -42,8 +42,9 @@ private:
 
   etna::Sampler terrainSampler;
 
-  std::optional<etna::GpuSharedResource<etna::Buffer>> generationParamsBuffer;
-  TerrainGenerationParams generationParams;
+  TerrainGenerationParams params;
+  etna::Buffer paramsBuffer;
+
   uint32_t maxNumberOfSamples;
 
   etna::GraphicsPipeline terrainGenerationPipeline;
