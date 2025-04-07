@@ -16,6 +16,13 @@ layout (binding = 0) uniform params_t {
   TerrainParams params;
 };
 
+layout (binding = 1) uniform height_params_t {
+  float heightAmplifier;
+  float heightOffset;
+};
+
+layout (binding = 2) uniform sampler2D heightMap;
+
 layout(push_constant) uniform push_constant_t {
     mat4 projView;
     vec4 cameraWorldPosition;
@@ -26,10 +33,6 @@ const float minDistance = 32.0;
 
 const float maxTesselationLevel = 16.0;
 const float minTesselationLevel = 4.0;
-
-bool isVisible(vec3 leftLower, vec3 leftUpper, vec3 rightLower, vec3 rightUpper) {
-  return true;
-}
 
 vec3 getPosition(uint vertex) {
   uint currentInstanceIndex = instanceIndex[0];
@@ -62,6 +65,29 @@ vec2 getPositionInHeightMap(vec3 position) {
 float getTesselationLevel(float dist) {
   float interpolation = smoothstep(minDistance, maxDistance, dist);
   return mix(maxTesselationLevel, minTesselationLevel, interpolation);
+}
+
+bool within(float left, float value, float right) {
+    return (left <= value) && (value <= right);
+}
+
+bool isInsideViewFrustum(vec3 pos) {
+  float height = (texture(heightMap, getPositionInHeightMap(pos)).x - heightOffset) * heightAmplifier;
+  vec4 clipSpaceCoord = projView * vec4(pos.x, height, pos.z, 1.0);
+  return within(-clipSpaceCoord.w, clipSpaceCoord.x, clipSpaceCoord.w) 
+          || within(-clipSpaceCoord.w, clipSpaceCoord.y, clipSpaceCoord.w)
+          || within(0.0, clipSpaceCoord.z, clipSpaceCoord.w);
+}
+
+bool isVisible(vec3 leftLower, vec3 leftUpper, vec3 rightLower, vec3 rightUpper) {
+  bool visible = false;
+  visible = visible
+            || isInsideViewFrustum(leftLower)
+            || isInsideViewFrustum(leftUpper)
+            || isInsideViewFrustum(rightLower)
+            || isInsideViewFrustum(rightUpper);
+
+  return visible;
 }
 
 void main() {

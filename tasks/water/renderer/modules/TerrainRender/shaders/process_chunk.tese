@@ -42,13 +42,12 @@ void main() {
   vec3 rightLower = worldPosition[2];
   vec3 rightUpper = worldPosition[3];
 
-  vec3 currentVertex = interpolate4Vert2D(leftLower, leftUpper, rightLower, rightUpper, u, v);
-
   vec2 texLeftLower = heightMapTextureCoord[0];
   vec2 texLeftUpper = heightMapTextureCoord[1];
   vec2 texRightLower = heightMapTextureCoord[2];
   vec2 texRightUpper = heightMapTextureCoord[3];
 
+  vec3 currentVertex = interpolate4Vert2D(leftLower, leftUpper, rightLower, rightUpper, u, v);
   vec2 currentTexCoord = interpolate4Vert2D(texLeftLower, texLeftUpper, texRightLower, texRightUpper, u, v);
 
   currentVertex.y = (texture(heightMap, currentTexCoord).x - heightOffset) * heightAmplifier;

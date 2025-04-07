@@ -17,7 +17,7 @@ TerrainRenderModule::TerrainRenderModule()
       .extent = shader_uvec2(4096),
       .chunk = shader_uvec2(16, 16),
       .terrainInChunks = shader_uvec2(64, 64),
-      .terrainOffset = shader_vec2(0, 0),
+      .terrainOffset = shader_vec2(-512, -512),
 
     })
   , heightParams({.amplifier = shader_float(200.0f), .offset = shader_float(0.6f)})
@@ -35,7 +35,7 @@ TerrainRenderModule::TerrainRenderModule(HeightParams par)
       {.extent = shader_uvec2(4096),
        .chunk = shader_uvec2(16, 16),
        .terrainInChunks = shader_uvec2(64, 64),
-       .terrainOffset = shader_vec2(0, 0)})
+       .terrainOffset = shader_vec2(-512, -512)})
   , heightParams(par)
 {
 }
