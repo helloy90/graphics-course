@@ -3,20 +3,20 @@
 
 layout(local_size_x = 32, local_size_y = 32) in;
 
-layout(push_constant) uniform terrainChunk {
-    uvec2 chunk;
+layout(push_constant) uniform push_constant_t {
+    uvec2 fidelity;
 };
 
 layout (binding = 0, r32f) readonly uniform image2D heightMap;
 layout (binding = 1, rgba8) writeonly uniform image2D normalMap;
 
-vec3 generateNormal(ivec2 currentTexCoord) {
-  float left = imageLoad(heightMap, currentTexCoord + ivec2(-1, 0)).x;
-  float right = imageLoad(heightMap, currentTexCoord + ivec2(1, 0)).x;
-  float up = imageLoad(heightMap, currentTexCoord + ivec2(0, 1)).x;
-  float down = imageLoad(heightMap, currentTexCoord + ivec2(0, -1)).x;
+vec3 generateNormal(ivec2 currentTexCoord, uvec2 heightMapSize) {
+  float left = imageLoad(heightMap, currentTexCoord + ivec2(-fidelity.x, 0)).x;
+  float right = imageLoad(heightMap, currentTexCoord + ivec2(fidelity.x, 0)).x;
+  float up = imageLoad(heightMap, currentTexCoord + ivec2(0, fidelity.y)).x;
+  float down = imageLoad(heightMap, currentTexCoord + ivec2(0, -fidelity.y)).x;
 
-  vec3 normal = normalize(vec3(left - right, 2.0 / (chunk.x * chunk.y), down - up));
+  vec3 normal = normalize(vec3(left - right, 2.0 * (float(fidelity.x) / float(heightMapSize.x)), down - up));
 
   return normal;
 }
@@ -28,5 +28,5 @@ void main() {
         return;
     }
 
-    imageStore(normalMap, texCoord, vec4(generateNormal(texCoord), 1.0));
+    imageStore(normalMap, texCoord, vec4(generateNormal(texCoord, heightMapSize), 1.0));
 }

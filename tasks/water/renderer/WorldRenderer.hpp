@@ -23,7 +23,7 @@
 
 #include "FramePacket.hpp"
 
-#include "shaders/terrain/UniformParams.h"
+#include "shaders/UniformParams.h"
 #include "GBuffer.hpp"
 
 

@@ -11,5 +11,5 @@ target_link_libraries(water_generator_module PUBLIC etna render_utils gui)
 
 
 target_add_shaders(water_generator_module
-
+    shaders/generate_spectrum.comp
 )

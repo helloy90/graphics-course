@@ -67,7 +67,7 @@ void WorldRenderer::loadScene(std::filesystem::path path)
 {
   staticMeshesRenderModule.loadScene(path);
 
-  terrainGeneratorModule.execute();
+  terrainGeneratorModule.execute({8, 8});
 
   lightModule.displaceLights(
     terrainRenderModule.getHeightParamsBuffer(),
@@ -230,6 +230,21 @@ void WorldRenderer::update(const FramePacket& packet)
 
 void WorldRenderer::drawGui()
 {
+  ImGui::Begin("Render Settings");
+
+  ImGui::Text(
+    "Application average %.3f ms/frame (%.1f FPS)",
+    1000.0f / ImGui::GetIO().Framerate,
+    ImGui::GetIO().Framerate);
+
+  ImGui::Text(
+    "Camera World Position - x:%f ,y:%f ,z:%f",
+    params.cameraWorldPosition.x,
+    params.cameraWorldPosition.y,
+    params.cameraWorldPosition.z);
+
+  ImGui::SeparatorText("Settings");
+
   lightModule.drawGui(
     terrainRenderModule.getHeightParamsBuffer(),
     terrainGeneratorModule.getMap(),
@@ -238,8 +253,6 @@ void WorldRenderer::drawGui()
   staticMeshesRenderModule.drawGui();
   terrainGeneratorModule.drawGui();
   terrainRenderModule.drawGui();
-
-  ImGui::Begin("Render Settings");
 
   if (ImGui::CollapsingHeader("World Render Settings"))
   {

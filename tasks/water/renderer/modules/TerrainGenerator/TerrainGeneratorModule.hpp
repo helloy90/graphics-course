@@ -17,13 +17,13 @@ public:
   // const ModuleType type = ModuleType::Generator;
 
   TerrainGeneratorModule();
-  TerrainGeneratorModule(
-    vk::Format map_format, vk::Extent3D extent, glm::uvec2 res, uint32_t max_number_of_samples);
+  explicit TerrainGeneratorModule(uint32_t max_number_of_samples);
 
-  void allocateResources();
+  void allocateResources(
+    vk::Format map_format = vk::Format::eR32Sfloat, vk::Extent3D extent = {4096, 4096, 1});
   void loadShaders();
   void setupPipelines();
-  void execute();
+  void execute(glm::vec2 normal_map_fidelity = {16, 16});
 
   void drawGui();
 
@@ -32,11 +32,6 @@ public:
   const etna::Sampler& getSampler() const { return terrainSampler; }
 
 private:
-  vk::Format mapFormat;
-  vk::Extent3D extent;
-
-  glm::uvec2 resolution;
-
   etna::Image terrainMap;
   etna::Image terrainNormalMap;
 

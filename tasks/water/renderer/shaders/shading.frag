@@ -2,7 +2,7 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_GOOGLE_include_directive : require
 
-#include "terrain/UniformParams.h"
+#include "UniformParams.h"
 #include "../modules/Light/Light.h"
 #include "../modules/Light/DirectionalLight.h"
 
@@ -194,10 +194,11 @@ void main() {
     vec4 worldSpacePosition = (uniformParams.invProjView * screenSpacePosition);
     worldSpacePosition /= worldSpacePosition.w;
 
-    const vec3 reflection = texture(cubemap, reflect((worldSpacePosition.xyz - uniformParams.cameraWorldPosition), normal)).rgb * 20;
+    const vec3 viewDirection = (worldSpacePosition.xyz - uniformParams.cameraWorldPosition);
+    const vec3 reflection = texture(cubemap, reflect(viewDirection, normal)).rgb * 20;
 
     // change to IBL later
-    vec3 color = vec3(0);
+    vec3 color = vec3(albedo * 0.3);
 
     vec3 skyboxTexCoord = (uniformParams.invProjViewMat3 * screenSpacePosition).xyz;
     vec3 skyboxColor = texture(cubemap, normalize(skyboxTexCoord)).rgb;
@@ -205,7 +206,10 @@ void main() {
     for (uint i = 0; i < directionalLightsAmount; i++) {
         DirectionalLight currentLight = directionalLightsBuffer[i];
 
+        vec3 point = currentLight.color * pow(clampedDot(normalize(-viewDirection), normalize(currentLight.direction)), 3500.0);
+
         vec3 pbrColor = computeLightPBR(albedo, worldSpacePosition.xyz, currentLight, normal, reflection, material);
+        skyboxColor += point;
         color += pbrColor;
     }
 

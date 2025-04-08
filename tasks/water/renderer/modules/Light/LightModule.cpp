@@ -78,7 +78,7 @@ void LightModule::loadLights()
   }
 
   directionalLights = {DirectionalLight{
-    .direction = glm::vec3{-1, -1, 0.5},
+    .direction = glm::vec3{-1, -0.2, 0.4},
     .intensity = 1.0f,
     .color = glm::normalize(glm::vec3{251, 172, 19})}};
 
