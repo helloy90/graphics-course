@@ -3,12 +3,13 @@
 #extension GL_GOOGLE_include_directive : require
 
 #include "SpectrumGenerationParams.h"
+#include "complex.glsl"
 
 #define kPI 3.1415926535897932384626433832795
 
 layout(local_size_x = 32, local_size_y = 32) in;
 
-layout(binding = 0, rgba16f) writeonly uniform image2D spectrumMap;
+layout(binding = 0, rgba32f) writeonly uniform image2D spectrumTex;
 layout(binding = 1) readonly uniform params_t {
     SpectrumGenerationParams params;
 };
@@ -17,14 +18,7 @@ layout(binding = 1) readonly uniform params_t {
 //     float time;
 // };
 
-vec2 complexMult(vec2 first, vec2 second) {
-    return vec2(first.x * second.x - first.y * second.y, 
-                first.x * second.y + first.y * second.x);
-}
 
-vec2 euler(float x) {
-    return vec2(cos(x), sin(x));
-}
 // using this as a uniform distribution number gnerator
 float hash(uint n) 
 {
@@ -45,7 +39,7 @@ float phillipsSpectrum(vec2 k) {
         return 0.0;
     }
     // variables are exactly as in paper (GPGPU FFT Ocean Simulation p.17)
-    float A = 20.0;
+    float A = 1.0;
     float V = params.windSpeed;
     float L = V * V / 9.81;
     vec2 w = normalize(params.windDirection);
@@ -54,38 +48,36 @@ float phillipsSpectrum(vec2 k) {
     return A * (exp(-1.0 / ((lengthK * L) * (lengthK * L))) / (lengthK * lengthK * lengthK * lengthK)) * kdotw * kdotw;
 }
 
-vec2 waveAmplitude(vec2 k, vec2 rands) {
-    return (1.0 / sqrt(2.0)) * rands * sqrt(phillipsSpectrum(k));
+vec2 spectrumAmplitude(vec2 k, vec2 rands) {
+    return rands * sqrt(phillipsSpectrum(k) / 2.0);
 }
 
 void main(void) {
     ivec2 texCoord = ivec2(gl_GlobalInvocationID.xy);
-    uvec2 spectrumMapSize = imageSize(spectrumMap);
-    if (texCoord.x >= spectrumMapSize.x || texCoord.y >= spectrumMapSize.y) {
+    uvec2 spectrumTexSize = imageSize(spectrumTex);
+    if (texCoord.x >= spectrumTexSize.x || texCoord.y >= spectrumTexSize.y) {
         return;
     }
 
-    float patchSize = float(spectrumMapSize.x);
-    vec2 center = vec2(spectrumMapSize) / 2.0;
-    vec2 k = center * 2.0 * kPI / patchSize;
+    float patchSize = float(spectrumTexSize.x); // L
+    vec2 center = vec2(spectrumTexSize) / 2.0;
+    vec2 k = (vec2(texCoord) - center) * 2.0 * kPI / patchSize;
 
     uint seed = texCoord.x + 512 + texCoord.y * 512;
     vec4 uniformRandomSamples = 
-        vec4(hash(seed), 
-            hash(seed * seed * seed), 
-            hash(seed * seed), 
+        vec4(hash(seed),
+            hash(seed * seed),
+            hash(seed * seed * seed),
             hash(seed * seed * seed / 4)
         );
     vec2 firstGauss = uniformToGaussian(uniformRandomSamples.x, uniformRandomSamples.y);
     vec2 secondGauss = uniformToGaussian(uniformRandomSamples.z, uniformRandomSamples.w);
 
-    vec2 positiveKWave = waveAmplitude(k, firstGauss);
-    vec2 negativeKWave = waveAmplitude(-k, secondGauss);
+    vec2 positiveKWave = spectrumAmplitude(k, vec2(firstGauss.x, secondGauss.y));
+    vec2 negativeKWave = spectrumAmplitude(-k, vec2(firstGauss.y, secondGauss.x));
+    // vec2 h = complexMult(positiveKWave, euler(dispersion)) 
+    //             + complexMult(negativeKWave, euler(-dispersion));
 
-    float dispersion = sqrt(9.81 * length(k));
 
-    vec2 h = complexMult(positiveKWave, euler(dispersion)) 
-                + complexMult(negativeKWave, euler(-dispersion));
-
-    imageStore(spectrumMap, texCoord, vec4(h.x));     
+    imageStore(spectrumTex, texCoord, vec4(positiveKWave, negativeKWave));     
 }

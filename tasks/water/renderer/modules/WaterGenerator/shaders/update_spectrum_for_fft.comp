@@ -1,0 +1,64 @@
+#version 460
+#extension GL_ARB_separate_shader_objects : enable
+#extension GL_GOOGLE_include_directive : require
+
+#include "SpectrumGenerationParams.h"
+#include "complex.glsl"
+
+layout(local_size_x = 32, local_size_y = 32) in;
+
+layout(binding = 0, rgba32f) readonly uniform image2D initialSpectrumTex;
+layout(binding = 1, rg32f) writeonly uniform image2D updatedSpectrumTex;
+layout(binding = 2, rg32f) writeonly uniform image2D updatedSpectrumSlopeXTex;
+layout(binding = 3, rg32f) writeonly uniform image2D updatedSpectrumSlopeZTex;
+layout(binding = 4, rg32f) writeonly uniform image2D updatedSpectrumDisplacementXTex;
+layout(binding = 5, rg32f) writeonly uniform image2D updatedSpectrumDisplacementZTex;
+
+layout(binding = 6) readonly uniform params_t {
+    SpectrumGenerationParams params;
+};
+
+layout(push_constant) uniform push_constant_t {
+    float time;
+};
+
+void main(void) {
+    ivec2 texCoord = ivec2(gl_GlobalInvocationID.xy);
+    uvec2 spectrumTexSize = imageSize(initialSpectrumTex);
+    if (texCoord.x >= spectrumTexSize.x || texCoord.y >= spectrumTexSize.y) {
+        return;
+    }
+
+    vec4 signal = imageLoad(initialSpectrumTex, texCoord);
+    vec2 positiveKWave = signal.xy;
+    vec2 negativeKWave = signal.zw;
+
+    float patchSize = float(spectrumTexSize.x); // L
+    vec2 center = vec2(spectrumTexSize) / 2.0;
+
+    vec2 k = (vec2(texCoord) - center) * 2.0 * kPI / patchSize;
+    float lengthK = length(k);
+    
+    float initialFrequency = 2.0 * kPI / params.wavePeriod;
+    float dispersion = floor(sqrt(params.gravity * lengthK) / initialFrequency) * initialFrequency * time;
+
+    vec2 exponent = euler(dispersion);
+    vec2 fullWave = complexMult(positiveKWave, exponent) + complexMult(negativeKWave, vec2(exponent.x, -exponent.y));
+
+    vec2 slopeX = complexMult(fullWave, vec2(0.0, k.x));
+    vec2 slopeZ = complexMult(fullWave, vec2(0.0, k.y));
+
+    vec2 displacementX = complexMult(fullWave, vec2(0.0, -k.x / lengthK));
+    vec2 displacementZ = complexMult(fullWave, vec2(0.0, -k.y / lengthK));
+
+    if (lengthK < 0.00001) {
+        displacementX = vec2(0);
+        displacementZ = vec2(0);
+    }
+
+    imageStore(updatedSpectrumTex, texCoord, vec4(fullWave, 1, 1));
+    imageStore(updatedSpectrumSlopeXTex, texCoord, vec4(slopeX, 1, 1));
+    imageStore(updatedSpectrumSlopeZTex, texCoord, vec4(slopeZ, 1, 1));
+    imageStore(updatedSpectrumDisplacementXTex, texCoord, vec4(displacementX, 1, 1));
+    imageStore(updatedSpectrumDisplacementZTex, texCoord, vec4(displacementZ, 1, 1));
+}

@@ -3,7 +3,7 @@
 #extension GL_GOOGLE_include_directive : require
 
 #include "TerrainParams.h"
-#include "utils.glsl"
+#include "terrain_utils.glsl"
 
 layout (vertices = 4) out;
 

@@ -11,5 +11,8 @@ target_link_libraries(water_render_module PUBLIC etna render_utils gui)
 
 
 target_add_shaders(water_render_module
-
+    shaders/chunk.vert
+    shaders/subdivide_chunk.tesc
+    shaders/process_chunk.tese
+    shaders/water.frag
 )

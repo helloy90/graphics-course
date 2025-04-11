@@ -2,8 +2,8 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_GOOGLE_include_directive : require
 
-#include "TerrainParams.h"
-#include "utils.glsl"
+#include "WaterParams.h"
+#include "terrain_utils.glsl"
 
 layout (vertices = 4) out;
 
@@ -13,36 +13,36 @@ layout (location = 0) out vec2 heightMapTextureCoord[];
 layout (location = 1) out vec3 worldPosition[];
 
 layout (binding = 0) uniform params_t {
-  TerrainParams params;
+  WaterParams params;
 };
 
-layout (binding = 1) uniform height_params_t {
-  float heightAmplifier;
-  float heightOffset;
-};
-
-layout (binding = 2) uniform sampler2D heightMap;
+layout (binding = 1) uniform sampler2D heightMap;
 
 layout(push_constant) uniform push_constant_t {
     mat4 projView;
     vec4 cameraWorldPosition;
 };
 
-const float maxDistance = 256.0;
-const float minDistance = 32.0;
+const float maxDistance = 512.0;
+const float minDistance = 64.0;
 
-const float maxTesselationLevel = 16.0;
+const float maxTesselationLevel = 32.0;
 const float minTesselationLevel = 4.0;
 
 vec3 getPosition(uint vertex) {
   uint currentInstanceIndex = instanceIndex[0];
   uvec2 coordsOfChunkInGrid = uvec2(
-    currentInstanceIndex % params.terrainInChunks.x, 
-    currentInstanceIndex / params.terrainInChunks.x
+    currentInstanceIndex % params.waterInChunks.x, 
+    currentInstanceIndex / params.waterInChunks.x
+  );
+  // TODO---------------------------------
+  uvec2 coordsOfChunkInExtrusion = uvec2(
+    currentInstanceIndex % params.waterInChunks.x, 
+    currentInstanceIndex / params.waterInChunks.x
   );
   uvec2 coordsOfVertexInChunk = uvec2(vertex / 2, vertex % 2);
-  //start position is terrainOffset
-  vec2 worldCoords = params.terrainOffset + vec2((coordsOfChunkInGrid + coordsOfVertexInChunk) * params.chunk);
+  //start position is waterOffset
+  vec2 worldCoords = params.waterOffset + vec2((coordsOfChunkInGrid + coordsOfVertexInChunk) * params.chunk);
   return toTerrainCoords(vec3(worldCoords, 0));
 }
 
@@ -72,7 +72,7 @@ bool within(float left, float value, float right) {
 }
 
 bool isInsideViewFrustum(vec3 pos) {
-  float height = (texture(heightMap, getPositionInHeightMap(pos)).x - heightOffset) * heightAmplifier;
+  float height = texture(heightMap, getPositionInHeightMap(pos)).x - params.heightOffset;
   vec4 clipSpaceCoord = projView * vec4(pos.x, height, pos.z, 1.0);
   return within(-clipSpaceCoord.w, clipSpaceCoord.x, clipSpaceCoord.w) 
           || within(-clipSpaceCoord.w, clipSpaceCoord.y, clipSpaceCoord.w)
@@ -87,7 +87,7 @@ bool isVisible(vec3 leftLower, vec3 leftUpper, vec3 rightLower, vec3 rightUpper)
             || isInsideViewFrustum(rightLower)
             || isInsideViewFrustum(rightUpper);
 
-  return visible;
+  return true;
 }
 
 void main() {

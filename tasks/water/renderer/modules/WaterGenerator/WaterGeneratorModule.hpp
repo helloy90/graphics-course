@@ -14,23 +14,36 @@ class WaterGeneratorModule
 public:
   WaterGeneratorModule();
 
-  void allocateResources(
-    vk::Format spectrum_image_format = vk::Format::eR32Sfloat,
-    vk::Extent3D spectrum_image_extent = {256, 256, 1});
+  void allocateResources(vk::Extent3D spectrum_image_extent = {256, 256, 1});
   void loadShaders();
   void setupPipelines();
-  void execute();
+  void executeStart();
+  void executeProgress(vk::CommandBuffer cmd_buf, float time);
+
+  void drawGui();
+
+  const etna::Image& getSpectrumImage() const { return updatedSpectrumImage; }
+  // const etna::Image& getNormalMap() const { return terrainNormalMap; }
+  const etna::Sampler& getSpectrumSampler() const { return spectrumSampler; }
 
 private:
-  void generateSpectrum(vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout);
+  void generateInitialSpectrum(vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout);
+  void updateSpectrumForFFT(
+    vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout, float time);
 
 private:
   SpectrumGenerationParams params;
   etna::Buffer paramsBuffer;
 
-  etna::Image spectrumImage;
+  etna::Image initialSpectrumImage;
+  etna::Image updatedSpectrumImage;
+  etna::Image updatedSpectrumSlopeXImage;
+  etna::Image updatedSpectrumSlopeZImage;
+  etna::Image updatedSpectrumDisplacementXImage;
+  etna::Image updatedSpectrumDisplacementZImage;
 
-  etna::ComputePipeline spectrumGenerationPipeline;
+  etna::ComputePipeline initialSpectrumGenerationPipeline;
+  etna::ComputePipeline spectrumProgressionPipeline;
 
   etna::Sampler spectrumSampler;
 

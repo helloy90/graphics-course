@@ -1,3 +1,7 @@
+#ifndef TERRAIN_UTILS_GLSL_INCLUDED
+#define TERRAIN_UTILS_GLSL_INCLUDED
+
+
 vec4 toTerrainCoords(vec4 vector) {
     return vector.xzyw;
 }
@@ -27,3 +31,6 @@ vec2 interpolate4Vert2D(vec2 leftLower, vec2 leftUpper, vec2 rightLower, vec2 ri
           + rightLower * u * (1.0 - v)
           + rightUpper * u * v;
 }
+
+
+#endif // TERRAIN_UTILS_GLSL_INCLUDED

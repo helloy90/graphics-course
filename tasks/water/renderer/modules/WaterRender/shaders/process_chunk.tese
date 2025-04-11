@@ -2,8 +2,8 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_GOOGLE_include_directive : require
 
-#include "TerrainParams.h"
-#include "utils.glsl"
+#include "WaterParams.h"
+#include "terrain_utils.glsl"
 
 layout(quads, fractional_even_spacing, ccw) in;
 
@@ -16,16 +16,11 @@ layout (location = 0) out VS_OUT {
 };
 
 layout (binding = 0) uniform params_t {
-  TerrainParams params;
+  WaterParams params;
 };
 
-layout (binding = 1) uniform height_params_t {
-  float heightAmplifier;
-  float heightOffset;
-};
-
-layout (binding = 2) uniform sampler2D heightMap;
-layout (binding = 3) uniform sampler2D normalMap;
+layout (binding = 1) uniform sampler2D heightMap;
+// layout (binding = 2) uniform sampler2D normalMap;
 
 layout(push_constant) uniform push_constant_t {
     mat4 projView;
@@ -50,10 +45,10 @@ void main() {
   vec3 currentVertex = interpolate4Vert2D(leftLower, leftUpper, rightLower, rightUpper, u, v);
   vec2 currentTexCoord = interpolate4Vert2D(texLeftLower, texLeftUpper, texRightLower, texRightUpper, u, v);
 
-  currentVertex.y = (texture(heightMap, currentTexCoord).x - heightOffset) * heightAmplifier;
+  // currentVertex.y = (texture(heightMap, currentTexCoord).x - heightOffset) * heightAmplifier;
 
   pos = currentVertex;
-  normal = texture(normalMap, currentTexCoord).xyz;
+  normal = vec3(0, 1, 0); //texture(normalMap, currentTexCoord).xyz;
 
   gl_Position = projView * vec4(currentVertex, 1.0);
 }

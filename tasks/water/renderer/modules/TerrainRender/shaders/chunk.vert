@@ -2,7 +2,7 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_GOOGLE_include_directive : require
 
-#include "utils.glsl"
+#include "terrain_utils.glsl"
 
 layout(location = 0) out uint instanceIndex;
 
