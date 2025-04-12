@@ -66,18 +66,15 @@ void main(void) {
     uint seed = texCoord.x + 512 + texCoord.y * 512;
     vec4 uniformRandomSamples = 
         vec4(hash(seed),
-            hash(seed * seed),
-            hash(seed * seed * seed),
-            hash(seed * seed * seed / 4)
+            hash(seed * 2),
+            hash(seed * 3),
+            hash(seed * 4)
         );
     vec2 firstGauss = uniformToGaussian(uniformRandomSamples.x, uniformRandomSamples.y);
     vec2 secondGauss = uniformToGaussian(uniformRandomSamples.z, uniformRandomSamples.w);
 
     vec2 positiveKWave = spectrumAmplitude(k, vec2(firstGauss.x, secondGauss.y));
     vec2 negativeKWave = spectrumAmplitude(-k, vec2(firstGauss.y, secondGauss.x));
-    // vec2 h = complexMult(positiveKWave, euler(dispersion)) 
-    //             + complexMult(negativeKWave, euler(-dispersion));
-
 
     imageStore(spectrumTex, texCoord, vec4(positiveKWave, negativeKWave));     
 }

@@ -14,7 +14,7 @@ class WaterGeneratorModule
 public:
   WaterGeneratorModule();
 
-  void allocateResources(vk::Extent3D spectrum_image_extent = {256, 256, 1});
+  void allocateResources(uint32_t textures_extent = 256);
   void loadShaders();
   void setupPipelines();
   void executeStart();
@@ -22,12 +22,14 @@ public:
 
   void drawGui();
 
-  const etna::Image& getSpectrumImage() const { return updatedSpectrumImage; }
+  const etna::Image& getSpectrumImage() const { return updatedSpectrumTexture; }
   // const etna::Image& getNormalMap() const { return terrainNormalMap; }
   const etna::Sampler& getSpectrumSampler() const { return spectrumSampler; }
 
 private:
   void generateInitialSpectrum(vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout);
+  void precomputeTwiddleFactors(vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout);
+  
   void updateSpectrumForFFT(
     vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout, float time);
 
@@ -35,14 +37,18 @@ private:
   SpectrumGenerationParams params;
   etna::Buffer paramsBuffer;
 
-  etna::Image initialSpectrumImage;
-  etna::Image updatedSpectrumImage;
-  etna::Image updatedSpectrumSlopeXImage;
-  etna::Image updatedSpectrumSlopeZImage;
-  etna::Image updatedSpectrumDisplacementXImage;
-  etna::Image updatedSpectrumDisplacementZImage;
+  etna::Image initialSpectrumTexture;
+  etna::Image updatedSpectrumTexture;
+  etna::Image updatedSpectrumSlopeXTexture;
+  etna::Image updatedSpectrumSlopeZTexture;
+  etna::Image updatedSpectrumDisplacementXTexture;
+  etna::Image updatedSpectrumDisplacementZTexture;
+
+  etna::Image twiddleFactorsTexture;
 
   etna::ComputePipeline initialSpectrumGenerationPipeline;
+  etna::ComputePipeline twiddleFactorsPrecomputePipeline;
+
   etna::ComputePipeline spectrumProgressionPipeline;
 
   etna::Sampler spectrumSampler;

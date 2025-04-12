@@ -12,4 +12,8 @@ vec2 euler(float x) {
     return vec2(cos(x), sin(x));
 }
 
+vec2 complexExponent(vec2 num) {
+    return exp(num.x) * euler(num.y);
+}
+
 #endif // COMPLEX_GLSL_INCLUDED

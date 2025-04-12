@@ -1,0 +1,33 @@
+#version 460
+#extension GL_ARB_separate_shader_objects : enable
+#extension GL_GOOGLE_include_directive : require
+
+#include "SpectrumGenerationParams.h"
+#include "complex.glsl"
+
+layout(local_size_x = 32, local_size_y = 32) in;
+
+layout(binding = 0, rgba32f) writeonly uniform image2D twiddleFactorTex;
+
+layout(binding = 1) readonly uniform params_t {
+    SpectrumGenerationParams params;
+};
+
+void main(void) {
+    ivec2 texCoord = ivec2(gl_GlobalInvocationID.xy);
+    uvec2 textureSize = imageSize(twiddleFactorTex);
+    if (texCoord.x >= textureSize.x || texCoord.y >= textureSize.y) {
+        return;
+    }
+    // textureSize.y == N
+    // texCoord.x = logN
+    uint stage = texCoord.x + 1;
+    uint num = textureSize.y >> stage;
+    vec2 multiplier = vec2(0.0, 1.0) * 2.0 * kPI / textureSize.y;
+
+    uint index = (2 * num * (texCoord.y / num) + (texCoord.y % num)) % textureSize.y;
+    vec2 twiddleFactor = complexExponent(-multiplier * (texCoord.y / num) * num);
+
+    imageStore(twiddleFactorTex, texCoord, vec4(twiddleFactor, index, index + num));
+    imageStore(twiddleFactorTex, ivec2(texCoord.x, texCoord.y + textureSize.y / 2), vec4(-twiddleFactor, index, index + num));
+}

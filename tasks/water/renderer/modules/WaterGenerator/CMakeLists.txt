@@ -12,5 +12,6 @@ target_link_libraries(water_generator_module PUBLIC etna render_utils gui)
 
 target_add_shaders(water_generator_module
     shaders/generate_initial_spectrum.comp
+    shaders/precompute_twiddle_factors.comp
     shaders/update_spectrum_for_fft.comp
 )
