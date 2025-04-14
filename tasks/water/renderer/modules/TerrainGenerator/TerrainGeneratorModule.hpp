@@ -8,7 +8,7 @@
 #include <etna/ComputePipeline.hpp>
 #include <etna/OneShotCmdMgr.hpp>
 
-#include "/shaders/TerrainGenerationParams.h"
+#include "shaders/TerrainGenerationParams.h"
 
 
 class TerrainGeneratorModule

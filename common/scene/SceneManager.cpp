@@ -219,7 +219,7 @@ void SceneManager::processMaterials(const tinygltf::Model& model)
 
       auto glossinessFactor =
         modelMaterial.extensions.at("KHR_materials_pbrSpecularGlossiness").Get("glossinessFactor");
-      material.roughnessFactor = 1.0f - glossinessFactor.GetNumberAsDouble();
+      material.roughnessFactor = 1.0f - static_cast<float>(glossinessFactor.GetNumberAsDouble());
 
       material.metallicFactor = 0.0f; // assume
 
@@ -281,8 +281,9 @@ void SceneManager::processMaterials(const tinygltf::Model& model)
       modelMaterial.pbrMetallicRoughness.baseColorFactor[2],
       modelMaterial.pbrMetallicRoughness.baseColorFactor[3]};
 
-    material.roughnessFactor = modelMaterial.pbrMetallicRoughness.roughnessFactor;
-    material.metallicFactor = modelMaterial.pbrMetallicRoughness.metallicFactor;
+    material.roughnessFactor =
+      static_cast<float>(modelMaterial.pbrMetallicRoughness.roughnessFactor);
+    material.metallicFactor = static_cast<float>(modelMaterial.pbrMetallicRoughness.metallicFactor);
 
     // little bit ugly
     if (modelMaterial.pbrMetallicRoughness.baseColorTexture.index != -1)

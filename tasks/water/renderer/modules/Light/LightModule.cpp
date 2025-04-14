@@ -177,7 +177,7 @@ void LightModule::displaceLights(
       commandBuffer.bindPipeline(
         vk::PipelineBindPoint::eCompute, lightDisplacementPipeline.getVkPipeline());
 
-      commandBuffer.dispatch((lights.size() + 127) / 128, 1, 1);
+      commandBuffer.dispatch((static_cast<uint32_t>(lights.size()) + 127) / 128, 1, 1);
     }
 
     {

@@ -19,20 +19,20 @@ WaterRenderModule::WaterRenderModule()
        .extrusionInChunks = shader_uvec2(0),
        .heightOffset = 0.3})
   , renderParams(
-      {.color = glm::vec4(0.4627450980, 0.7137254902, 0.7686274510, 1),
-       .tipColor = glm::vec4(0.8705882353, 0.9529411765, 0.9647058824, 1),
-       .tipAttenuation = 1,
-       .roughness = 0.3})
+      {.color = shader_vec4(0.4627450980, 0.7137254902, 0.7686274510, 1),
+       .tipColor = shader_vec4(0.8705882353, 0.9529411765, 0.9647058824, 1),
+       .tipAttenuation = shader_float(1),
+       .roughness = shader_float(0.3)})
 {
 }
 
 WaterRenderModule::WaterRenderModule(WaterParams par)
   : params(par)
   , renderParams(
-      {.color = glm::vec4(0.4627450980, 0.7137254902, 0.7686274510, 1),
-       .tipColor = glm::vec4(0.8705882353, 0.9529411765, 0.9647058824, 1),
-       .tipAttenuation = 1,
-       .roughness = 0.3})
+    {.color = shader_vec4(0.4627450980, 0.7137254902, 0.7686274510, 1),
+      .tipColor = shader_vec4(0.8705882353, 0.9529411765, 0.9647058824, 1),
+      .tipAttenuation = shader_float(1),
+      .roughness = shader_float(0.3)})
 {
 }
 
@@ -177,10 +177,10 @@ void WaterRenderModule::drawGui()
       renderParamsChanged || ImGui::ColorEdit3("Water Tip Color", tipColor, colorFlags);
     renderParams.tipColor = shader_vec4(tipColor[0], tipColor[1], tipColor[2], 1);
     renderParamsChanged = renderParamsChanged ||
-      ImGui::DragFloat("Water Tip Attenuation", &tipAttenuation, 0.01, 0.0, 500);
+      ImGui::DragFloat("Water Tip Attenuation", &tipAttenuation, 0.01f, 0.0f, 500.0f);
     renderParams.tipAttenuation = tipAttenuation;
     renderParamsChanged =
-      renderParamsChanged || ImGui::DragFloat("Water Roughness", &roughness, 0.001, 0.0, 1);
+      renderParamsChanged || ImGui::DragFloat("Water Roughness", &roughness, 0.001f, 0.0f, 1.0f);
     renderParams.roughness = roughness;
   }
 

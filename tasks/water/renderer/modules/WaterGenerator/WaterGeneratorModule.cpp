@@ -290,15 +290,15 @@ void WaterGeneratorModule::drawGui()
     float wavePeriod = params.wavePeriod;
     float gravity = params.gravity;
 
-    paramsChanged = paramsChanged || ImGui::DragFloat("Wave Period", &wavePeriod, 1, 0.00001, 5000);
+    paramsChanged = paramsChanged || ImGui::DragFloat("Wave Period", &wavePeriod, 1.0f, 0.00001f, 5000.0f);
     params.wavePeriod = wavePeriod;
-    paramsChanged = paramsChanged || ImGui::DragFloat("Gravity", &gravity, 0.1, 0, 5000);
+    paramsChanged = paramsChanged || ImGui::DragFloat("Gravity", &gravity, 0.1f, 0.0f, 5000.0f);
     params.gravity = gravity;
 
     ImGui::Text("Water regeneration needed for these to take effect");
-    paramsChanged = paramsChanged || ImGui::DragFloat2("Wind Direction", windDirection, 0.1);
+    paramsChanged = paramsChanged || ImGui::DragFloat2("Wind Direction", windDirection, 0.1f);
     params.windDirection = glm::vec2(windDirection[0], windDirection[1]);
-    paramsChanged = paramsChanged || ImGui::DragFloat("Wind Speed", &windSpeed, 0.1, 0.0, 5000);
+    paramsChanged = paramsChanged || ImGui::DragFloat("Wind Speed", &windSpeed, 0.1f, 0.0f, 5000.0f);
     params.windSpeed = windSpeed;
 
     if (ImGui::Button("Regenerate Water"))
