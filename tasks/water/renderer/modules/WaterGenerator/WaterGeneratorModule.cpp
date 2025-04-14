@@ -1,6 +1,4 @@
 #include "WaterGeneratorModule.hpp"
-#include "etna/BarrierBehavoir.hpp"
-#include "etna/DescriptorSet.hpp"
 
 #include <glm/gtc/integer.hpp>
 #include <glm/exponential.hpp>

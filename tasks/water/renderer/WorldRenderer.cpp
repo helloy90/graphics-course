@@ -137,14 +137,14 @@ void WorldRenderer::rebuildRenderPipelines()
 void WorldRenderer::loadCubemap()
 {
   const uint32_t layerCount = 6;
-  std::string path = GRAPHICS_COURSE_RESOURCES_ROOT "/textures/Cubemaps/Glacier/";
+  std::string path = GRAPHICS_COURSE_RESOURCES_ROOT "/textures/Cubemaps/Sea/";
   std::vector<std::string> filenames = {
-    path + "glacier_front.bmp",
-    path + "glacier_back.bmp",
-    path + "glacier_up.bmp",
-    path + "glacier_down.bmp",
-    path + "glacier_left.bmp",
-    path + "glacier_right.bmp",
+    path + "nz.png",
+    path + "pz.png",
+    path + "py.png",
+    path + "ny.png",
+    path + "px.png",
+    path + "nx.png",
   };
 
   if (filenames.size() != layerCount)
