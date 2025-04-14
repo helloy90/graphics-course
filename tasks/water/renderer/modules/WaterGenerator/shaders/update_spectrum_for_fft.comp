@@ -36,10 +36,10 @@ void main(void) {
     float patchSize = float(spectrumTexSize.x); // L
     vec2 center = vec2(spectrumTexSize) / 2.0;
 
-    vec2 k = (vec2(texCoord) - center) * 2.0 * kPI / patchSize;
+    vec2 k = (vec2(texCoord) - center) * kTwoPi / patchSize;
     float lengthK = length(k);
     
-    float initialFrequency = 2.0 * kPI / params.wavePeriod;
+    float initialFrequency = kTwoPi / params.wavePeriod;
     float dispersion = floor(sqrt(params.gravity * lengthK) / initialFrequency) * initialFrequency * time;
 
     vec2 exponent = euler(dispersion);

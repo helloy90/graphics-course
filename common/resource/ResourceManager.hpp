@@ -19,13 +19,13 @@ public:
   ResourceManager(const ResourceManager&) = delete;
   ResourceManager& operator=(const ResourceManager&) = delete;
 
-  Res::Id loadResource(const char* name, Res resource)
+  typename Res::Id loadResource(const char* name, Res resource)
   {
     if (names.find(name) != names.end())
     {
       ETNA_PANIC("Resource {} redefenition, for now is not supported", name);
     }
-    auto resId = static_cast<Res::Id>(storage.size());
+    auto resId = static_cast<typename Res::Id>(storage.size());
     storage.emplace_back(std::move(resource));
     names[name] = resId;
     return resId;
@@ -37,7 +37,7 @@ public:
     names.reserve(size);
   }
 
-  Res::Id tryGetResourceId(const char* name)
+  typename Res::Id tryGetResourceId(const char* name)
   {
     auto it = names.find(name);
     if (it == names.end())
@@ -47,7 +47,7 @@ public:
     return it->second;
   }
 
-  Res::Id getResourceId(const char* name)
+  typename Res::Id getResourceId(const char* name)
   {
     auto it = names.find(name);
     if (it == names.end())
@@ -58,7 +58,7 @@ public:
     return it->second;
   }
 
-  Res getResource(Res::Id id)
+  Res getResource(typename Res::Id id)
   {
     if (id >= storage.size())
     {
@@ -68,7 +68,7 @@ public:
     return storage[static_cast<std::underlying_type_t<typename Res::Id>>(id)];
   }
 
-  const Res& getResource(Res::Id id) const
+  const Res& getResource(typename Res::Id id) const
   {
     if (static_cast<uint32_t>(id) >= storage.size())
     {

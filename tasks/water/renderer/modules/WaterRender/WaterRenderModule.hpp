@@ -24,18 +24,18 @@ public:
     std::vector<etna::RenderTargetState::AttachmentParams> color_attachment_params,
     etna::RenderTargetState::AttachmentParams depth_attachment_params,
     const etna::Image& water_map,
-    // const etna::Image& water_normal_map,
+    const etna::Image& water_normal_map,
     const etna::Sampler& water_sampler);
 
   void drawGui();
 
 private:
-  void renderTerrain(
+  void renderWater(
     vk::CommandBuffer cmd_buf,
     vk::PipelineLayout pipeline_layout,
     const RenderPacket& packet,
     const etna::Image& water_map,
-    // const etna::Image& water_normal_map,
+    const etna::Image& water_normal_map,
     const etna::Sampler& water_sampler);
 
 private:

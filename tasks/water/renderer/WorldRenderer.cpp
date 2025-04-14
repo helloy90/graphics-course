@@ -8,6 +8,7 @@
 #include <etna/PipelineManager.hpp>
 #include <etna/Profiling.hpp>
 #include <etna/RenderTargetStates.hpp>
+#include <vulkan/vulkan_structs.hpp>
 
 #include "render_utils/Utilities.hpp"
 
@@ -192,10 +193,11 @@ void WorldRenderer::loadCubemap()
     .mipLevels = mipLevels,
     .flags = vk::ImageCreateFlagBits::eCubeCompatible});
 
-  RenderUtility::localCopyBufferToImage(
+  render_utility::local_copy_buffer_to_image(
     *oneShotCommands, cubemapBuffer, cubemapTexture, layerCount);
 
-  RenderUtility::generateMipmapsVkStyle(*oneShotCommands, cubemapTexture, mipLevels, layerCount);
+  render_utility::generate_mipmaps_vk_style(
+    *oneShotCommands, cubemapTexture, mipLevels, layerCount);
 
   for (int i = 0; i < 6; i++)
   {
@@ -324,6 +326,8 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
     std::memcpy(currentConstants.data(), &params, sizeof(UniformParams));
     currentConstants.unmap();
 
+    waterGeneratorModule.executeProgress(cmd_buf, renderPacket.time);
+
     etna::set_state(
       cmd_buf,
       terrainGeneratorModule.getMap().get(),
@@ -334,11 +338,21 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
 
     etna::set_state(
       cmd_buf,
-      waterGeneratorModule.getSpectrumImage().get(),
+      waterGeneratorModule.getHeightMap().get(),
+      vk::PipelineStageFlagBits2::eTessellationControlShader |
+        vk::PipelineStageFlagBits2::eTessellationEvaluationShader,
+      vk::AccessFlagBits2::eShaderSampledRead,
+      vk::ImageLayout::eShaderReadOnlyOptimal,
+      vk::ImageAspectFlagBits::eColor);
+
+    etna::set_state(
+      cmd_buf,
+      waterGeneratorModule.getNormalMap().get(),
       vk::PipelineStageFlagBits2::eTessellationEvaluationShader,
       vk::AccessFlagBits2::eShaderSampledRead,
       vk::ImageLayout::eShaderReadOnlyOptimal,
       vk::ImageAspectFlagBits::eColor);
+
 
     gBuffer->prepareForRender(cmd_buf);
 
@@ -367,12 +381,9 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
       resolution,
       gBuffer->genColorAttachmentParams(vk::AttachmentLoadOp::eLoad),
       gBuffer->genDepthAttachmentParams(vk::AttachmentLoadOp::eLoad),
-      waterGeneratorModule.getSpectrumImage(),
-      waterGeneratorModule.getSpectrumSampler());
-
-    waterGeneratorModule.executeProgress(cmd_buf, renderPacket.time);
-
-    gBuffer->prepareForRead(cmd_buf);
+      waterGeneratorModule.getHeightMap(),
+      waterGeneratorModule.getNormalMap(),
+      waterGeneratorModule.getSampler());
 
     etna::set_state(
       cmd_buf,
@@ -382,21 +393,7 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
       vk::ImageLayout::eColorAttachmentOptimal,
       vk::ImageAspectFlagBits::eColor);
 
-    etna::set_state(
-      cmd_buf,
-      terrainGeneratorModule.getMap().get(),
-      vk::PipelineStageFlagBits2::eFragmentShader,
-      vk::AccessFlagBits2::eShaderSampledRead,
-      vk::ImageLayout::eShaderReadOnlyOptimal,
-      vk::ImageAspectFlagBits::eColor);
-
-    etna::set_state(
-      cmd_buf,
-      waterGeneratorModule.getSpectrumImage().get(),
-      vk::PipelineStageFlagBits2::eFragmentShader,
-      vk::AccessFlagBits2::eShaderSampledRead,
-      vk::ImageLayout::eShaderReadOnlyOptimal,
-      vk::ImageAspectFlagBits::eColor);
+    gBuffer->prepareForRead(cmd_buf);
 
     etna::flush_barriers(cmd_buf);
 
@@ -436,45 +433,10 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
 
     etna::flush_barriers(cmd_buf);
 
-    {
-      std::array srcOffset = {
-        vk::Offset3D{},
-        vk::Offset3D{static_cast<int32_t>(resolution.x), static_cast<int32_t>(resolution.y), 1}};
-      auto srdImageSubrecourceLayers = vk::ImageSubresourceLayers{
-        .aspectMask = vk::ImageAspectFlagBits::eColor,
-        .mipLevel = 0,
-        .baseArrayLayer = 0,
-        .layerCount = 1};
-
-      std::array dstOffset = {
-        vk::Offset3D{},
-        vk::Offset3D{static_cast<int32_t>(resolution.x), static_cast<int32_t>(resolution.y), 1}};
-      auto dstImageSubrecourceLayers = vk::ImageSubresourceLayers{
-        .aspectMask = vk::ImageAspectFlagBits::eColor,
-        .mipLevel = 0,
-        .baseArrayLayer = 0,
-        .layerCount = 1};
-
-      auto imageBlit = vk::ImageBlit2{
-        .sType = vk::StructureType::eImageBlit2,
-        .pNext = nullptr,
-        .srcSubresource = srdImageSubrecourceLayers,
-        .srcOffsets = srcOffset,
-        .dstSubresource = dstImageSubrecourceLayers,
-        .dstOffsets = dstOffset};
-
-      auto blitInfo = vk::BlitImageInfo2{
-        .sType = vk::StructureType::eBlitImageInfo2,
-        .pNext = nullptr,
-        .srcImage = renderTarget.get(),
-        .srcImageLayout = vk::ImageLayout::eTransferSrcOptimal,
-        .dstImage = target_image,
-        .dstImageLayout = vk::ImageLayout::eTransferDstOptimal,
-        .regionCount = 1,
-        .pRegions = &imageBlit,
-        .filter = vk::Filter::eLinear};
-
-      cmd_buf.blitImage2(&blitInfo);
-    }
+    render_utility::blit_image(
+      cmd_buf,
+      renderTarget.get(),
+      target_image,
+      vk::Offset3D{static_cast<int32_t>(resolution.x), static_cast<int32_t>(resolution.y), 1});
   }
 }

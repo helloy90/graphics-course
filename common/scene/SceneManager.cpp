@@ -169,9 +169,10 @@ void SceneManager::processTextures(
         vk::ImageUsageFlagBits::eTransferSrc,
       .mipLevels = mipLevels});
 
-    RenderUtility::localCopyBufferToImage(*oneShotCommands, textureBuffer, texture, layerCount);
+    render_utility::local_copy_buffer_to_image(
+      *oneShotCommands, textureBuffer, texture, layerCount);
 
-    RenderUtility::generateMipmapsVkStyle(*oneShotCommands, texture, mipLevels, layerCount);
+    render_utility::generate_mipmaps_vk_style(*oneShotCommands, texture, mipLevels, layerCount);
 
     auto id = texture2dManager.loadResource(
       ("texture_" + currentTextureImage.uri).c_str(), {.texture = std::move(texture)});

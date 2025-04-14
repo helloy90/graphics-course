@@ -1,9 +1,9 @@
 #include "Utilities.hpp"
 
-#include <etna/Etna.hpp>
+namespace render_utility
+{
 
-
-void RenderUtility::localCopyBufferToImage(
+void local_copy_buffer_to_image(
   etna::OneShotCmdMgr& one_shot_cmd_mgr,
   const etna::Buffer& buffer,
   const etna::Image& image,
@@ -45,7 +45,7 @@ void RenderUtility::localCopyBufferToImage(
   one_shot_cmd_mgr.submitAndWait(commandBuffer);
 }
 
-void RenderUtility::generateMipmapsVkStyle(
+void generate_mipmaps_vk_style(
   etna::OneShotCmdMgr& one_shot_cmd_mgr,
   const etna::Image& image,
   uint32_t mip_levels,
@@ -165,3 +165,48 @@ void RenderUtility::generateMipmapsVkStyle(
 
   one_shot_cmd_mgr.submitAndWait(commandBuffer);
 }
+
+// assume images have the same resolution
+void blit_image(
+  vk::CommandBuffer cmd_buf,
+  vk::Image source_image,
+  vk::Image target_image,
+  vk::Offset3D offset_size)
+{
+  std::array srcOffset = {vk::Offset3D{}, offset_size};
+  auto srdImageSubrecourceLayers = vk::ImageSubresourceLayers{
+    .aspectMask = vk::ImageAspectFlagBits::eColor,
+    .mipLevel = 0,
+    .baseArrayLayer = 0,
+    .layerCount = 1};
+
+  std::array dstOffset = {vk::Offset3D{}, offset_size};
+  auto dstImageSubrecourceLayers = vk::ImageSubresourceLayers{
+    .aspectMask = vk::ImageAspectFlagBits::eColor,
+    .mipLevel = 0,
+    .baseArrayLayer = 0,
+    .layerCount = 1};
+
+  auto imageBlit = vk::ImageBlit2{
+    .sType = vk::StructureType::eImageBlit2,
+    .pNext = nullptr,
+    .srcSubresource = srdImageSubrecourceLayers,
+    .srcOffsets = srcOffset,
+    .dstSubresource = dstImageSubrecourceLayers,
+    .dstOffsets = dstOffset};
+
+  auto blitInfo = vk::BlitImageInfo2{
+    .sType = vk::StructureType::eBlitImageInfo2,
+    .pNext = nullptr,
+    .srcImage = source_image,
+    .srcImageLayout = vk::ImageLayout::eTransferSrcOptimal,
+    .dstImage = target_image,
+    .dstImageLayout = vk::ImageLayout::eTransferDstOptimal,
+    .regionCount = 1,
+    .pRegions = &imageBlit,
+    .filter = vk::Filter::eLinear};
+
+  cmd_buf.blitImage2(&blitInfo);
+}
+
+} // namespace render_utility

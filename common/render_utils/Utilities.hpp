@@ -3,19 +3,29 @@
 #include <etna/OneShotCmdMgr.hpp>
 #include <etna/Buffer.hpp>
 #include <etna/Image.hpp>
+#include <etna/Etna.hpp>
 
-class RenderUtility
+
+namespace render_utility
 {
-public:
-  static void localCopyBufferToImage(
-    etna::OneShotCmdMgr& one_shot_cmd_mgr,
-    const etna::Buffer& buffer,
-    const etna::Image& image,
-    uint32_t layer_count);
-    
-  static void generateMipmapsVkStyle(
-    etna::OneShotCmdMgr& one_shot_cmd_mgr,
-    const etna::Image& image,
-    uint32_t mip_levels,
-    uint32_t layer_count);
-};
+
+void local_copy_buffer_to_image(
+  etna::OneShotCmdMgr& one_shot_cmd_mgr,
+  const etna::Buffer& buffer,
+  const etna::Image& image,
+  uint32_t layer_count);
+
+void generate_mipmaps_vk_style(
+  etna::OneShotCmdMgr& one_shot_cmd_mgr,
+  const etna::Image& image,
+  uint32_t mip_levels,
+  uint32_t layer_count);
+
+// assume images have the same resolution
+void blit_image(
+  vk::CommandBuffer cmd_buf,
+  vk::Image source_image,
+  vk::Image target_image,
+  vk::Offset3D offset_size);
+
+}; // namespace render_utility

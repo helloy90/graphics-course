@@ -20,7 +20,7 @@ layout (binding = 0) uniform params_t {
 };
 
 layout (binding = 1) uniform sampler2D heightMap;
-// layout (binding = 2) uniform sampler2D normalMap;
+layout (binding = 2) uniform sampler2D normalMap;
 
 layout(push_constant) uniform push_constant_t {
     mat4 projView;
@@ -45,10 +45,13 @@ void main() {
   vec3 currentVertex = interpolate4Vert2D(leftLower, leftUpper, rightLower, rightUpper, u, v);
   vec2 currentTexCoord = interpolate4Vert2D(texLeftLower, texLeftUpper, texRightLower, texRightUpper, u, v);
 
-  // currentVertex.y = (texture(heightMap, currentTexCoord).x - heightOffset) * heightAmplifier;
+  currentVertex.y -= params.heightOffset;
+  vec3 displacement = texture(heightMap, currentTexCoord).xyz;
+  
+  currentVertex += displacement;
 
   pos = currentVertex;
-  normal = vec3(0, 1, 0); //texture(normalMap, currentTexCoord).xyz;
+  normal = texture(normalMap, currentTexCoord).xyz;
 
   gl_Position = projView * vec4(currentVertex, 1.0);
 }

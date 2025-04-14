@@ -11,7 +11,7 @@ layout (location = 1) out vec3 gNormal;
 layout (location = 2) out vec4 gMaterial;
 
 void main() {
-    gAlbedo = vec4(0.5, 0.5, 0.5, 1);
+    gAlbedo = vec4(0.7254901961, 0.9490196078, 1, 1);
     gNormal = normal;
-    gMaterial = vec4(0, 0.6, 0.0, 1);
+    gMaterial = vec4(0, 0.1, 0, 1);
 }

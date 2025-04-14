@@ -72,8 +72,11 @@ bool within(float left, float value, float right) {
 }
 
 bool isInsideViewFrustum(vec3 pos) {
-  float height = texture(heightMap, getPositionInHeightMap(pos)).x - params.heightOffset;
-  vec4 clipSpaceCoord = projView * vec4(pos.x, height, pos.z, 1.0);
+  vec3 displacement = texture(heightMap, getPositionInHeightMap(pos)).xyz;
+  pos.y -= params.heightOffset;
+  pos += displacement;
+
+  vec4 clipSpaceCoord = projView * vec4(pos, 1.0);
   return within(-clipSpaceCoord.w, clipSpaceCoord.x, clipSpaceCoord.w) 
           || within(-clipSpaceCoord.w, clipSpaceCoord.y, clipSpaceCoord.w)
           || within(0.0, clipSpaceCoord.z, clipSpaceCoord.w);
@@ -87,7 +90,7 @@ bool isVisible(vec3 leftLower, vec3 leftUpper, vec3 rightLower, vec3 rightUpper)
             || isInsideViewFrustum(rightLower)
             || isInsideViewFrustum(rightUpper);
 
-  return true;
+  return visible;
 }
 
 void main() {

@@ -5,8 +5,6 @@
 #include "SpectrumGenerationParams.h"
 #include "complex.glsl"
 
-#define kPI 3.1415926535897932384626433832795
-
 layout(local_size_x = 32, local_size_y = 32) in;
 
 layout(binding = 0, rgba32f) writeonly uniform image2D spectrumTex;
@@ -29,7 +27,7 @@ float hash(uint n)
 // using Box - Muller here
 vec2 uniformToGaussian(float uniFirst, float uniSecond) {
     float root = sqrt(-2.0 * log(uniFirst));
-    float theta = 2.0 * kPI * uniSecond;
+    float theta = kTwoPi * uniSecond;
     return vec2(root * cos(theta), root * sin(theta));
 }
 
@@ -61,7 +59,7 @@ void main(void) {
 
     float patchSize = float(spectrumTexSize.x); // L
     vec2 center = vec2(spectrumTexSize) / 2.0;
-    vec2 k = (vec2(texCoord) - center) * 2.0 * kPI / patchSize;
+    vec2 k = (vec2(texCoord) - center) * kTwoPi / patchSize;
 
     uint seed = texCoord.x + 512 + texCoord.y * 512;
     vec4 uniformRandomSamples = 

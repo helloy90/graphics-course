@@ -11,11 +11,11 @@
 
 WaterRenderModule::WaterRenderModule()
   : params(
-      {.extent = shader_uvec2(512),
+      {.extent = shader_uvec2(1024),
        .chunk = shader_uvec2(16),
        .waterInChunks = shader_uvec2(128),
        .waterOffset = shader_vec2(-1024),
-       .extrusionInChunks = shader_uvec2(64),
+       .extrusionInChunks = shader_uvec2(0),
        .heightOffset = 0.3})
 {
 }
@@ -34,7 +34,6 @@ void WaterRenderModule::allocateResources()
     .allocationCreate =
       VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
     .name = "waterParams"});
-
 
   paramsBuffer.map();
   std::memcpy(paramsBuffer.data(), &params, sizeof(WaterParams));
@@ -103,7 +102,7 @@ void WaterRenderModule::execute(
   std::vector<etna::RenderTargetState::AttachmentParams> color_attachment_params,
   etna::RenderTargetState::AttachmentParams depth_attachment_params,
   const etna::Image& water_map,
-  // const etna::Image& water_normal_map,
+  const etna::Image& water_normal_map,
   const etna::Sampler& water_sampler)
 {
   {
@@ -112,22 +111,22 @@ void WaterRenderModule::execute(
       cmd_buf, {{0, 0}, {extent.x, extent.y}}, color_attachment_params, depth_attachment_params);
 
     cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, waterRenderPipeline.getVkPipeline());
-    renderTerrain(
+    renderWater(
       cmd_buf,
       waterRenderPipeline.getVkPipelineLayout(),
       packet,
       water_map,
-      // water_normal_map,
+      water_normal_map,
       water_sampler);
   }
 }
 
-void WaterRenderModule::renderTerrain(
+void WaterRenderModule::renderWater(
   vk::CommandBuffer cmd_buf,
   vk::PipelineLayout pipeline_layout,
   const RenderPacket& packet,
   const etna::Image& water_map,
-  // const etna::Image& water_normal_map,
+  const etna::Image& water_normal_map,
   const etna::Sampler& water_sampler)
 {
   ZoneScoped;
@@ -136,15 +135,12 @@ void WaterRenderModule::renderTerrain(
   auto set = etna::create_descriptor_set(
     shaderInfo.getDescriptorLayoutId(0),
     cmd_buf,
-    {
-      etna::Binding{0, paramsBuffer.genBinding()},
-      etna::Binding{
-        1, water_map.genBinding(water_sampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
-      //  etna::Binding{
-      //    2,
-      //    water_normal_map.genBinding(water_sampler.get(),
-      //    vk::ImageLayout::eShaderReadOnlyOptimal)}
-    });
+    {etna::Binding{0, paramsBuffer.genBinding()},
+     etna::Binding{
+       1, water_map.genBinding(water_sampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+     etna::Binding{
+       2,
+       water_normal_map.genBinding(water_sampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)}});
 
   auto vkSet = set.getVkSet();
 
