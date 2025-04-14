@@ -7,8 +7,12 @@
 #include <etna/Buffer.hpp>
 #include <etna/BlockingTransferHelper.hpp>
 #include <etna/VertexInput.hpp>
+#include <vector>
+#include <vulkan/vulkan_handles.hpp>
 
-#include "../resource/ResourceManager.hpp"
+#include "etna/Sampler.hpp"
+#include "resource/ResourceManager.hpp"
+#include "etna/DescriptorSet.hpp"
 #include "resource/Material.hpp"
 #include "resource/Texture2D.hpp"
 
@@ -16,8 +20,9 @@
 // Bounds for each render element
 struct Bounds
 {
-  glm::vec3 origin;
-  glm::vec3 extents;
+  // w coordinate is padding
+  glm::vec4 minPos; 
+  glm::vec4 maxPos;
 };
 
 // A single render element (relem) corresponds to a single draw call
@@ -28,7 +33,7 @@ struct RenderElement
   std::uint32_t indexOffset;
   std::uint32_t indexCount;
 
-  Material::Id material;
+  Material::Id material = Material::Id::Invalid;
 
   auto operator<=>(const RenderElement& other) const = default;
 };
@@ -79,6 +84,19 @@ public:
   vk::Buffer getVertexBuffer() { return unifiedVbuf.get(); }
   vk::Buffer getIndexBuffer() { return unifiedIbuf.get(); }
 
+  etna::Buffer& getMaterialBuffer() { return unifiedMaterialsbuf; }
+
+  etna::Buffer& getRelemsBuffer() { return unifiedRelemsbuf; }
+  etna::Buffer& getBoundsBuffer() { return unifiedBoundsbuf; }
+  etna::Buffer& getMeshesBuffer() { return unifiedMeshesbuf; }
+  etna::Buffer& getInstanceMeshesBuffer() { return unifiedInstanceMeshesbuf; }
+  etna::Buffer& getInstanceMatricesBuffer() { return unifiedInstanceMatricesbuf; }
+  etna::Buffer& getRelemInstanceOffsetsBuffer() { return unifiedRelemInstanceOffsetsbuf; }
+  etna::Buffer& getDrawInstanceIndicesBuffer() { return unifiedDrawInstanceIndicesbuf; }
+  etna::Buffer& getDrawCommandsBuffer() { return unifiedDrawCommandsbuf; }
+
+  std::vector<etna::Binding> getBindlessBindings() const;
+
   etna::VertexByteStreamFormatDescription getVertexFormatDescription();
 
   // for now one placeholder for all materials
@@ -93,6 +111,28 @@ public:
   void generateMipmapsVkStyle(const etna::Image& image, uint32_t mip_levels, uint32_t layer_count);
 
 private:
+  struct RenderElementGLSLCompat {
+    std::uint32_t vertexOffset;
+    std::uint32_t indexOffset;
+    std::uint32_t indexCount;
+    std::uint32_t material;
+  };
+  static_assert(sizeof(RenderElementGLSLCompat) % (sizeof(float) * 4) == 0);
+
+
+  struct MaterialGLSLCompat { 
+    glm::vec4 baseColorFactor;
+    float roughnessFactor;
+    float metallicFactor;
+    std::uint32_t baseColorTexture;
+    std::uint32_t metallicRoughnessTexture;
+    std::uint32_t normalTexture;
+    std::uint32_t _padding0 = 0;
+    std::uint32_t _padding1 = 0;
+    std::uint32_t _padding2 = 0;
+  };
+  static_assert(sizeof(MaterialGLSLCompat) % (sizeof(float) * 4) == 0);
+
   struct ProcessedInstances
   {
     std::vector<glm::mat4x4> matrices;
@@ -144,7 +184,7 @@ private:
   ProcessedInstances processInstances(const tinygltf::Model& model) const;
   ProcessedMeshes processMeshes(const tinygltf::Model& model) const;
   BakedMeshes processBakedMeshes(const tinygltf::Model& model) const;
-  void uploadData(std::span<const Vertex> vertices, std::span<const std::uint32_t>);
+  void uploadData(std::span<const Vertex> vertices, std::span<const std::uint32_t> indices);
 
 private:
   tinygltf::TinyGLTF loader;
@@ -160,6 +200,21 @@ private:
   MaterialManager materialManager;
   Texture2DManager texture2dManager;
 
+  etna::Sampler defaultSampler;
+
   etna::Buffer unifiedVbuf;
   etna::Buffer unifiedIbuf;
+    
+  etna::Buffer unifiedMaterialsbuf;
+
+  etna::Buffer unifiedRelemsbuf;
+  etna::Buffer unifiedBoundsbuf;
+  etna::Buffer unifiedMeshesbuf;
+  etna::Buffer unifiedInstanceMatricesbuf;
+  etna::Buffer unifiedInstanceMeshesbuf;
+  etna::Buffer unifiedRelemInstanceOffsetsbuf;
+
+  etna::Buffer unifiedDrawInstanceIndicesbuf;
+
+  etna::Buffer unifiedDrawCommandsbuf;
 };
