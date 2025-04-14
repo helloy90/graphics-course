@@ -1,5 +1,7 @@
 #include "WaterGeneratorModule.hpp"
 
+#include <imgui.h>
+
 #include <glm/gtc/integer.hpp>
 #include <glm/exponential.hpp>
 
@@ -10,7 +12,7 @@
 
 WaterGeneratorModule::WaterGeneratorModule()
   : params(
-      {.windDirection = shader_vec2(1, 1), .windSpeed = 10, .gravity = 9.81, .wavePeriod = 200})
+      {.windDirection = shader_vec2(1, 1), .windSpeed = 10, .wavePeriod = 200, .gravity = 9.81})
 {
 }
 
@@ -115,7 +117,7 @@ void WaterGeneratorModule::setupPipelines()
   initialSpectrumGenerationPipeline =
     etna::get_context().getPipelineManager().createComputePipeline("water_spectrum_generation", {});
 
-    spectrumProgressionPipeline = etna::get_context().getPipelineManager().createComputePipeline(
+  spectrumProgressionPipeline = etna::get_context().getPipelineManager().createComputePipeline(
     "water_spectrum_progression", {});
 
   horizontalInverseFFTPipeline = etna::get_context().getPipelineManager().createComputePipeline(
@@ -273,6 +275,49 @@ void WaterGeneratorModule::executeProgress(vk::CommandBuffer cmd_buf, float time
   }
 }
 
+void WaterGeneratorModule::drawGui()
+{
+  ImGui::Begin("Application Settings");
+
+  static bool paramsChanged = false;
+
+  if (ImGui::CollapsingHeader("Water Generator"))
+  {
+    ImGui::SeparatorText("Generation parameters");
+
+    float windDirection[] = {params.windDirection.x, params.windDirection.y};
+    float windSpeed = params.windSpeed;
+    float wavePeriod = params.wavePeriod;
+    float gravity = params.gravity;
+
+    paramsChanged = paramsChanged || ImGui::DragFloat("Wave Period", &wavePeriod, 1, 0.00001, 5000);
+    params.wavePeriod = wavePeriod;
+    paramsChanged = paramsChanged || ImGui::DragFloat("Gravity", &gravity, 0.1, 0, 5000);
+    params.gravity = gravity;
+
+    ImGui::Text("Water regeneration needed for these to take effect");
+    paramsChanged = paramsChanged || ImGui::DragFloat2("Wind Direction", windDirection, 0.1);
+    params.windDirection = glm::vec2(windDirection[0], windDirection[1]);
+    paramsChanged = paramsChanged || ImGui::DragFloat("Wind Speed", &windSpeed, 0.1, 0.0, 5000);
+    params.windSpeed = windSpeed;
+
+    if (ImGui::Button("Regenerate Water"))
+    {
+      executeStart();
+    }
+  }
+
+  if (paramsChanged)
+  {
+    paramsBuffer.map();
+    std::memcpy(paramsBuffer.data(), &params, sizeof(SpectrumGenerationParams));
+    paramsBuffer.unmap();
+    paramsChanged = false;
+  }
+
+  ImGui::End();
+}
+
 
 void WaterGeneratorModule::generateInitialSpectrum(
   vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout)
@@ -338,8 +383,7 @@ void WaterGeneratorModule::updateSpectrumForFFT(
   cmd_buf.dispatch((extent.width + 31) / 32, (extent.height + 31) / 32, 1);
 }
 
-void WaterGeneratorModule::inverseFFT(vk::CommandBuffer cmd_buf
-)
+void WaterGeneratorModule::inverseFFT(vk::CommandBuffer cmd_buf)
 {
 
   {

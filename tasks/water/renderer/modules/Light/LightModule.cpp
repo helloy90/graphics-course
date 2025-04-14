@@ -227,9 +227,9 @@ void LightModule::drawGui(
   const etna::Image& terrain_normal_map,
   const etna::Sampler& terrain_sampler)
 {
-  ImGui::Begin("Render Settings");
+  ImGui::Begin("Application Settings");
 
-  if (ImGui::CollapsingHeader("Light Settings"))
+  if (ImGui::CollapsingHeader("Lights"))
   {
     static bool directionalLightsChanged = false;
     static bool lightsChanged = false;

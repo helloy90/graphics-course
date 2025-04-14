@@ -47,7 +47,7 @@ void TerrainGeneratorModule::allocateResources(vk::Format map_format, vk::Extent
   terrainSampler = etna::Sampler(
     etna::Sampler::CreateInfo{.filter = vk::Filter::eLinear, .name = "terrain_sampler"});
 
-  params = {.extent = {extent.width, extent.height}, .numberOfSamples = 3, .persistence = 0.5};
+  params = {.extent = {extent.width, extent.height}, .numberOfSamples = 5, .persistence = 0.3};
 }
 
 void TerrainGeneratorModule::loadShaders()
@@ -206,14 +206,14 @@ void TerrainGeneratorModule::execute(glm::vec2 normal_map_fidelity)
 
 void TerrainGeneratorModule::drawGui()
 {
-  ImGui::Begin("Render Settings");
+  ImGui::Begin("Application Settings");
 
   static ImU32 numberOfSamplesMin = 1;
   static ImU32 numberOfSamplesMax = maxNumberOfSamples;
   static float persistenceMin = 0.0f;
   static float persistenceMax = 1.0f;
 
-  if (ImGui::CollapsingHeader("Terrain Generation Settings"))
+  if (ImGui::CollapsingHeader("Terrain Generation"))
   {
     ImGui::SeparatorText("Generation parameters");
     ImGui::SliderScalar(

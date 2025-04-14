@@ -150,9 +150,9 @@ void TerrainRenderModule::execute(
 
 void TerrainRenderModule::drawGui()
 {
-  ImGui::Begin("Render Settings");
+  ImGui::Begin("Application Settings");
 
-  if (ImGui::CollapsingHeader("Terrain Render Settings"))
+  if (ImGui::CollapsingHeader("Terrain Render"))
   {
     ImGui::SeparatorText("Height Adjustment");
     ImGui::SliderFloat("Height Amplifier", &heightParams.amplifier, 0, 10000, "%.3f");

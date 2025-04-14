@@ -6,7 +6,9 @@
 #include <etna/Sampler.hpp>
 
 #include "shaders/WaterParams.h"
+#include "shaders/WaterRenderParams.h"
 #include "../RenderPacket.hpp"
+
 
 class WaterRenderModule
 {
@@ -40,8 +42,10 @@ private:
 
 private:
   WaterParams params;
-
   etna::Buffer paramsBuffer;
+
+  WaterRenderParams renderParams;
+  etna::Buffer renderParamsBuffer;
 
   etna::GraphicsPipeline waterRenderPipeline;
 };

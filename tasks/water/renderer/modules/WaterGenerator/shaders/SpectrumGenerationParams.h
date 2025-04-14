@@ -7,8 +7,8 @@
 struct SpectrumGenerationParams {
     shader_vec2 windDirection;
     shader_float windSpeed;
-    shader_float gravity;
     shader_float wavePeriod;
+    shader_float gravity;
 };
 
 

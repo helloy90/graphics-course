@@ -8,7 +8,6 @@
 #include <etna/PipelineManager.hpp>
 #include <etna/Profiling.hpp>
 #include <etna/RenderTargetStates.hpp>
-#include <vulkan/vulkan_structs.hpp>
 
 #include "render_utils/Utilities.hpp"
 
@@ -242,7 +241,7 @@ void WorldRenderer::update(const FramePacket& packet)
 
 void WorldRenderer::drawGui()
 {
-  ImGui::Begin("Render Settings");
+  ImGui::Begin("Application Settings");
 
   ImGui::Text(
     "Application average %.3f ms/frame (%.1f FPS)",
@@ -255,7 +254,7 @@ void WorldRenderer::drawGui()
     params.cameraWorldPosition.y,
     params.cameraWorldPosition.z);
 
-  ImGui::SeparatorText("Settings");
+  ImGui::SeparatorText("Specific Settings");
 
   lightModule.drawGui(
     terrainRenderModule.getHeightParamsBuffer(),
@@ -265,15 +264,18 @@ void WorldRenderer::drawGui()
   staticMeshesRenderModule.drawGui();
   terrainGeneratorModule.drawGui();
   terrainRenderModule.drawGui();
+  waterGeneratorModule.drawGui();
+  waterRenderModule.drawGui();
 
-  if (ImGui::CollapsingHeader("World Render Settings"))
+  ImGui::SeparatorText("General Settings");
+
+
+  if (ImGui::Checkbox("Enable Wireframe Mode", &wireframeEnabled))
   {
-    if (ImGui::Checkbox("Enable Wireframe Mode", &wireframeEnabled))
-    {
-      rebuildRenderPipelines();
-    }
-    ImGui::Checkbox("Enable Tonemapping", &tonemappingEnabled);
+    rebuildRenderPipelines();
   }
+  ImGui::Checkbox("Enable Tonemapping", &tonemappingEnabled);
+
 
   ImGui::End();
 }
@@ -358,12 +360,22 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
 
     etna::flush_barriers(cmd_buf);
 
-    terrainRenderModule.execute(
+    waterRenderModule.execute(
       cmd_buf,
       renderPacket,
       resolution,
       gBuffer->genColorAttachmentParams(),
       gBuffer->genDepthAttachmentParams(),
+      waterGeneratorModule.getHeightMap(),
+      waterGeneratorModule.getNormalMap(),
+      waterGeneratorModule.getSampler());
+
+    terrainRenderModule.execute(
+      cmd_buf,
+      renderPacket,
+      resolution,
+      gBuffer->genColorAttachmentParams(vk::AttachmentLoadOp::eLoad),
+      gBuffer->genDepthAttachmentParams(vk::AttachmentLoadOp::eLoad),
       terrainGeneratorModule.getMap(),
       terrainGeneratorModule.getNormalMap(),
       terrainGeneratorModule.getSampler());
@@ -374,16 +386,6 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
       resolution,
       gBuffer->genColorAttachmentParams(vk::AttachmentLoadOp::eLoad),
       gBuffer->genDepthAttachmentParams(vk::AttachmentLoadOp::eLoad));
-
-    waterRenderModule.execute(
-      cmd_buf,
-      renderPacket,
-      resolution,
-      gBuffer->genColorAttachmentParams(vk::AttachmentLoadOp::eLoad),
-      gBuffer->genDepthAttachmentParams(vk::AttachmentLoadOp::eLoad),
-      waterGeneratorModule.getHeightMap(),
-      waterGeneratorModule.getNormalMap(),
-      waterGeneratorModule.getSampler());
 
     etna::set_state(
       cmd_buf,

@@ -1,4 +1,5 @@
 #include "WaterRenderModule.hpp"
+#include "cpp_glsl_compat.h"
 
 #include <tracy/Tracy.hpp>
 
@@ -17,11 +18,21 @@ WaterRenderModule::WaterRenderModule()
        .waterOffset = shader_vec2(-1024),
        .extrusionInChunks = shader_uvec2(0),
        .heightOffset = 0.3})
+  , renderParams(
+      {.color = glm::vec4(0.4627450980, 0.7137254902, 0.7686274510, 1),
+       .tipColor = glm::vec4(0.8705882353, 0.9529411765, 0.9647058824, 1),
+       .tipAttenuation = 1,
+       .roughness = 0.3})
 {
 }
 
 WaterRenderModule::WaterRenderModule(WaterParams par)
   : params(par)
+  , renderParams(
+      {.color = glm::vec4(0.4627450980, 0.7137254902, 0.7686274510, 1),
+       .tipColor = glm::vec4(0.8705882353, 0.9529411765, 0.9647058824, 1),
+       .tipAttenuation = 1,
+       .roughness = 0.3})
 {
 }
 
@@ -35,9 +46,21 @@ void WaterRenderModule::allocateResources()
       VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
     .name = "waterParams"});
 
+  renderParamsBuffer = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
+    .size = sizeof(WaterRenderParams),
+    .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_AUTO,
+    .allocationCreate =
+      VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+    .name = "waterRenderParams"});
+
   paramsBuffer.map();
   std::memcpy(paramsBuffer.data(), &params, sizeof(WaterParams));
   paramsBuffer.unmap();
+
+  renderParamsBuffer.map();
+  std::memcpy(renderParamsBuffer.data(), &renderParams, sizeof(WaterRenderParams));
+  renderParamsBuffer.unmap();
 }
 
 void WaterRenderModule::loadShaders()
@@ -121,6 +144,57 @@ void WaterRenderModule::execute(
   }
 }
 
+void WaterRenderModule::drawGui()
+{
+  ImGui::Begin("Application Settings");
+
+  static bool renderParamsChanged = false;
+
+  if (ImGui::CollapsingHeader("Water Render"))
+  {
+    ImGui::SeparatorText("Render parameters");
+
+    ImGuiColorEditFlags colorFlags =
+      ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_Float | ImGuiColorEditFlags_NoAlpha;
+
+    float color[] = {
+      renderParams.color.r,
+      renderParams.color.g,
+      renderParams.color.b,
+    };
+    float tipColor[] = {
+      renderParams.tipColor.r,
+      renderParams.tipColor.g,
+      renderParams.tipColor.b,
+    };
+    float tipAttenuation = renderParams.tipAttenuation;
+    float roughness = renderParams.roughness;
+
+    renderParamsChanged =
+      renderParamsChanged || ImGui::ColorEdit3("Water Color", color, colorFlags);
+    renderParams.color = shader_vec4(color[0], color[1], color[2], 1);
+    renderParamsChanged =
+      renderParamsChanged || ImGui::ColorEdit3("Water Tip Color", tipColor, colorFlags);
+    renderParams.tipColor = shader_vec4(tipColor[0], tipColor[1], tipColor[2], 1);
+    renderParamsChanged = renderParamsChanged ||
+      ImGui::DragFloat("Water Tip Attenuation", &tipAttenuation, 0.01, 0.0, 500);
+    renderParams.tipAttenuation = tipAttenuation;
+    renderParamsChanged =
+      renderParamsChanged || ImGui::DragFloat("Water Roughness", &roughness, 0.001, 0.0, 1);
+    renderParams.roughness = roughness;
+  }
+
+  if (renderParamsChanged)
+  {
+    renderParamsBuffer.map();
+    std::memcpy(renderParamsBuffer.data(), &renderParams, sizeof(WaterRenderParams));
+    renderParamsBuffer.unmap();
+    renderParamsChanged = false;
+  }
+
+  ImGui::End();
+}
+
 void WaterRenderModule::renderWater(
   vk::CommandBuffer cmd_buf,
   vk::PipelineLayout pipeline_layout,
@@ -136,10 +210,11 @@ void WaterRenderModule::renderWater(
     shaderInfo.getDescriptorLayoutId(0),
     cmd_buf,
     {etna::Binding{0, paramsBuffer.genBinding()},
+     etna::Binding{1, renderParamsBuffer.genBinding()},
      etna::Binding{
-       1, water_map.genBinding(water_sampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+       2, water_map.genBinding(water_sampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
      etna::Binding{
-       2,
+       3,
        water_normal_map.genBinding(water_sampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)}});
 
   auto vkSet = set.getVkSet();

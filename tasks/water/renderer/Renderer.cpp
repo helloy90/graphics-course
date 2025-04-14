@@ -38,8 +38,7 @@ void Renderer::initVulkan(std::span<const char*> instance_extensions)
           .fillModeNonSolid = vk::True /*debug*/,
           .fragmentStoresAndAtomics = vk::True}},
     .descriptorIndexingFeatures =
-      {.shaderSampledImageArrayNonUniformIndexing = vk::True,
-       .runtimeDescriptorArray = vk::True},
+      {.shaderSampledImageArrayNonUniformIndexing = vk::True, .runtimeDescriptorArray = vk::True},
     .physicalDeviceIndexOverride = {},
     .numFramesInFlight = 2,
   });
@@ -96,14 +95,13 @@ void Renderer::update(const FramePacket& packet)
 
 void Renderer::drawGui()
 {
-  ImGui::Begin("Render Settings");
+  ImGui::Begin("Application Settings");
 
-  if (ImGui::CollapsingHeader("Application Settings"))
+  worldRenderer->drawGui();
+
+  if (ImGui::Checkbox("Use Vsync", &useVsync))
   {
-    if (ImGui::Checkbox("Use Vsync", &useVsync))
-    {
-      swapchainRecreationNeeded = true;
-    }
+    swapchainRecreationNeeded = true;
   }
 
   if (ImGui::Button("Reload shaders"))
@@ -122,7 +120,6 @@ void Renderer::drawFrame()
     ZoneScopedN("drawGui");
     guiRenderer->nextFrame();
     ImGui::NewFrame();
-    worldRenderer->drawGui();
     drawGui();
     ImGui::Render();
   }

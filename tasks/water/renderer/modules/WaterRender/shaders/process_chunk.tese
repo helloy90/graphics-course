@@ -19,8 +19,8 @@ layout (binding = 0) uniform params_t {
   WaterParams params;
 };
 
-layout (binding = 1) uniform sampler2D heightMap;
-layout (binding = 2) uniform sampler2D normalMap;
+layout (binding = 2) uniform sampler2D heightMap;
+layout (binding = 3) uniform sampler2D normalMap;
 
 layout(push_constant) uniform push_constant_t {
     mat4 projView;
