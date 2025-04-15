@@ -12,7 +12,15 @@
 
 WaterGeneratorModule::WaterGeneratorModule()
   : params(
-      {.windDirection = shader_vec2(1, 1), .windSpeed = 10, .wavePeriod = 200, .gravity = 9.81})
+      {.windDirection = shader_vec2(1, 1),
+       .windSpeed = 10,
+       .amplitude = 1.0f,
+       .lowCutoff = 0.0001f,
+       .highCutoff = 9000.0f,
+       .seed = 0,
+       .patchSize = 1024,
+       .wavePeriod = 200,
+       .gravity = 9.81f})
 {
 }
 
@@ -287,10 +295,16 @@ void WaterGeneratorModule::drawGui()
 
     float windDirection[] = {params.windDirection.x, params.windDirection.y};
     float windSpeed = params.windSpeed;
+    float amplitude = params.amplitude;
+    float lowCutoff = params.lowCutoff;
+    float highCutoff = params.highCutoff;
+    int32_t seed = params.seed;
+    int32_t patchSize = params.patchSize;
     float wavePeriod = params.wavePeriod;
     float gravity = params.gravity;
 
-    paramsChanged = paramsChanged || ImGui::DragFloat("Wave Period", &wavePeriod, 1.0f, 0.00001f, 5000.0f);
+    paramsChanged =
+      paramsChanged || ImGui::DragFloat("Wave Period", &wavePeriod, 1.0f, 0.00001f, 5000.0f);
     params.wavePeriod = wavePeriod;
     paramsChanged = paramsChanged || ImGui::DragFloat("Gravity", &gravity, 0.1f, 0.0f, 5000.0f);
     params.gravity = gravity;
@@ -298,8 +312,20 @@ void WaterGeneratorModule::drawGui()
     ImGui::Text("Water regeneration needed for these to take effect");
     paramsChanged = paramsChanged || ImGui::DragFloat2("Wind Direction", windDirection, 0.1f);
     params.windDirection = glm::vec2(windDirection[0], windDirection[1]);
-    paramsChanged = paramsChanged || ImGui::DragFloat("Wind Speed", &windSpeed, 0.1f, 0.0f, 5000.0f);
+    paramsChanged =
+      paramsChanged || ImGui::DragFloat("Wind Speed", &windSpeed, 0.1f, 0.0f, 5000.0f);
     params.windSpeed = windSpeed;
+    paramsChanged = paramsChanged || ImGui::DragFloat("Amplitude", &amplitude, 0.1f, 0.0f, 5000.0f);
+    params.amplitude = amplitude;
+    paramsChanged = paramsChanged || ImGui::DragFloat("Low Cutoff", &lowCutoff, 0.01, 0, 200);
+    params.lowCutoff = lowCutoff;
+    paramsChanged = paramsChanged || ImGui::DragFloat("High Cutoff", &highCutoff, 0.1, 200, 10000);
+    params.highCutoff = highCutoff;
+    paramsChanged = paramsChanged || ImGui::DragInt("Seed", &seed, 1, 0, 5000000);
+    params.seed = seed;
+    paramsChanged = paramsChanged || ImGui::DragInt("Patch Size", &patchSize, 1, 0, 4096);
+    params.patchSize = patchSize;
+
 
     if (ImGui::Button("Regenerate Water"))
     {

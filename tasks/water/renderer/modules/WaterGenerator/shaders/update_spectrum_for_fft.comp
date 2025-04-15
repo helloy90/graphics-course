@@ -33,14 +33,13 @@ void main(void) {
     vec2 positiveKWave = signal.xy;
     vec2 negativeKWave = signal.zw;
 
-    float patchSize = float(spectrumTexSize.x); // L
     vec2 center = vec2(spectrumTexSize) / 2.0;
 
-    vec2 k = (vec2(texCoord) - center) * kTwoPi / patchSize;
+    vec2 k = (vec2(texCoord) - center) * kTwoPi / params.patchSize;
     float lengthK = length(k);
     
-    float initialFrequency = kTwoPi / params.wavePeriod;
-    float dispersion = floor(sqrt(params.gravity * lengthK) / initialFrequency) * initialFrequency * time;
+    float phase = kTwoPi / params.wavePeriod;
+    float dispersion = floor(sqrt(params.gravity * lengthK) / phase) * phase * time;
 
     vec2 exponent = euler(dispersion);
     vec2 fullWave = complexMult(positiveKWave, exponent) + complexMult(negativeKWave, vec2(exponent.x, -exponent.y));

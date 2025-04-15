@@ -77,6 +77,7 @@ private:
 
   bool wireframeEnabled;
   bool tonemappingEnabled;
+  bool timeStopped;
 
   std::unique_ptr<etna::OneShotCmdMgr> oneShotCommands;
   std::unique_ptr<etna::BlockingTransferHelper> transferHelper;

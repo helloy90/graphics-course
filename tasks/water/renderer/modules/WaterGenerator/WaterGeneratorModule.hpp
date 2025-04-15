@@ -40,8 +40,7 @@ private:
   void updateSpectrumForFFT(
     vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout, float time);
 
-  void inverseFFT(vk::CommandBuffer cmd_buf
-  );
+  void inverseFFT(vk::CommandBuffer cmd_buf);
 
   void executeInverseFFT(
     vk::CommandBuffer cmd_buf,
@@ -78,7 +77,7 @@ private:
   etna::ComputePipeline spectrumProgressionPipeline;
   etna::ComputePipeline horizontalInverseFFTPipeline;
   etna::ComputePipeline verticalInverseFFTPipeline;
-  
+
   etna::ComputePipeline assemblerPipeline;
 
   etna::Sampler textureSampler;

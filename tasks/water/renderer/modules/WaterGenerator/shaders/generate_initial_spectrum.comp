@@ -24,6 +24,7 @@ float hash(uint n)
     n = n * (n * n * 15731U + 789221U) + 1376312589U;
     return float(n & uint(0x7fffffffU))/float(0x7fffffff);
 }
+
 // using Box - Muller here
 vec2 uniformToGaussian(float uniFirst, float uniSecond) {
     float root = sqrt(-2.0 * log(uniFirst));
@@ -33,11 +34,11 @@ vec2 uniformToGaussian(float uniFirst, float uniSecond) {
 
 float phillipsSpectrum(vec2 k) {
     float lengthK = length(k);
-    if (lengthK < 0.001) {
+    if (lengthK < 0.00001) {
         return 0.0;
     }
     // variables are exactly as in paper (GPGPU FFT Ocean Simulation p.17)
-    float A = 1.0;
+    float A = params.amplitude;
     float V = params.windSpeed;
     float L = V * V / 9.81;
     vec2 w = normalize(params.windDirection);
@@ -57,11 +58,16 @@ void main(void) {
         return;
     }
 
-    float patchSize = float(spectrumTexSize.x); // L
     vec2 center = vec2(spectrumTexSize) / 2.0;
-    vec2 k = (vec2(texCoord) - center) * kTwoPi / patchSize;
+    vec2 k = (vec2(texCoord) - center) * kTwoPi / params.patchSize;
 
-    uint seed = texCoord.x + 512 + texCoord.y * 512;
+    float lengthK = length(k);
+    if (lengthK < params.lowCutoff || lengthK > params.highCutoff) {
+        imageStore(spectrumTex, texCoord, vec4(0));
+        return;
+    }
+
+    uint seed = texCoord.x + spectrumTexSize.x + texCoord.y * spectrumTexSize.y + params.seed;
     vec4 uniformRandomSamples = 
         vec4(hash(seed),
             hash(seed * 2),

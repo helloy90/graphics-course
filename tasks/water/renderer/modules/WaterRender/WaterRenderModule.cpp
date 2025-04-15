@@ -29,10 +29,10 @@ WaterRenderModule::WaterRenderModule()
 WaterRenderModule::WaterRenderModule(WaterParams par)
   : params(par)
   , renderParams(
-    {.color = shader_vec4(0.4627450980, 0.7137254902, 0.7686274510, 1),
-      .tipColor = shader_vec4(0.8705882353, 0.9529411765, 0.9647058824, 1),
-      .tipAttenuation = shader_float(1),
-      .roughness = shader_float(0.3)})
+      {.color = shader_vec4(0.4627450980, 0.7137254902, 0.7686274510, 1),
+       .tipColor = shader_vec4(0.8705882353, 0.9529411765, 0.9647058824, 1),
+       .tipAttenuation = shader_float(1),
+       .roughness = shader_float(0.3)})
 {
 }
 

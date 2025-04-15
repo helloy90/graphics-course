@@ -18,9 +18,12 @@ WorldRenderer::WorldRenderer()
   , terrainGeneratorModule()
   , terrainRenderModule({.amplifier = 200.0f, .offset = 0.6f})
   , tonemappingModule()
+  , waterGeneratorModule()
+  , waterRenderModule()
   , renderTargetFormat(vk::Format::eB10G11R11UfloatPack32)
   , wireframeEnabled(false)
   , tonemappingEnabled(false)
+  , timeStopped(false)
 {
 }
 
@@ -275,8 +278,9 @@ void WorldRenderer::drawGui()
     rebuildRenderPipelines();
   }
   ImGui::Checkbox("Enable Tonemapping", &tonemappingEnabled);
+  ImGui::Checkbox("Stop Time", &timeStopped);
 
-
+  
   ImGui::End();
 }
 
@@ -328,7 +332,11 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
     std::memcpy(currentConstants.data(), &params, sizeof(UniformParams));
     currentConstants.unmap();
 
-    waterGeneratorModule.executeProgress(cmd_buf, renderPacket.time);
+    if (!timeStopped)
+    {
+      // waterGeneratorModule.executeStart();
+      waterGeneratorModule.executeProgress(cmd_buf, renderPacket.time);
+    }
 
     etna::set_state(
       cmd_buf,
