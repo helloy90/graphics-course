@@ -8,6 +8,7 @@
 layout (location = 0) in VS_OUT {
     vec3 pos;
     vec3 normal;
+    vec2 texCoord;
 };
 
 layout (location = 0) out vec4 gAlbedo;
@@ -18,11 +19,16 @@ layout (binding = 1) uniform render_params_t {
     WaterRenderParams params;
 };
 
-void main() {
-    vec4 waterAlbedo = params.color;
-    vec4 tipColor = params.tipColor * clamp(pow(max(0.0, pos.y / 7.0), params.tipAttenuation), 0.0, 1.0);
+layout (binding = 3) uniform sampler2D normalMap;
 
-    gAlbedo = vec4(waterAlbedo.xyz + tipColor.xyz, 1);
+vec3 frenselSchlick(vec3 f0, float theta) {
+    return f0 + (vec3(1.0) - f0) * pow(clamp(1.0 - abs(theta), 0.0, 1.0), 5.0);
+}
+
+
+void main() {
+
+    gAlbedo = params.color;
     gNormal = normal;
     gMaterial = vec4(0, params.roughness, 0, 1);
 }

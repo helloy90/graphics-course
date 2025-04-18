@@ -61,10 +61,12 @@ private:
   etna::Image initialSpectrumTexture;
 
   etna::Image updatedSpectrumTexture;
-  etna::Image updatedSpectrumSlopeXTexture;
-  etna::Image updatedSpectrumSlopeZTexture;
-  etna::Image updatedSpectrumDisplacementXTexture;
-  etna::Image updatedSpectrumDisplacementZTexture;
+  etna::Image updatedSpectrumSlopeTexture;
+  // etna::Image updatedSpectrumSlopeXTexture;
+  // etna::Image updatedSpectrumSlopeZTexture;
+  etna::Image updatedSpectrumDisplacementTexture;
+  // etna::Image updatedSpectrumDisplacementXTexture;
+  // etna::Image updatedSpectrumDisplacementZTexture;
 
   etna::Image heightMap;
   etna::Image normalMap;

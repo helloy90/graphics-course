@@ -15,7 +15,7 @@ public:
 
 private:
   void processInput(float dt);
-  void drawFrame();
+  void drawFrame(float dt);
 
   void moveCam(Camera& cam, const Keyboard& kb, float dt);
   void rotateCam(Camera& cam, const Mouse& ms, float dt);

@@ -4,11 +4,12 @@
 #include "cpp_glsl_compat.h"
 
 
-struct WaterRenderParams {
-    shader_vec4 color;
-    shader_vec4 tipColor;
-    shader_float tipAttenuation;
-    shader_float roughness;
+struct WaterRenderParams
+{
+  shader_vec4 color;
+  shader_vec4 foamColor;
+  shader_float tipAttenuation;
+  shader_float roughness;
 };
 
 #endif // WATERRENDERPARAMS_H_INCLUDED

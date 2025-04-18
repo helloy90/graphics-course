@@ -1,4 +1,5 @@
 #include "LightModule.hpp"
+#include "DirectionalLight.h"
 
 #include <imgui.h>
 
@@ -90,6 +91,11 @@ void LightModule::loadLights()
     .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
     .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
     .name = fmt::format("DirectionalLights")});
+  sunBuffer = ctx.createBuffer(etna::Buffer::CreateInfo{
+    .size = sizeof(DirectionalLight),
+    .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+    .name = fmt::format("sun")});
   lightsBuffer = ctx.createBuffer(etna::Buffer::CreateInfo{
     .size = lightsSize,
     .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,

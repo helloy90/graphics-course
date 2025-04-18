@@ -20,7 +20,7 @@ WaterRenderModule::WaterRenderModule()
        .heightOffset = 0.3})
   , renderParams(
       {.color = shader_vec4(0.4627450980, 0.7137254902, 0.7686274510, 1),
-       .tipColor = shader_vec4(0.8705882353, 0.9529411765, 0.9647058824, 1),
+       .foamColor = shader_vec4(0.8705882353, 0.9529411765, 0.9647058824, 1),
        .tipAttenuation = shader_float(1),
        .roughness = shader_float(0.3)})
 {
@@ -30,7 +30,7 @@ WaterRenderModule::WaterRenderModule(WaterParams par)
   : params(par)
   , renderParams(
       {.color = shader_vec4(0.4627450980, 0.7137254902, 0.7686274510, 1),
-       .tipColor = shader_vec4(0.8705882353, 0.9529411765, 0.9647058824, 1),
+       .foamColor = shader_vec4(0.8705882353, 0.9529411765, 0.9647058824, 1),
        .tipAttenuation = shader_float(1),
        .roughness = shader_float(0.3)})
 {
@@ -162,10 +162,10 @@ void WaterRenderModule::drawGui()
       renderParams.color.g,
       renderParams.color.b,
     };
-    float tipColor[] = {
-      renderParams.tipColor.r,
-      renderParams.tipColor.g,
-      renderParams.tipColor.b,
+    float foamColor[] = {
+      renderParams.foamColor.r,
+      renderParams.foamColor.g,
+      renderParams.foamColor.b,
     };
     float tipAttenuation = renderParams.tipAttenuation;
     float roughness = renderParams.roughness;
@@ -174,8 +174,8 @@ void WaterRenderModule::drawGui()
       renderParamsChanged || ImGui::ColorEdit3("Water Color", color, colorFlags);
     renderParams.color = shader_vec4(color[0], color[1], color[2], 1);
     renderParamsChanged =
-      renderParamsChanged || ImGui::ColorEdit3("Water Tip Color", tipColor, colorFlags);
-    renderParams.tipColor = shader_vec4(tipColor[0], tipColor[1], tipColor[2], 1);
+      renderParamsChanged || ImGui::ColorEdit3("Water Tip Color", foamColor, colorFlags);
+    renderParams.foamColor = shader_vec4(foamColor[0], foamColor[1], foamColor[2], 1);
     renderParamsChanged = renderParamsChanged ||
       ImGui::DragFloat("Water Tip Attenuation", &tipAttenuation, 0.01f, 0.0f, 500.0f);
     renderParams.tipAttenuation = tipAttenuation;

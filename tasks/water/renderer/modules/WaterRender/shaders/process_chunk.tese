@@ -13,6 +13,7 @@ layout (location = 1) in vec3 worldPosition[];
 layout (location = 0) out VS_OUT {
   vec3 pos;
   vec3 normal;
+  vec2 texCoord;
 };
 
 layout (binding = 0) uniform params_t {
@@ -52,6 +53,7 @@ void main() {
 
   pos = currentVertex;
   normal = texture(normalMap, currentTexCoord).xyz;
+  texCoord = currentTexCoord;
 
   gl_Position = projView * vec4(currentVertex, 1.0);
 }

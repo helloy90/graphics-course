@@ -41,9 +41,11 @@ private:
 
   std::vector<Light> lights;
   std::vector<DirectionalLight> directionalLights;
+  DirectionalLight sun;
 
   etna::Buffer lightsBuffer;
   etna::Buffer directionalLightsBuffer;
+  etna::Buffer sunBuffer;
 
   etna::ComputePipeline lightDisplacementPipeline;
 

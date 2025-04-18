@@ -42,7 +42,7 @@ void App::run()
 
     processInput(diffTime);
 
-    drawFrame();
+    drawFrame(diffTime);
 
     FrameMark;
   }
@@ -70,13 +70,14 @@ void App::processInput(float dt)
   renderer->debugInput(mainWindow->keyboard);
 }
 
-void App::drawFrame()
+void App::drawFrame(float dt)
 {
   ZoneScoped;
 
   renderer->update(FramePacket{
     .mainCam = mainCam,
     .currentTime = static_cast<float>(windowing.getTime()),
+    .deltaTime = dt
   });
   renderer->drawFrame();
 }

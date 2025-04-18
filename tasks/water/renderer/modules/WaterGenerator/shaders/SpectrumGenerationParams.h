@@ -12,6 +12,10 @@ struct SpectrumGenerationParams {
     shader_float highCutoff;
     shader_uint seed;
     shader_uint patchSize;
+    shader_float foamDecayRate;
+    shader_float foamBias;
+    shader_float foamThreshold;
+    shader_float foamMultiplier;
     shader_float wavePeriod;
     shader_float gravity;
 };

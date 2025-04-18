@@ -19,6 +19,10 @@ WaterGeneratorModule::WaterGeneratorModule()
        .highCutoff = 9000.0f,
        .seed = 0,
        .patchSize = 1024,
+       .foamDecayRate = 0.05f,
+       .foamBias = -0.5f,
+       .foamThreshold = 0.0f,
+       .foamMultiplier = 0.5f,
        .wavePeriod = 200,
        .gravity = 9.81f})
 {
@@ -32,7 +36,7 @@ void WaterGeneratorModule::allocateResources(uint32_t textures_extent)
 
   uint32_t logExtent = static_cast<uint32_t>(glm::log2(textures_extent));
 
-  info = {.size = textures_extent, .logSize = logExtent, .texturesAmount = 5};
+  info = {.size = textures_extent, .logSize = logExtent, .texturesAmount = 3};
 
   initialSpectrumTexture = ctx.createImage(etna::Image::CreateInfo{
     .extent = textureExtent,
@@ -45,26 +49,36 @@ void WaterGeneratorModule::allocateResources(uint32_t textures_extent)
     .name = "updated_spectrum_tex",
     .format = vk::Format::eR32G32Sfloat,
     .imageUsage = vk::ImageUsageFlagBits::eStorage});
-  updatedSpectrumSlopeXTexture = ctx.createImage(etna::Image::CreateInfo{
-    .extent = textureExtent,
-    .name = "updated_spectrum_slope_x_tex",
-    .format = vk::Format::eR32G32Sfloat,
-    .imageUsage = vk::ImageUsageFlagBits::eStorage});
-  updatedSpectrumSlopeZTexture = ctx.createImage(etna::Image::CreateInfo{
+  // updatedSpectrumSlopeXTexture = ctx.createImage(etna::Image::CreateInfo{
+  //   .extent = textureExtent,
+  //   .name = "updated_spectrum_slope_x_tex",
+  //   .format = vk::Format::eR32G32Sfloat,
+  //   .imageUsage = vk::ImageUsageFlagBits::eStorage});
+  // updatedSpectrumSlopeZTexture = ctx.createImage(etna::Image::CreateInfo{
+  //   .extent = textureExtent,
+  //   .name = "updated_spectrum_slope_z_tex",
+  //   .format = vk::Format::eR32G32Sfloat,
+  //   .imageUsage = vk::ImageUsageFlagBits::eStorage});
+  updatedSpectrumSlopeTexture = ctx.createImage(etna::Image::CreateInfo{
     .extent = textureExtent,
     .name = "updated_spectrum_slope_z_tex",
-    .format = vk::Format::eR32G32Sfloat,
+    .format = vk::Format::eR32G32B32A32Sfloat,
     .imageUsage = vk::ImageUsageFlagBits::eStorage});
-  updatedSpectrumDisplacementXTexture = ctx.createImage(etna::Image::CreateInfo{
+  updatedSpectrumDisplacementTexture = ctx.createImage(etna::Image::CreateInfo{
     .extent = textureExtent,
     .name = "updated_spectrum_displacement_x_tex",
-    .format = vk::Format::eR32G32Sfloat,
+    .format = vk::Format::eR32G32B32A32Sfloat,
     .imageUsage = vk::ImageUsageFlagBits::eStorage});
-  updatedSpectrumDisplacementZTexture = ctx.createImage(etna::Image::CreateInfo{
-    .extent = textureExtent,
-    .name = "updated_spectrum_displacement_z_tex",
-    .format = vk::Format::eR32G32Sfloat,
-    .imageUsage = vk::ImageUsageFlagBits::eStorage});
+  // updatedSpectrumDisplacementZTexture = ctx.createImage(etna::Image::CreateInfo{
+  //   .extent = textureExtent,
+  //   .name = "updated_spectrum_displacement_z_tex",
+  //   .format = vk::Format::eR32G32Sfloat,
+  //   .imageUsage = vk::ImageUsageFlagBits::eStorage});
+  // updatedSpectrumDisplacementZTexture = ctx.createImage(etna::Image::CreateInfo{
+  //   .extent = textureExtent,
+  //   .name = "updated_spectrum_displacement_z_tex",
+  //   .format = vk::Format::eR32G32Sfloat,
+  //   .imageUsage = vk::ImageUsageFlagBits::eStorage});
 
   heightMap = ctx.createImage(etna::Image::CreateInfo{
     .extent = textureExtent,
@@ -172,24 +186,34 @@ void WaterGeneratorModule::executeStart()
     auto bindings = {
       etna::Binding{
         0, updatedSpectrumTexture.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral), 0},
+      // etna::Binding{
+      //   0,
+      //   updatedSpectrumSlopeXTexture.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral),
+      //   1},
+      // etna::Binding{
+      //   0,
+      //   updatedSpectrumSlopeZTexture.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral),
+      //   2},
+      // etna::Binding{
+      //   0,
+      //   updatedSpectrumDisplacementXTexture.genBinding(
+      //     textureSampler.get(), vk::ImageLayout::eGeneral),
+      //   3},
       etna::Binding{
         0,
-        updatedSpectrumSlopeXTexture.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral),
+        updatedSpectrumSlopeTexture.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral),
         1},
       etna::Binding{
         0,
-        updatedSpectrumSlopeZTexture.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral),
+        updatedSpectrumDisplacementTexture.genBinding(
+          textureSampler.get(), vk::ImageLayout::eGeneral),
         2},
-      etna::Binding{
-        0,
-        updatedSpectrumDisplacementXTexture.genBinding(
-          textureSampler.get(), vk::ImageLayout::eGeneral),
-        3},
-      etna::Binding{
-        0,
-        updatedSpectrumDisplacementZTexture.genBinding(
-          textureSampler.get(), vk::ImageLayout::eGeneral),
-        4}};
+      // etna::Binding{
+      //   0,
+      //   updatedSpectrumDisplacementZTexture.genBinding(
+      //     textureSampler.get(), vk::ImageLayout::eGeneral),
+      //   4}
+    };
 
     auto shaderInfoHorizontal = etna::get_shader_program("water_horizontal_inverse_fft");
     horizontalInverseFFTDescriptorSet = etna::create_persistent_descriptor_set(
@@ -216,34 +240,48 @@ void WaterGeneratorModule::executeProgress(vk::CommandBuffer cmd_buf, float time
     vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
     vk::ImageLayout::eGeneral,
     vk::ImageAspectFlagBits::eColor);
+  // etna::set_state(
+  //   cmd_buf,
+  //   updatedSpectrumSlopeXTexture.get(),
+  //   vk::PipelineStageFlagBits2::eComputeShader,
+  //   vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
+  //   vk::ImageLayout::eGeneral,
+  //   vk::ImageAspectFlagBits::eColor);
+  // etna::set_state(
+  //   cmd_buf,
+  //   updatedSpectrumSlopeZTexture.get(),
+  //   vk::PipelineStageFlagBits2::eComputeShader,
+  //   vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
+  //   vk::ImageLayout::eGeneral,
+  //   vk::ImageAspectFlagBits::eColor);
+  // etna::set_state(
+  //   cmd_buf,
+  //   updatedSpectrumDisplacementXTexture.get(),
+  //   vk::PipelineStageFlagBits2::eComputeShader,
+  //   vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
+  //   vk::ImageLayout::eGeneral,
+  //   vk::ImageAspectFlagBits::eColor);
   etna::set_state(
     cmd_buf,
-    updatedSpectrumSlopeXTexture.get(),
+    updatedSpectrumSlopeTexture.get(),
     vk::PipelineStageFlagBits2::eComputeShader,
     vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
     vk::ImageLayout::eGeneral,
     vk::ImageAspectFlagBits::eColor);
   etna::set_state(
     cmd_buf,
-    updatedSpectrumSlopeZTexture.get(),
+    updatedSpectrumDisplacementTexture.get(),
     vk::PipelineStageFlagBits2::eComputeShader,
     vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
     vk::ImageLayout::eGeneral,
     vk::ImageAspectFlagBits::eColor);
-  etna::set_state(
-    cmd_buf,
-    updatedSpectrumDisplacementXTexture.get(),
-    vk::PipelineStageFlagBits2::eComputeShader,
-    vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
-    vk::ImageLayout::eGeneral,
-    vk::ImageAspectFlagBits::eColor);
-  etna::set_state(
-    cmd_buf,
-    updatedSpectrumDisplacementZTexture.get(),
-    vk::PipelineStageFlagBits2::eComputeShader,
-    vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
-    vk::ImageLayout::eGeneral,
-    vk::ImageAspectFlagBits::eColor);
+  // etna::set_state(
+  //   cmd_buf,
+  //   updatedSpectrumDisplacementZTexture.get(),
+  //   vk::PipelineStageFlagBits2::eComputeShader,
+  //   vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
+  //   vk::ImageLayout::eGeneral,
+  //   vk::ImageAspectFlagBits::eColor);
 
   etna::flush_barriers(cmd_buf);
 
@@ -300,9 +338,13 @@ void WaterGeneratorModule::drawGui()
     float highCutoff = params.highCutoff;
     int32_t seed = params.seed;
     int32_t patchSize = params.patchSize;
+    float foamDecayRate = params.foamDecayRate;
     float wavePeriod = params.wavePeriod;
     float gravity = params.gravity;
 
+    paramsChanged =
+      paramsChanged || ImGui::DragFloat("Foam Decay Rate", &foamDecayRate, 0.01f, 0.0f, 100.0f);
+    params.foamDecayRate = foamDecayRate;
     paramsChanged =
       paramsChanged || ImGui::DragFloat("Wave Period", &wavePeriod, 1.0f, 0.00001f, 5000.0f);
     params.wavePeriod = wavePeriod;
@@ -382,20 +424,28 @@ void WaterGeneratorModule::updateSpectrumForFFT(
         0, initialSpectrumTexture.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral)},
       etna::Binding{
         1, updatedSpectrumTexture.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral)},
+      // etna::Binding{
+      //   2,
+      //   updatedSpectrumSlopeXTexture.genBinding(textureSampler.get(),
+      //   vk::ImageLayout::eGeneral)},
+      // etna::Binding{
+      //   3,
+      //   updatedSpectrumSlopeZTexture.genBinding(textureSampler.get(),
+      //   vk::ImageLayout::eGeneral)},
+      // etna::Binding{
+      //   4,
+      //   updatedSpectrumDisplacementXTexture.genBinding(
+      //     textureSampler.get(), vk::ImageLayout::eGeneral)},
       etna::Binding{
-        2,
-        updatedSpectrumSlopeXTexture.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral)},
+        2, updatedSpectrumSlopeTexture.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral)},
       etna::Binding{
         3,
-        updatedSpectrumSlopeZTexture.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral)},
-      etna::Binding{
-        4,
-        updatedSpectrumDisplacementXTexture.genBinding(
+        updatedSpectrumDisplacementTexture.genBinding(
           textureSampler.get(), vk::ImageLayout::eGeneral)},
-      etna::Binding{
-        5,
-        updatedSpectrumDisplacementZTexture.genBinding(
-          textureSampler.get(), vk::ImageLayout::eGeneral)},
+      // etna::Binding{
+      //   5,
+      //   updatedSpectrumDisplacementZTexture.genBinding(
+      //     textureSampler.get(), vk::ImageLayout::eGeneral)},
       etna::Binding{6, paramsBuffer.genBinding()},
     });
 
@@ -472,20 +522,28 @@ void WaterGeneratorModule::assembleMaps(
     {
       etna::Binding{
         0, updatedSpectrumTexture.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral)},
+      // etna::Binding{
+      //   1,
+      //   updatedSpectrumSlopeXTexture.genBinding(textureSampler.get(),
+      //   vk::ImageLayout::eGeneral)},
+      // etna::Binding{
+      //   2,
+      //   updatedSpectrumSlopeZTexture.genBinding(textureSampler.get(),
+      //   vk::ImageLayout::eGeneral)},
+      // etna::Binding{
+      //   3,
+      //   updatedSpectrumDisplacementXTexture.genBinding(
+      //     textureSampler.get(), vk::ImageLayout::eGeneral)},
       etna::Binding{
-        1,
-        updatedSpectrumSlopeXTexture.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral)},
+        1, updatedSpectrumSlopeTexture.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral)},
       etna::Binding{
         2,
-        updatedSpectrumSlopeZTexture.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral)},
-      etna::Binding{
-        3,
-        updatedSpectrumDisplacementXTexture.genBinding(
+        updatedSpectrumDisplacementTexture.genBinding(
           textureSampler.get(), vk::ImageLayout::eGeneral)},
-      etna::Binding{
-        4,
-        updatedSpectrumDisplacementZTexture.genBinding(
-          textureSampler.get(), vk::ImageLayout::eGeneral)},
+      // etna::Binding{
+      //   4,
+      //   updatedSpectrumDisplacementZTexture.genBinding(
+      //     textureSampler.get(), vk::ImageLayout::eGeneral)},
       etna::Binding{5, heightMap.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral)},
       etna::Binding{6, normalMap.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral)},
       etna::Binding{7, paramsBuffer.genBinding()},
