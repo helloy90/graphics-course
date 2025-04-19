@@ -8,6 +8,7 @@
 #include <etna/PipelineManager.hpp>
 #include <etna/Profiling.hpp>
 #include <etna/RenderTargetStates.hpp>
+#include <vulkan/vulkan_enums.hpp>
 
 #include "render_utils/Utilities.hpp"
 
@@ -205,6 +206,12 @@ void WorldRenderer::loadCubemap()
   {
     stbi_image_free(textures[i]);
   }
+
+  lutGGXTexture = render_utility::load_texture(
+    *transferHelper,
+    *oneShotCommands,
+    GRAPHICS_COURSE_RESOURCES_ROOT "/textures/utility/lut_ggx.png",
+    vk::Format::eR16G16Sfloat);
 }
 
 
@@ -280,7 +287,7 @@ void WorldRenderer::drawGui()
   ImGui::Checkbox("Enable Tonemapping", &tonemappingEnabled);
   ImGui::Checkbox("Stop Time", &timeStopped);
 
-  
+
   ImGui::End();
 }
 
@@ -298,11 +305,16 @@ void WorldRenderer::deferredShading(
      gBuffer->genNormalBinding(2),
      gBuffer->genMaterialBinding(3),
      gBuffer->genDepthBinding(4),
-     etna::Binding{5, lightModule.getPointLightsBuffer().genBinding()},
-     etna::Binding{6, lightModule.getDirectionalLightsBuffer().genBinding()},
-     etna::Binding{7, lightModule.getLightParamsBuffer().genBinding()},
      etna::Binding{
-       8,
+       5,
+       lutGGXTexture.genBinding(
+         staticMeshesRenderModule.getStaticMeshSampler().get(),
+         vk::ImageLayout::eShaderReadOnlyOptimal)},
+     etna::Binding{6, lightModule.getPointLightsBuffer().genBinding()},
+     etna::Binding{7, lightModule.getDirectionalLightsBuffer().genBinding()},
+     etna::Binding{8, lightModule.getLightParamsBuffer().genBinding()},
+     etna::Binding{
+       9,
        cubemapTexture.genBinding(
          staticMeshesRenderModule.getStaticMeshSampler().get(),
          vk::ImageLayout::eShaderReadOnlyOptimal,

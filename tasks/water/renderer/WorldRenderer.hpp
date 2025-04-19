@@ -63,6 +63,7 @@ private:
   vk::Format renderTargetFormat;
 
   etna::Image cubemapTexture;
+  etna::Image lutGGXTexture;
 
   etna::Image renderTarget;
 

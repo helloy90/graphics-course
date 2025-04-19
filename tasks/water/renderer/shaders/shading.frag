@@ -16,21 +16,22 @@ layout(binding = 1) uniform sampler2D gAlbedo;
 layout(binding = 2) uniform sampler2D gNormal;
 layout(binding = 3) uniform sampler2D gMaterial;
 layout(binding = 4) uniform sampler2D gDepth;
+layout(binding = 5) uniform sampler2D lutGGX;
 
-layout(binding = 5) readonly buffer lights {
+layout(binding = 6) readonly buffer lights {
     Light lightsBuffer[];
 };
-layout(binding = 6) readonly buffer directionalLights {
+layout(binding = 7) readonly buffer directionalLights {
     DirectionalLight directionalLightsBuffer[];
 };
 
-layout(binding = 7) readonly uniform light_params_t {
+layout(binding = 8) readonly uniform light_params_t {
     uint lightsAmount;
     uint directionalLightsAmount;
     float[] _;
 };
 
-layout(binding = 8) uniform samplerCube cubemap;
+layout(binding = 9) uniform samplerCube cubemap;
 
 layout(push_constant) uniform resolution_t {
     uvec2 resolution;
@@ -69,6 +70,14 @@ vec3 getLightIntensity(DirectionalLight light, vec3 pointToLight) {
     float attenuation = 1.0f;
 
     return attenuation * light.intensity * light.color;
+}
+
+vec3 getIBLGGXFrensel(vec3 normal, vec3 viewDir, float roughness, vec3 f0, float specularWeight) {
+    return vec3(0);
+}
+
+vec3 IBL() {
+    return vec3(0);
 }
 
 float D_GGX(float alphaRoughness, float NdotH) {
@@ -195,7 +204,7 @@ void main() {
     worldSpacePosition /= worldSpacePosition.w;
 
     const vec3 viewDirection = (worldSpacePosition.xyz - uniformParams.cameraWorldPosition);
-    const vec3 reflection = texture(cubemap, reflect(viewDirection, normal)).rgb * 20;
+    const vec3 reflection = texture(cubemap, reflect(viewDirection, normal)).rgb;
 
     // change to IBL later
     vec3 color = vec3(albedo * 0.3);
@@ -206,6 +215,7 @@ void main() {
     for (uint i = 0; i < directionalLightsAmount; i++) {
         DirectionalLight currentLight = directionalLightsBuffer[i];
 
+        // sun
         vec3 point = currentLight.color * pow(clampedDot(normalize(-viewDirection), normalize(currentLight.direction)), 3500.0);
 
         vec3 pbrColor = computeLightPBR(albedo, worldSpacePosition.xyz, currentLight, normal, reflection, material);

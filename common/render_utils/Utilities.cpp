@@ -1,4 +1,10 @@
 #include "Utilities.hpp"
+#include "etna/BlockingTransferHelper.hpp"
+#include "etna/OneShotCmdMgr.hpp"
+
+#include <tracy/Tracy.hpp>
+#include <stb_image.h>
+#include <vulkan/vulkan_enums.hpp>
 
 namespace render_utility
 {
@@ -207,6 +213,54 @@ void blit_image(
     .filter = vk::Filter::eLinear};
 
   cmd_buf.blitImage2(&blitInfo);
+}
+
+etna::Image load_texture(
+  etna::BlockingTransferHelper& transfer_helper,
+  etna::OneShotCmdMgr& one_shot_commands,
+  std::filesystem::path path,
+  vk::Format format)
+{
+  ZoneScoped;
+  auto& ctx = etna::get_context();
+
+  uint32_t layerCount = 1;
+  int width, height, channels;
+
+  auto filepathString = path.generic_string<char>();
+  unsigned char* textureData =
+    stbi_load(filepathString.c_str(), &width, &height, &channels, STBI_rgb_alpha);
+
+  ETNA_VERIFYF(textureData != nullptr, "Texture {} is not loaded!", filepathString.c_str());
+
+  uint32_t mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1;
+
+  auto filenameString = path.filename().generic_string<char>();
+  const vk::DeviceSize textureSize = width * height * 4;
+  etna::Buffer textureBuffer = ctx.createBuffer(etna::Buffer::CreateInfo{
+    .size = textureSize,
+    .bufferUsage = vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eTransferDst,
+    .name = filenameString + "_buffer",
+  });
+
+  auto source = std::span<unsigned char>(textureData, textureSize);
+  transfer_helper.uploadBuffer(one_shot_commands, textureBuffer, 0, std::as_bytes(source));
+
+  etna::Image texture = ctx.createImage(etna::Image::CreateInfo{
+    .extent = vk::Extent3D{static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1},
+    .name = filenameString + "_texture",
+    .format = format,
+    .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst |
+      vk::ImageUsageFlagBits::eTransferSrc,
+    .mipLevels = mipLevels});
+
+  render_utility::local_copy_buffer_to_image(one_shot_commands, textureBuffer, texture, layerCount);
+
+  render_utility::generate_mipmaps_vk_style(one_shot_commands, texture, mipLevels, layerCount);
+
+  stbi_image_free(textureData);
+
+  return texture;
 }
 
 } // namespace render_utility
