@@ -5,20 +5,21 @@
 #include "SpectrumGenerationParams.h"
 #include "complex.glsl"
 
-layout(local_size_x = 1024) in;
+layout(local_size_x = 256) in;
 
 layout(set = 0, binding = 0, rg32f) uniform image2D spectrumTextures[8];
 
 layout(set = 1, binding = 0) readonly uniform params_t {
     SpectrumGenerationParams params;
 };
+
 layout(set = 1, binding = 1) readonly uniform info_t {
     uint size;
     uint steps;
     uint texturesAmount;
 };
 
-shared vec4 fftbuffer[2][1024];
+shared vec4 fftbuffer[2][256];
 
 vec4 butterfly(uint stepFFT, uint size, uint index) {
     uint period = size >> (stepFFT + 1);
@@ -44,8 +45,12 @@ vec4 FFT(uint threadIndex, vec4 initial) {
         vec2 twiddle = data.xy;
         uvec2 indices = uvec2(data.zw);
 
-        vec4 value = fftbuffer[flag][indices.y];
-        fftbuffer[(flag + 1) % 2][threadIndex] = fftbuffer[flag][indices.x] + vec4(complexMult(twiddle, value.xy), complexMult(twiddle, value.zw));
+        vec4 first = fftbuffer[flag][indices.x];
+        vec4 second = fftbuffer[flag][indices.y];
+        memoryBarrierShared();
+        groupMemoryBarrier();
+        barrier();
+        fftbuffer[(flag + 1) % 2][threadIndex] = first + vec4(complexMult(twiddle, second.xy), complexMult(twiddle, second.zw));
 
         flag = (flag + 1) % 2;
         memoryBarrierShared();
