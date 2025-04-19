@@ -1,0 +1,41 @@
+#version 460
+#extension GL_ARB_separate_shader_objects : enable
+#extension GL_GOOGLE_include_directive : require
+
+#include "SpectrumGenerationParams.h"
+
+layout(local_size_x = 32, local_size_y = 32) in;
+
+layout(binding = 0, rg32f) readonly uniform image2D updatedSpectrumTex;
+layout(binding = 1, rg32f) readonly uniform image2D updatedSpectrumSlopeXTex;
+layout(binding = 2, rg32f) readonly uniform image2D updatedSpectrumSlopeZTex;
+layout(binding = 3, rg32f) readonly uniform image2D updatedSpectrumDisplacementXTex;
+layout(binding = 4, rg32f) readonly uniform image2D updatedSpectrumDisplacementZTex;
+
+layout(binding = 5, rgba32f) writeonly uniform image2D heightMap;
+layout(binding = 6, rgba32f) writeonly uniform image2D normalMap;
+
+layout(binding = 7) uniform params_t {
+    SpectrumGenerationParams params;
+};
+
+vec2 permute(vec2 data, ivec2 index, ivec2 size) {
+    return data * (1.0 - 2.0 * ((index.x + index.y) % 2)) / size;
+}
+
+void main(void) {
+    ivec2 texCoord = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 spectrumTexSize = imageSize(updatedSpectrumTex);
+    if (texCoord.x >= spectrumTexSize.x || texCoord.y >= spectrumTexSize.y) {
+        return;
+    }
+
+    vec2 spectrum = permute(imageLoad(updatedSpectrumTex, texCoord).xy, texCoord, spectrumTexSize);
+    vec2 spectrumSlopeX = permute(imageLoad(updatedSpectrumSlopeXTex, texCoord).xy, texCoord, spectrumTexSize);
+    vec2 spectrumSlopeZ = permute(imageLoad(updatedSpectrumSlopeZTex, texCoord).xy, texCoord, spectrumTexSize);
+    vec2 spectrumDisplacementX = permute(imageLoad(updatedSpectrumDisplacementXTex, texCoord).xy, texCoord, spectrumTexSize);
+    vec2 spectrumDisplacementZ = permute(imageLoad(updatedSpectrumDisplacementZTex, texCoord).xy, texCoord, spectrumTexSize);
+
+    imageStore(heightMap, texCoord, vec4(-spectrumDisplacementX.x, spectrum.x, -spectrumDisplacementZ.x, 0));
+    imageStore(normalMap, texCoord, vec4(normalize(vec3(-spectrumSlopeX.x, 1.0, -spectrumSlopeZ.x)), 0));
+}
