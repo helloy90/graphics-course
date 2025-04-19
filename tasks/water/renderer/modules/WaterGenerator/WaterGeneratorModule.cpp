@@ -273,12 +273,24 @@ void WaterGeneratorModule::drawGui()
     int32_t seed = params.seed;
     int32_t patchSize = params.patchSize;
     float foamDecayRate = params.foamDecayRate;
+    float foamBias = params.foamBias;
+    float foamThreshold = params.foamThreshold;
+    float foamMultiplier = params.foamMultiplier;
     float wavePeriod = params.wavePeriod;
     float gravity = params.gravity;
 
     paramsChanged =
       paramsChanged || ImGui::DragFloat("Foam Decay Rate", &foamDecayRate, 0.01f, 0.0f, 100.0f);
     params.foamDecayRate = foamDecayRate;
+    paramsChanged =
+      paramsChanged || ImGui::DragFloat("Foam Bias", &foamBias, 0.01f, -1.0f, 1.0f);
+    params.foamBias = foamBias;
+    paramsChanged =
+      paramsChanged || ImGui::DragFloat("Foam Threshold", &foamThreshold, 0.01f, -5.0f, 5.0f);
+    params.foamThreshold = foamThreshold;
+    paramsChanged =
+      paramsChanged || ImGui::DragFloat("Foam Multiplier", &foamMultiplier, 0.01f, 0.0f, 100.0f);
+    params.foamMultiplier = foamMultiplier;
     paramsChanged =
       paramsChanged || ImGui::DragFloat("Wave Period", &wavePeriod, 1.0f, 0.00001f, 5000.0f);
     params.wavePeriod = wavePeriod;
