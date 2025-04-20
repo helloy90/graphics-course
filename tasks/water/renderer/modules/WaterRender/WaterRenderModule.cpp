@@ -12,7 +12,7 @@
 
 WaterRenderModule::WaterRenderModule()
   : params(
-      {.extent = shader_uvec2(256),
+      {.extent = shader_uvec2(1024),
        .chunk = shader_uvec2(16),
        .waterInChunks = shader_uvec2(128),
        .waterOffset = shader_vec2(-1024),

@@ -6,18 +6,13 @@
 
 layout(local_size_x = 32, local_size_y = 32) in;
 
-layout(binding = 0, rg32f) readonly uniform image2D updatedSpectrumTex;
-// layout(binding = 1, rg32f) readonly uniform image2D updatedSpectrumSlopeXTex;
-// layout(binding = 2, rg32f) readonly uniform image2D updatedSpectrumSlopeZTex;
-// layout(binding = 3, rg32f) readonly uniform image2D updatedSpectrumDisplacementXTex;
-layout(binding = 1, rg32f) readonly uniform image2D updatedSpectrumSlopeTex;
-layout(binding = 2, rg32f) readonly uniform image2D updatedSpectrumDisplacementTex;
-// layout(binding = 4, rg32f) readonly uniform image2D updatedSpectrumDisplacementZTex;
+layout(binding = 0, rgba32f) readonly uniform image2D updatedSpectrumSlopeTex;
+layout(binding = 1, rgba32f) readonly uniform image2D updatedSpectrumDisplacementTex;
 
-layout(binding = 5, rgba32f) uniform image2D heightMap;
-layout(binding = 6, rgba32f) writeonly uniform image2D normalMap;
+layout(binding = 2, rgba32f) uniform image2D heightMap;
+layout(binding = 3, rgba32f) writeonly uniform image2D normalMap;
 
-layout(binding = 7) uniform params_t {
+layout(binding = 4) uniform params_t {
     SpectrumGenerationParams params;
 };
 
@@ -27,18 +22,13 @@ vec4 permute(vec4 data, ivec2 index, ivec2 size) {
 
 void main(void) {
     ivec2 texCoord = ivec2(gl_GlobalInvocationID.xy);
-    ivec2 spectrumTexSize = imageSize(updatedSpectrumTex);
+    ivec2 spectrumTexSize = imageSize(updatedSpectrumSlopeTex);
     if (texCoord.x >= spectrumTexSize.x || texCoord.y >= spectrumTexSize.y) {
         return;
     }
 
-    vec4 spectrum = permute(imageLoad(updatedSpectrumTex, texCoord), texCoord, spectrumTexSize);
-    // vec2 spectrumSlopeX = permute(imageLoad(updatedSpectrumSlopeXTex, texCoord).xy, texCoord, spectrumTexSize);
-    // vec2 spectrumSlopeZ = permute(imageLoad(updatedSpectrumSlopeZTex, texCoord).xy, texCoord, spectrumTexSize);
-    // vec2 spectrumDisplacementX = permute(imageLoad(updatedSpectrumDisplacementXTex, texCoord).xy, texCoord, spectrumTexSize);
     vec4 spectrumSlope = permute(imageLoad(updatedSpectrumSlopeTex, texCoord), texCoord, spectrumTexSize);
     vec4 spectrumDisplacement = permute(imageLoad(updatedSpectrumDisplacementTex, texCoord), texCoord, spectrumTexSize);
-    // vec2 spectrumDisplacementZ = permute(imageLoad(updatedSpectrumDisplacementZTex, texCoord).xy, texCoord, spectrumTexSize);
 
     vec2 lambda = vec2(1);
 

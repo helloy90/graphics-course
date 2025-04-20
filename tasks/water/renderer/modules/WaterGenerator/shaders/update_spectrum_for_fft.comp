@@ -8,13 +8,8 @@
 layout(local_size_x = 32, local_size_y = 32) in;
 
 layout(binding = 0, rgba32f) readonly uniform image2D initialSpectrumTex;
-layout(binding = 1, rg32f) writeonly uniform image2D updatedSpectrumTex;
-// layout(binding = 2, rg32f) writeonly uniform image2D updatedSpectrumSlopeXTex;
-// layout(binding = 3, rg32f) writeonly uniform image2D updatedSpectrumSlopeZTex;
-// layout(binding = 4, rg32f) writeonly uniform image2D updatedSpectrumDisplacementXTex;
-layout(binding = 2, rg32f) writeonly uniform image2D updatedSpectrumSlopeTex;
-layout(binding = 3, rg32f) writeonly uniform image2D updatedSpectrumDisplacementTex;
-// layout(binding = 5, rg32f) writeonly uniform image2D updatedSpectrumDisplacementZTex;
+layout(binding = 1, rgba32f) writeonly uniform image2D updatedSpectrumSlopeTex;
+layout(binding = 2, rgba32f) writeonly uniform image2D updatedSpectrumDisplacementTex;
 
 layout(binding = 6) readonly uniform params_t {
     SpectrumGenerationParams params;
@@ -70,11 +65,6 @@ void main(void) {
     vec2 slopeX = vec2(dispY_dx.x - dispY_dz.y, dispY_dx.y + dispY_dz.x);
     vec2 slopeZ = vec2(dispX_dx.x - dispZ_dz.y, dispX_dx.y + dispZ_dz.x);
 
-    imageStore(updatedSpectrumTex, texCoord, vec4(fullWave, 1, 1));
     imageStore(updatedSpectrumDisplacementTex, texCoord, vec4(displacementX, displacementZ));
-    // imageStore(updatedSpectrumDisplacementTex, texCoord, vec4(displacementX, 1, 1));
-    // imageStore(updatedSpectrumDisplacementZTex, texCoord, vec4(displacementZ, 1, 1));
     imageStore(updatedSpectrumSlopeTex, texCoord, vec4(slopeX, slopeZ));
-    // imageStore(updatedSpectrumSlopeTex, texCoord, vec4(slopeX, 1, 1));
-    // imageStore(updatedSpectrumSlopeZTex, texCoord, vec4(slopeZ, 1, 1));
 }

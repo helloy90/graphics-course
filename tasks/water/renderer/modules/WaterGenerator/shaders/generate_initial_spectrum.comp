@@ -12,11 +12,6 @@ layout(binding = 1) readonly uniform params_t {
     SpectrumGenerationParams params;
 };
 
-// layout(push_constant) uniform push_constant_t {
-//     float time;
-// };
-
-
 // using this as a uniform distribution number gnerator
 float hash(uint n) 
 {

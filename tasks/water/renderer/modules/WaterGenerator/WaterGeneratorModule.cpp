@@ -18,7 +18,7 @@ WaterGeneratorModule::WaterGeneratorModule()
        .lowCutoff = 0.0001f,
        .highCutoff = 9000.0f,
        .seed = 0,
-       .patchSize = 256,
+       .patchSize = 1024,
        .foamDecayRate = 0.05f,
        .foamBias = -0.5f,
        .foamThreshold = 0.0f,
@@ -36,7 +36,7 @@ void WaterGeneratorModule::allocateResources(uint32_t textures_extent)
 
   uint32_t logExtent = static_cast<uint32_t>(glm::log2(textures_extent));
 
-  info = {.size = textures_extent, .logSize = logExtent, .texturesAmount = 3};
+  info = {.size = textures_extent, .logSize = logExtent, .texturesAmount = 2};
 
   initialSpectrumTexture = ctx.createImage(etna::Image::CreateInfo{
     .extent = textureExtent,
@@ -44,19 +44,14 @@ void WaterGeneratorModule::allocateResources(uint32_t textures_extent)
     .format = vk::Format::eR32G32B32A32Sfloat,
     .imageUsage = vk::ImageUsageFlagBits::eStorage});
 
-  updatedSpectrumTexture = ctx.createImage(etna::Image::CreateInfo{
-    .extent = textureExtent,
-    .name = "updated_spectrum_tex",
-    .format = vk::Format::eR32G32Sfloat,
-    .imageUsage = vk::ImageUsageFlagBits::eStorage});
   updatedSpectrumSlopeTexture = ctx.createImage(etna::Image::CreateInfo{
     .extent = textureExtent,
-    .name = "updated_spectrum_slope_z_tex",
+    .name = "updated_spectrum_slope_tex",
     .format = vk::Format::eR32G32B32A32Sfloat,
     .imageUsage = vk::ImageUsageFlagBits::eStorage});
   updatedSpectrumDisplacementTexture = ctx.createImage(etna::Image::CreateInfo{
     .extent = textureExtent,
-    .name = "updated_spectrum_displacement_x_tex",
+    .name = "updated_spectrum_displacement_tex",
     .format = vk::Format::eR32G32B32A32Sfloat,
     .imageUsage = vk::ImageUsageFlagBits::eStorage});
 
@@ -165,16 +160,14 @@ void WaterGeneratorModule::executeStart()
 
     auto bindings = {
       etna::Binding{
-        0, updatedSpectrumTexture.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral), 0},
-      etna::Binding{
         0,
         updatedSpectrumSlopeTexture.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral),
-        1},
+        0},
       etna::Binding{
         0,
         updatedSpectrumDisplacementTexture.genBinding(
           textureSampler.get(), vk::ImageLayout::eGeneral),
-        2},
+        1},
     };
 
     auto shaderInfoHorizontal = etna::get_shader_program("water_horizontal_inverse_fft");
@@ -195,13 +188,6 @@ void WaterGeneratorModule::executeStart()
 void WaterGeneratorModule::executeProgress(vk::CommandBuffer cmd_buf, float time)
 {
   ETNA_PROFILE_GPU(cmd_buf, waterProgress);
-  etna::set_state(
-    cmd_buf,
-    updatedSpectrumTexture.get(),
-    vk::PipelineStageFlagBits2::eComputeShader,
-    vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eShaderRead,
-    vk::ImageLayout::eGeneral,
-    vk::ImageAspectFlagBits::eColor);
   etna::set_state(
     cmd_buf,
     updatedSpectrumSlopeTexture.get(),
@@ -282,8 +268,7 @@ void WaterGeneratorModule::drawGui()
     paramsChanged =
       paramsChanged || ImGui::DragFloat("Foam Decay Rate", &foamDecayRate, 0.01f, 0.0f, 100.0f);
     params.foamDecayRate = foamDecayRate;
-    paramsChanged =
-      paramsChanged || ImGui::DragFloat("Foam Bias", &foamBias, 0.01f, -1.0f, 1.0f);
+    paramsChanged = paramsChanged || ImGui::DragFloat("Foam Bias", &foamBias, 0.01f, -1.0f, 1.0f);
     params.foamBias = foamBias;
     paramsChanged =
       paramsChanged || ImGui::DragFloat("Foam Threshold", &foamThreshold, 0.01f, -5.0f, 5.0f);
@@ -369,11 +354,9 @@ void WaterGeneratorModule::updateSpectrumForFFT(
       etna::Binding{
         0, initialSpectrumTexture.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral)},
       etna::Binding{
-        1, updatedSpectrumTexture.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral)},
+        1, updatedSpectrumSlopeTexture.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral)},
       etna::Binding{
-        2, updatedSpectrumSlopeTexture.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral)},
-      etna::Binding{
-        3,
+        2,
         updatedSpectrumDisplacementTexture.genBinding(
           textureSampler.get(), vk::ImageLayout::eGeneral)},
       etna::Binding{6, paramsBuffer.genBinding()},
@@ -413,7 +396,7 @@ void WaterGeneratorModule::inverseFFT(vk::CommandBuffer cmd_buf)
       verticalInverseFFTPipeline.getVkPipelineLayout(),
       "water_vertical_inverse_fft",
       *verticalIInverseFFTDescriptorSet,
-      {info.size, 1, 1});
+      {1, info.size, 1});
   }
 }
 
@@ -451,16 +434,14 @@ void WaterGeneratorModule::assembleMaps(
     cmd_buf,
     {
       etna::Binding{
-        0, updatedSpectrumTexture.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral)},
+        0, updatedSpectrumSlopeTexture.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral)},
       etna::Binding{
-        1, updatedSpectrumSlopeTexture.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral)},
-      etna::Binding{
-        2,
+        1,
         updatedSpectrumDisplacementTexture.genBinding(
           textureSampler.get(), vk::ImageLayout::eGeneral)},
-      etna::Binding{5, heightMap.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral)},
-      etna::Binding{6, normalMap.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral)},
-      etna::Binding{7, paramsBuffer.genBinding()},
+      etna::Binding{2, heightMap.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral)},
+      etna::Binding{3, normalMap.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral)},
+      etna::Binding{4, paramsBuffer.genBinding()},
     });
 
   auto vkSet = set.getVkSet();

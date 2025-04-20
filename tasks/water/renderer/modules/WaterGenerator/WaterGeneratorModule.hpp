@@ -14,7 +14,7 @@ class WaterGeneratorModule
 public:
   WaterGeneratorModule();
 
-  void allocateResources(uint32_t textures_extent = 256);
+  void allocateResources(uint32_t textures_extent = 1024);
   void loadShaders();
   void setupPipelines();
   void executeStart();
@@ -60,7 +60,6 @@ private:
 
   etna::Image initialSpectrumTexture;
 
-  etna::Image updatedSpectrumTexture;
   etna::Image updatedSpectrumSlopeTexture;
   etna::Image updatedSpectrumDisplacementTexture;
 
