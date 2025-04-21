@@ -3,6 +3,7 @@
 #extension GL_GOOGLE_include_directive : require
 
 #include "SpectrumGenerationParams.h"
+#include "SpectrumUpdateParams.h"
 #include "complex.glsl"
 
 layout(local_size_x = 32, local_size_y = 32) in;
@@ -11,8 +12,12 @@ layout(binding = 0, rgba32f) readonly uniform image2D initialSpectrumTex;
 layout(binding = 1, rgba32f) writeonly uniform image2D updatedSpectrumSlopeTex;
 layout(binding = 2, rgba32f) writeonly uniform image2D updatedSpectrumDisplacementTex;
 
-layout(binding = 6) readonly uniform params_t {
+layout(binding = 3) readonly uniform params_t {
     SpectrumGenerationParams params;
+};
+
+layout(binding = 4) readonly uniform update_params_t {
+    SpectrumUpdateParams updateParams;
 };
 
 layout(push_constant) uniform push_constant_t {
@@ -39,8 +44,8 @@ void main(void) {
         lengthKRcp = 1.0;
     }
     
-    float phase = kTwoPi / params.wavePeriod;
-    float dispersion = floor(sqrt(params.gravity * lengthK) / phase) * phase * time;
+    float phase = kTwoPi / updateParams.wavePeriod;
+    float dispersion = floor(sqrt(updateParams.gravity * lengthK) / phase) * phase * time;
     vec2 exponent = euler(dispersion);
 
     vec2 fullWave = complexMult(positiveKWave, exponent) + complexMult(negativeKWave, vec2(exponent.x, -exponent.y));

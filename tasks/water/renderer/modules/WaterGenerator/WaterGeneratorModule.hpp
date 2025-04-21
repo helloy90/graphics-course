@@ -7,6 +7,7 @@
 #include <etna/Sampler.hpp>
 
 #include "shaders/SpectrumGenerationParams.h"
+#include "shaders/SpectrumUpdateParams.h"
 
 
 class WaterGeneratorModule
@@ -53,7 +54,9 @@ private:
 
 private:
   SpectrumGenerationParams params;
+  SpectrumUpdateParams updateParams;
   etna::Buffer paramsBuffer;
+  etna::Buffer updateParamsBuffer;
 
   InverseFFTInfo info;
   etna::Buffer infoBuffer;

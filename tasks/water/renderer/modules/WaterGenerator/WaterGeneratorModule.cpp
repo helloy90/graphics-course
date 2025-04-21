@@ -1,4 +1,5 @@
 #include "WaterGeneratorModule.hpp"
+#include "shaders/SpectrumUpdateParams.h"
 
 #include <imgui.h>
 
@@ -11,15 +12,17 @@
 
 
 WaterGeneratorModule::WaterGeneratorModule()
-  : params(
-      {.windDirection = shader_vec2(1, 1),
-       .windSpeed = 10,
-       .amplitude = 1.0f,
-       .lowCutoff = 0.0001f,
-       .highCutoff = 9000.0f,
-       .seed = 0,
-       .patchSize = 1024,
-       .foamDecayRate = 0.0175f,
+  : params({
+      .windDirection = shader_vec2(1, 1),
+      .windSpeed = 10,
+      .amplitude = 1.0f,
+      .lowCutoff = 0.0001f,
+      .highCutoff = 9000.0f,
+      .seed = 0,
+      .patchSize = 1024,
+    })
+  , updateParams(
+      {.foamDecayRate = 0.0175f,
        .foamBias = 0.85f,
        .foamThreshold = 0.0f,
        .foamMultiplier = 0.1f,
@@ -73,6 +76,14 @@ void WaterGeneratorModule::allocateResources(uint32_t textures_extent)
     .allocationCreate =
       VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
     .name = "spectrumGenerationParams"});
+  updateParamsBuffer = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
+    .size = sizeof(SpectrumUpdateParams),
+    .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_AUTO,
+    .allocationCreate =
+      VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+    .name = "spectrumUpdateParams"});
+
   infoBuffer = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
     .size = sizeof(InverseFFTInfo),
     .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
@@ -135,6 +146,10 @@ void WaterGeneratorModule::executeStart()
     paramsBuffer.map();
     std::memcpy(paramsBuffer.data(), &params, sizeof(SpectrumGenerationParams));
     paramsBuffer.unmap();
+
+    updateParamsBuffer.map();
+    std::memcpy(updateParamsBuffer.data(), &updateParams, sizeof(SpectrumUpdateParams));
+    updateParamsBuffer.unmap();
 
     infoBuffer.map();
     std::memcpy(infoBuffer.data(), &info, sizeof(InverseFFTInfo));
@@ -246,10 +261,18 @@ void WaterGeneratorModule::drawGui()
   ImGui::Begin("Application Settings");
 
   static bool paramsChanged = false;
+  static bool updateParamsChanged = false;
 
   if (ImGui::CollapsingHeader("Water Generator"))
   {
     ImGui::SeparatorText("Generation parameters");
+
+    float foamDecayRate = updateParams.foamDecayRate;
+    float foamBias = updateParams.foamBias;
+    float foamThreshold = updateParams.foamThreshold;
+    float foamMultiplier = updateParams.foamMultiplier;
+    float wavePeriod = updateParams.wavePeriod;
+    float gravity = updateParams.gravity;
 
     float windDirection[] = {params.windDirection.x, params.windDirection.y};
     float windSpeed = params.windSpeed;
@@ -258,29 +281,26 @@ void WaterGeneratorModule::drawGui()
     float highCutoff = params.highCutoff;
     int32_t seed = params.seed;
     int32_t patchSize = params.patchSize;
-    float foamDecayRate = params.foamDecayRate;
-    float foamBias = params.foamBias;
-    float foamThreshold = params.foamThreshold;
-    float foamMultiplier = params.foamMultiplier;
-    float wavePeriod = params.wavePeriod;
-    float gravity = params.gravity;
 
-    paramsChanged =
-      paramsChanged || ImGui::DragFloat("Foam Decay Rate", &foamDecayRate, 0.01f, 0.0f, 100.0f);
-    params.foamDecayRate = foamDecayRate;
-    paramsChanged = paramsChanged || ImGui::DragFloat("Foam Bias", &foamBias, 0.01f, -1.0f, 1.0f);
-    params.foamBias = foamBias;
-    paramsChanged =
-      paramsChanged || ImGui::DragFloat("Foam Threshold", &foamThreshold, 0.01f, -5.0f, 5.0f);
-    params.foamThreshold = foamThreshold;
-    paramsChanged =
-      paramsChanged || ImGui::DragFloat("Foam Multiplier", &foamMultiplier, 0.01f, 0.0f, 100.0f);
-    params.foamMultiplier = foamMultiplier;
-    paramsChanged =
-      paramsChanged || ImGui::DragFloat("Wave Period", &wavePeriod, 1.0f, 0.00001f, 5000.0f);
-    params.wavePeriod = wavePeriod;
-    paramsChanged = paramsChanged || ImGui::DragFloat("Gravity", &gravity, 0.1f, 0.0f, 5000.0f);
-    params.gravity = gravity;
+    ImGui::Text("Water update parameters");
+    updateParamsChanged = updateParamsChanged ||
+      ImGui::DragFloat("Foam Decay Rate", &foamDecayRate, 0.01f, 0.0f, 100.0f);
+    updateParams.foamDecayRate = foamDecayRate;
+    updateParamsChanged =
+      updateParamsChanged || ImGui::DragFloat("Foam Bias", &foamBias, 0.01f, -1.0f, 1.0f);
+    updateParams.foamBias = foamBias;
+    updateParamsChanged =
+      updateParamsChanged || ImGui::DragFloat("Foam Threshold", &foamThreshold, 0.01f, -5.0f, 5.0f);
+    updateParams.foamThreshold = foamThreshold;
+    updateParamsChanged = updateParamsChanged ||
+      ImGui::DragFloat("Foam Multiplier", &foamMultiplier, 0.01f, 0.0f, 100.0f);
+    updateParams.foamMultiplier = foamMultiplier;
+    updateParamsChanged =
+      updateParamsChanged || ImGui::DragFloat("Wave Period", &wavePeriod, 1.0f, 0.00001f, 5000.0f);
+    updateParams.wavePeriod = wavePeriod;
+    updateParamsChanged =
+      updateParamsChanged || ImGui::DragFloat("Gravity", &gravity, 0.1f, 0.0f, 5000.0f);
+    updateParams.gravity = gravity;
 
     ImGui::Text("Water regeneration needed for these to take effect");
     paramsChanged = paramsChanged || ImGui::DragFloat2("Wind Direction", windDirection, 0.1f);
@@ -299,11 +319,18 @@ void WaterGeneratorModule::drawGui()
     paramsChanged = paramsChanged || ImGui::DragInt("Patch Size", &patchSize, 1, 0, 4096);
     params.patchSize = patchSize;
 
-
     if (ImGui::Button("Regenerate Water"))
     {
       executeStart();
     }
+  }
+
+  if (updateParamsChanged)
+  {
+    updateParamsBuffer.map();
+    std::memcpy(updateParamsBuffer.data(), &updateParams, sizeof(SpectrumUpdateParams));
+    updateParamsBuffer.unmap();
+    updateParamsChanged = false;
   }
 
   if (paramsChanged)
@@ -359,7 +386,8 @@ void WaterGeneratorModule::updateSpectrumForFFT(
         2,
         updatedSpectrumDisplacementTexture.genBinding(
           textureSampler.get(), vk::ImageLayout::eGeneral)},
-      etna::Binding{6, paramsBuffer.genBinding()},
+      etna::Binding{3, paramsBuffer.genBinding()},
+      etna::Binding{4, updateParamsBuffer.genBinding()},
     });
 
   auto vkSet = set.getVkSet();
@@ -442,6 +470,7 @@ void WaterGeneratorModule::assembleMaps(
       etna::Binding{2, heightMap.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral)},
       etna::Binding{3, normalMap.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral)},
       etna::Binding{4, paramsBuffer.genBinding()},
+      etna::Binding{5, updateParamsBuffer.genBinding()},
     });
 
   auto vkSet = set.getVkSet();

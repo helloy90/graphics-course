@@ -3,6 +3,7 @@
 #extension GL_GOOGLE_include_directive : require
 
 #include "SpectrumGenerationParams.h"
+#include "SpectrumUpdateParams.h"
 
 layout(local_size_x = 32, local_size_y = 32) in;
 
@@ -14,6 +15,10 @@ layout(binding = 3, rgba32f) writeonly uniform image2D normalMap;
 
 layout(binding = 4) uniform params_t {
     SpectrumGenerationParams params;
+};
+
+layout(binding = 5) uniform update_params_t {
+    SpectrumUpdateParams updateParams;
 };
 
 vec4 permute(vec4 data, ivec2 index, ivec2 size) {
@@ -43,10 +48,10 @@ void main(void) {
     vec2 slopes = dyx_dyz.xy / (1.0 + abs(dxx_dzz * lambda));
     
     float currentFoam = imageLoad(heightMap, texCoord).w;
-    float foam = clamp(currentFoam * exp(-params.foamDecayRate), 0.0, 1.0);
-    float biasedJacobian = max(0.0, -(jacobian - params.foamBias));
-    if (biasedJacobian > params.foamThreshold) {
-        foam += params.foamMultiplier * biasedJacobian;
+    float foam = clamp(currentFoam * exp(-updateParams.foamDecayRate), 0.0, 1.0);
+    float biasedJacobian = max(0.0, -(jacobian - updateParams.foamBias));
+    if (biasedJacobian > updateParams.foamThreshold) {
+        foam += updateParams.foamMultiplier * biasedJacobian;
     }
     
     imageStore(heightMap, texCoord, vec4(displacement.x, displacement.y, displacement.z, foam));
