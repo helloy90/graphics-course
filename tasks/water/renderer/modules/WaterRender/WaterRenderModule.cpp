@@ -1,5 +1,6 @@
 #include "WaterRenderModule.hpp"
 #include "cpp_glsl_compat.h"
+#include "etna/DescriptorSet.hpp"
 
 #include <tracy/Tracy.hpp>
 
@@ -19,20 +20,31 @@ WaterRenderModule::WaterRenderModule()
        .extrusionInChunks = shader_uvec2(0),
        .heightOffset = 0.3})
   , renderParams(
-      {.color = shader_vec4(0.4627450980, 0.7137254902, 0.7686274510, 1),
-       .foamColor = shader_vec4(0.8705882353, 0.9529411765, 0.9647058824, 1),
-       .tipAttenuation = shader_float(1),
-       .roughness = shader_float(0.3)})
+      {.scatterColor = shader_vec4(0.016, 0.0736, 0.16, 1),
+       .bubbleColor = shader_vec4(0, 0.02, 0.016, 1),
+       .foamColor = shader_vec4(0.6, 0.5568, 0.492, 1),
+       .roughness = shader_float(0.075),
+       .reflectionStrength = shader_float(0.5),
+       .wavePeakScatterStrength = shader_float(1),
+       .scatterStrength = shader_float(1),
+       .scatterShadowStrength = shader_float(0.5),
+       .bubbleDensity = shader_float(1)})
 {
 }
 
 WaterRenderModule::WaterRenderModule(WaterParams par)
   : params(par)
   , renderParams(
-      {.color = shader_vec4(0.4627450980, 0.7137254902, 0.7686274510, 1),
-       .foamColor = shader_vec4(0.8705882353, 0.9529411765, 0.9647058824, 1),
-       .tipAttenuation = shader_float(1),
-       .roughness = shader_float(0.3)})
+      //{.color = shader_vec4(0.4627450980, 0.7137254902, 0.7686274510, 1),
+      {.scatterColor = shader_vec4(0.016, 0.0736, 0.16, 1),
+       .bubbleColor = shader_vec4(0, 0.02, 0.016, 1),
+       .foamColor = shader_vec4(0.6, 0.5568, 0.0492, 1),
+       .roughness = shader_float(0.3),
+       .reflectionStrength = shader_float(0.5),
+       .wavePeakScatterStrength = shader_float(1),
+       .scatterStrength = shader_float(1),
+       .scatterShadowStrength = shader_float(0.5),
+       .bubbleDensity = shader_float(1)})
 {
 }
 
@@ -91,28 +103,25 @@ void WaterRenderModule::setupPipelines(bool wireframe_enabled, vk::Format render
       .blendingConfig =
         {
           .attachments =
-            {{
-               .blendEnable = vk::False,
-               .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
-                 vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
-             },
-             {
-               .blendEnable = vk::False,
-               .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
-                 vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
-             },
-             {
-               .blendEnable = vk::False,
-               .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
-                 vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
-             }},
+            {
+              {
+                .blendEnable = vk::True,
+                .srcColorBlendFactor = vk::BlendFactor::eSrcAlpha,
+                .dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha,
+                .colorBlendOp = vk::BlendOp::eAdd,
+                .srcAlphaBlendFactor = vk::BlendFactor::eOne,
+                .dstAlphaBlendFactor = vk::BlendFactor::eZero,
+                .alphaBlendOp = vk::BlendOp::eAdd,
+                .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+                  vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
+              },
+            },
           .logicOpEnable = false,
           .logicOp = {},
         },
       .fragmentShaderOutput =
         {
-          .colorAttachmentFormats =
-            {render_target_format, vk::Format::eR8G8B8A8Snorm, vk::Format::eR8G8B8A8Unorm},
+          .colorAttachmentFormats = {render_target_format},
           .depthAttachmentFormat = vk::Format::eD32Sfloat,
         },
     });
@@ -126,7 +135,9 @@ void WaterRenderModule::execute(
   etna::RenderTargetState::AttachmentParams depth_attachment_params,
   const etna::Image& water_map,
   const etna::Image& water_normal_map,
-  const etna::Sampler& water_sampler)
+  const etna::Sampler& water_sampler,
+  const etna::Buffer& directional_lights_buffer,
+  const etna::Image& cubemap)
 {
   {
     ETNA_PROFILE_GPU(cmd_buf, renderWater);
@@ -140,7 +151,9 @@ void WaterRenderModule::execute(
       packet,
       water_map,
       water_normal_map,
-      water_sampler);
+      water_sampler,
+      directional_lights_buffer,
+      cubemap);
   }
 }
 
@@ -157,31 +170,58 @@ void WaterRenderModule::drawGui()
     ImGuiColorEditFlags colorFlags =
       ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_Float | ImGuiColorEditFlags_NoAlpha;
 
-    float color[] = {
-      renderParams.color.r,
-      renderParams.color.g,
-      renderParams.color.b,
+    float scatterColor[] = {
+      renderParams.scatterColor.r,
+      renderParams.scatterColor.g,
+      renderParams.scatterColor.b,
+    };
+    float bubbleColor[] = {
+      renderParams.bubbleColor.r,
+      renderParams.bubbleColor.g,
+      renderParams.bubbleColor.b,
     };
     float foamColor[] = {
       renderParams.foamColor.r,
       renderParams.foamColor.g,
       renderParams.foamColor.b,
     };
-    float tipAttenuation = renderParams.tipAttenuation;
+
     float roughness = renderParams.roughness;
+    float reflectionStrength = renderParams.reflectionStrength;
+    float wavePeakScatterStrength = renderParams.wavePeakScatterStrength;
+    float scatterStrength = renderParams.scatterStrength;
+    float scatterShadowStrength = renderParams.scatterShadowStrength;
+    float bubbleDensity = renderParams.bubbleDensity;
 
     renderParamsChanged =
-      renderParamsChanged || ImGui::ColorEdit3("Water Color", color, colorFlags);
-    renderParams.color = shader_vec4(color[0], color[1], color[2], 1);
+      renderParamsChanged || ImGui::ColorEdit3("Water Scatter Color", scatterColor, colorFlags);
+    renderParams.scatterColor = shader_vec4(scatterColor[0], scatterColor[1], scatterColor[2], 1);
     renderParamsChanged =
-      renderParamsChanged || ImGui::ColorEdit3("Water Tip Color", foamColor, colorFlags);
+      renderParamsChanged || ImGui::ColorEdit3("Water Bubbles Color", bubbleColor, colorFlags);
+    renderParams.bubbleColor = shader_vec4(bubbleColor[0], bubbleColor[1], bubbleColor[2], 1);
+    renderParamsChanged =
+      renderParamsChanged || ImGui::ColorEdit3("Water Foam Color", foamColor, colorFlags);
     renderParams.foamColor = shader_vec4(foamColor[0], foamColor[1], foamColor[2], 1);
-    renderParamsChanged = renderParamsChanged ||
-      ImGui::DragFloat("Water Tip Attenuation", &tipAttenuation, 0.01f, 0.0f, 500.0f);
-    renderParams.tipAttenuation = tipAttenuation;
     renderParamsChanged =
       renderParamsChanged || ImGui::DragFloat("Water Roughness", &roughness, 0.001f, 0.0f, 1.0f);
     renderParams.roughness = roughness;
+    renderParamsChanged = renderParamsChanged ||
+      ImGui::DragFloat("Water Reflection Strength", &reflectionStrength, 0.1f, 0.0f, 500.0f);
+    renderParams.reflectionStrength = reflectionStrength;
+    renderParamsChanged =
+      renderParamsChanged ||
+      ImGui::DragFloat(
+        "Water Wave Peak Scatter Strength", &wavePeakScatterStrength, 0.1f, 0.0f, 500.0f);
+    renderParams.wavePeakScatterStrength = wavePeakScatterStrength;
+    renderParamsChanged = renderParamsChanged ||
+      ImGui::DragFloat("Water Scatter Strength", &scatterStrength, 0.1f, 0.0f, 500.0f);
+    renderParams.scatterStrength = scatterStrength;
+    renderParamsChanged = renderParamsChanged ||
+      ImGui::DragFloat("Water Scatter Shadow Strength", &scatterShadowStrength, 0.1f, 0.0f, 500.0f);
+    renderParams.scatterShadowStrength = scatterShadowStrength;
+    renderParamsChanged = renderParamsChanged ||
+      ImGui::DragFloat("Water Bubbles Density", &bubbleDensity, 0.1f, 0.0f, 500.0f);
+    renderParams.bubbleDensity = bubbleDensity;
   }
 
   if (renderParamsChanged)
@@ -201,7 +241,9 @@ void WaterRenderModule::renderWater(
   const RenderPacket& packet,
   const etna::Image& water_map,
   const etna::Image& water_normal_map,
-  const etna::Sampler& water_sampler)
+  const etna::Sampler& water_sampler,
+  const etna::Buffer& directional_lights_buffer,
+  const etna::Image& cubemap)
 {
   ZoneScoped;
 
@@ -215,7 +257,14 @@ void WaterRenderModule::renderWater(
        2, water_map.genBinding(water_sampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
      etna::Binding{
        3,
-       water_normal_map.genBinding(water_sampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)}});
+       water_normal_map.genBinding(water_sampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+     etna::Binding{
+       4,
+       cubemap.genBinding(
+         water_sampler.get(),
+         vk::ImageLayout::eShaderReadOnlyOptimal,
+         {.type = vk::ImageViewType::eCube})},
+     etna::Binding{5, directional_lights_buffer.genBinding()}});
 
   auto vkSet = set.getVkSet();
 
@@ -225,7 +274,7 @@ void WaterRenderModule::renderWater(
   cmd_buf.pushConstants<RenderPacket>(
     pipeline_layout,
     vk::ShaderStageFlagBits::eTessellationControl |
-      vk::ShaderStageFlagBits::eTessellationEvaluation,
+      vk::ShaderStageFlagBits::eTessellationEvaluation | vk::ShaderStageFlagBits::eFragment,
     0,
     {packet});
 

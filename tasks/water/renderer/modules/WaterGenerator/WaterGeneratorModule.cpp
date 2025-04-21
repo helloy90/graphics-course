@@ -19,10 +19,10 @@ WaterGeneratorModule::WaterGeneratorModule()
        .highCutoff = 9000.0f,
        .seed = 0,
        .patchSize = 1024,
-       .foamDecayRate = 0.05f,
-       .foamBias = -0.5f,
+       .foamDecayRate = 0.0175f,
+       .foamBias = 0.85f,
        .foamThreshold = 0.0f,
-       .foamMultiplier = 0.5f,
+       .foamMultiplier = 0.1f,
        .wavePeriod = 200,
        .gravity = 9.81f})
 {

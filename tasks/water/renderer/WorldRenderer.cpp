@@ -375,27 +375,16 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
       vk::ImageLayout::eShaderReadOnlyOptimal,
       vk::ImageAspectFlagBits::eColor);
 
-
     gBuffer->prepareForRender(cmd_buf);
 
     etna::flush_barriers(cmd_buf);
-
-    waterRenderModule.execute(
-      cmd_buf,
-      renderPacket,
-      resolution,
-      gBuffer->genColorAttachmentParams(),
-      gBuffer->genDepthAttachmentParams(),
-      waterGeneratorModule.getHeightMap(),
-      waterGeneratorModule.getNormalMap(),
-      waterGeneratorModule.getSampler());
 
     terrainRenderModule.execute(
       cmd_buf,
       renderPacket,
       resolution,
-      gBuffer->genColorAttachmentParams(vk::AttachmentLoadOp::eLoad),
-      gBuffer->genDepthAttachmentParams(vk::AttachmentLoadOp::eLoad),
+      gBuffer->genColorAttachmentParams(),
+      gBuffer->genDepthAttachmentParams(),
       terrainGeneratorModule.getMap(),
       terrainGeneratorModule.getNormalMap(),
       terrainGeneratorModule.getSampler());
@@ -431,6 +420,24 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
         vk::PipelineBindPoint::eGraphics, deferredShadingPipeline.getVkPipeline());
       deferredShading(cmd_buf, currentConstants, deferredShadingPipeline.getVkPipelineLayout());
     }
+
+    gBuffer->continueDepthWrite(cmd_buf);
+
+    etna::flush_barriers(cmd_buf);
+
+    waterRenderModule.execute(
+      cmd_buf,
+      renderPacket,
+      resolution,
+      {{.image = renderTarget.get(),
+        .view = renderTarget.getView({}),
+        .loadOp = vk::AttachmentLoadOp::eLoad}},
+      gBuffer->genDepthAttachmentParams(vk::AttachmentLoadOp::eLoad),
+      waterGeneratorModule.getHeightMap(),
+      waterGeneratorModule.getNormalMap(),
+      waterGeneratorModule.getSampler(),
+      lightModule.getDirectionalLightsBuffer(),
+    cubemapTexture);
 
     if (tonemappingEnabled)
     {

@@ -44,7 +44,6 @@ private:
 
   etna::Buffer lightsBuffer;
   etna::Buffer directionalLightsBuffer;
-  etna::Buffer sunBuffer;
 
   etna::ComputePipeline lightDisplacementPipeline;
 

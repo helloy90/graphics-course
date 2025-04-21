@@ -44,7 +44,7 @@ void main(void) {
     
     float currentFoam = imageLoad(heightMap, texCoord).w;
     float foam = clamp(currentFoam * exp(-params.foamDecayRate), 0.0, 1.0);
-    float biasedJacobian = jacobian;//max(0.0, -(jacobian - params.foamBias));
+    float biasedJacobian = max(0.0, -(jacobian - params.foamBias));
     if (biasedJacobian > params.foamThreshold) {
         foam += params.foamMultiplier * biasedJacobian;
     }

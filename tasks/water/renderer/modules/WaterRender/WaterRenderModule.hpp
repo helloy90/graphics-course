@@ -27,7 +27,9 @@ public:
     etna::RenderTargetState::AttachmentParams depth_attachment_params,
     const etna::Image& water_map,
     const etna::Image& water_normal_map,
-    const etna::Sampler& water_sampler);
+    const etna::Sampler& water_sampler,
+    const etna::Buffer& directional_lights_buffer,
+    const etna::Image& cubemap);
 
   void drawGui();
 
@@ -38,7 +40,9 @@ private:
     const RenderPacket& packet,
     const etna::Image& water_map,
     const etna::Image& water_normal_map,
-    const etna::Sampler& water_sampler);
+    const etna::Sampler& water_sampler,
+    const etna::Buffer& directional_lights_buffer,
+    const etna::Image& cubemap);
 
 private:
   WaterParams params;

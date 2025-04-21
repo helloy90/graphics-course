@@ -4,6 +4,7 @@
 #include <imgui.h>
 
 #include <etna/PipelineManager.hpp>
+#include <span>
 
 
 LightModule::LightModule()
@@ -81,7 +82,7 @@ void LightModule::loadLights()
   directionalLights = {DirectionalLight{
     .direction = glm::vec3{1, -0.35, -3},
     .intensity = 1.0f,
-    .color = glm::normalize(glm::vec3{251, 172, 19})}};
+    .color = glm::vec3{1, 0.694, 0.32}}};
 
   vk::DeviceSize directionalLightsSize = sizeof(DirectionalLight) * directionalLights.size();
   vk::DeviceSize lightsSize = sizeof(Light) * lights.size();
@@ -91,11 +92,6 @@ void LightModule::loadLights()
     .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
     .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
     .name = fmt::format("DirectionalLights")});
-  sunBuffer = ctx.createBuffer(etna::Buffer::CreateInfo{
-    .size = sizeof(DirectionalLight),
-    .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
-    .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-    .name = fmt::format("sun")});
   lightsBuffer = ctx.createBuffer(etna::Buffer::CreateInfo{
     .size = lightsSize,
     .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
