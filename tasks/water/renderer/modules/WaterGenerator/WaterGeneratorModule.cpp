@@ -37,7 +37,7 @@ WaterGeneratorModule::WaterGeneratorModule()
     })
   , displayParamsVector({
       {.scale = shader_float(1.5),
-       .windSpeed = shader_float(10),
+       .windSpeed = shader_float(5),
        .windDirection = shader_float(22),
        .windActionLength = shader_float(100000),
        .spreadBlend = shader_float(0.642),
