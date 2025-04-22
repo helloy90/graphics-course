@@ -411,7 +411,7 @@ void WaterGeneratorModule::drawGui()
     generalParamsChanged =
       generalParamsChanged || ImGui::DragFloat("High Cutoff", &highCutoff, 0.1f, 200.0f, 10000.0f);
     generalParams.highCutoff = highCutoff;
-    generalParamsChanged = generalParamsChanged || ImGui::DragInt("Seed", &seed, 1.0f, 0.0f, 5000000.0f);
+    generalParamsChanged = generalParamsChanged || ImGui::DragInt("Seed", &seed, 1.0f, 0, 5000000);
     generalParams.seed = seed;
 
 
