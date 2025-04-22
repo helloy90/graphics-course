@@ -10,7 +10,6 @@ struct SpectrumUpdateParams {
     shader_float foamThreshold;
     shader_float foamMultiplier;
     shader_float wavePeriod;
-    shader_float gravity;
 };
 
 

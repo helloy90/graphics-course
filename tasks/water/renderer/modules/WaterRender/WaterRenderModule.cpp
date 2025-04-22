@@ -23,12 +23,12 @@ WaterRenderModule::WaterRenderModule()
       {.scatterColor = shader_vec4(0.016, 0.0736, 0.16, 1),
        .bubbleColor = shader_vec4(0, 0.02, 0.016, 1),
        .foamColor = shader_vec4(0.6, 0.5568, 0.492, 1),
-       .roughness = shader_float(0.075),
-       .reflectionStrength = shader_float(0.5),
-       .wavePeakScatterStrength = shader_float(1),
+       .roughness = shader_float(0.1),
+       .reflectionStrength = shader_float(0.9),
+       .wavePeakScatterStrength = shader_float(2.2),
        .scatterStrength = shader_float(1),
-       .scatterShadowStrength = shader_float(0.5),
-       .bubbleDensity = shader_float(1)})
+       .scatterShadowStrength = shader_float(0.7),
+       .bubbleDensity = shader_float(1.3)})
 {
 }
 

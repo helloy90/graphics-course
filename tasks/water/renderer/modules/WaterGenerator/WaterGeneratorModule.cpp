@@ -1,6 +1,10 @@
 #include "WaterGeneratorModule.hpp"
-#include "shaders/SpectrumUpdateParams.h"
+#include "etna/Assert.hpp"
+#include "shaders/GeneralSpectrumParams.h"
+#include "shaders/SpectrumGenerationParams.h"
 
+#include <glm/common.hpp>
+#include <glm/ext/scalar_constants.hpp>
 #include <imgui.h>
 
 #include <glm/gtc/integer.hpp>
@@ -9,25 +13,52 @@
 #include <etna/Etna.hpp>
 #include <etna/Profiling.hpp>
 #include <etna/PipelineManager.hpp>
+#include <vulkan/vulkan_enums.hpp>
 
+
+static float jonswapAlpha(float gravity, float wind_action_length, float wind_speed)
+{
+  return 0.076f * glm::pow(gravity * wind_action_length / wind_speed / wind_speed, -0.22f);
+}
+
+static float jonswapPeakFrequency(float gravity, float wind_action_length, float wind_speed)
+{
+  return 22.0f * glm::pow(wind_speed * wind_action_length / gravity / gravity, -0.33f);
+}
 
 WaterGeneratorModule::WaterGeneratorModule()
-  : params({
-      .windDirection = shader_vec2(1, 1),
-      .windSpeed = 10,
-      .amplitude = 1.0f,
-      .lowCutoff = 0.0001f,
-      .highCutoff = 9000.0f,
-      .seed = 0,
-      .patchSize = 1024,
+  : patchSizes({256})
+  , generalParams({
+      .gravity = shader_float(9.81f),
+      .depth = shader_float(20),
+      .lowCutoff = shader_float(0.0001f),
+      .highCutoff = shader_float(9000.0f),
+      .seed = shader_uint(0),
+    })
+  , displayParamsVector({
+      {.scale = shader_float(1.5),
+       .windSpeed = shader_float(10),
+       .windDirection = shader_float(22),
+       .windActionLength = shader_float(100000),
+       .spreadBlend = shader_float(0.642),
+       .swell = shader_float(1),
+       .peakEnhancement = shader_float(1),
+       .shortWavesFade = shader_float(0.3)},
+      {.scale = shader_float(0.07),
+       .windSpeed = shader_float(2),
+       .windDirection = shader_float(59),
+       .windActionLength = shader_float(1000),
+       .spreadBlend = shader_float(0),
+       .swell = shader_float(1),
+       .peakEnhancement = shader_float(1),
+       .shortWavesFade = shader_float(0.01)},
     })
   , updateParams(
-      {.foamDecayRate = 0.0175f,
-       .foamBias = 0.85f,
-       .foamThreshold = 0.0f,
-       .foamMultiplier = 0.1f,
-       .wavePeriod = 200,
-       .gravity = 9.81f})
+      {.foamDecayRate = shader_float(0.5f),
+       .foamBias = shader_float(0.85f),
+       .foamThreshold = shader_float(0.0f),
+       .foamMultiplier = shader_float(0.1f),
+       .wavePeriod = shader_float(200)})
 {
 }
 
@@ -40,6 +71,11 @@ void WaterGeneratorModule::allocateResources(uint32_t textures_extent)
   uint32_t logExtent = static_cast<uint32_t>(glm::log2(textures_extent));
 
   info = {.size = textures_extent, .logSize = logExtent, .texturesAmount = 2};
+
+  for (uint32_t i = 0; i < displayParamsVector.size(); i++)
+  {
+    paramsVector.emplace_back(recalculateParams(displayParamsVector[i]));
+  }
 
   initialSpectrumTexture = ctx.createImage(etna::Image::CreateInfo{
     .extent = textureExtent,
@@ -70,12 +106,22 @@ void WaterGeneratorModule::allocateResources(uint32_t textures_extent)
     .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage});
 
   paramsBuffer = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
-    .size = sizeof(SpectrumGenerationParams),
+    .size = sizeof(SpectrumGenerationParams) * paramsVector.size(),
+    .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+    .name = "spectrumGenerationParams"});
+  patchSizesBuffer = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
+    .size = sizeof(uint32_t) * patchSizes.size(),
+    .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+    .name = "WaterPatchSizes"});
+  generalParamsBuffer = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
+    .size = sizeof(GeneralSpectrumParams),
     .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
     .memoryUsage = VMA_MEMORY_USAGE_AUTO,
     .allocationCreate =
       VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
-    .name = "spectrumGenerationParams"});
+    .name = "GeneralSpectrumParams"});
   updateParamsBuffer = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
     .size = sizeof(SpectrumUpdateParams),
     .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
@@ -93,11 +139,20 @@ void WaterGeneratorModule::allocateResources(uint32_t textures_extent)
     .name = "inverseFFTInfo"});
 
   oneShotCommands = ctx.createOneShotCmdMgr();
+  transferHelper =
+    std::make_unique<etna::BlockingTransferHelper>(etna::BlockingTransferHelper::CreateInfo{
+      .stagingSize = sizeof(SpectrumGenerationParams) * paramsVector.size()});
 
   textureSampler = etna::Sampler(etna::Sampler::CreateInfo{
     .filter = vk::Filter::eLinear,
     .addressMode = vk::SamplerAddressMode::eRepeat,
     .name = "spectrum_sampler"});
+
+  ETNA_VERIFYF(patchSizes.size() * 2 == paramsVector.size(), "Incorrect amount of patches");
+  transferHelper->uploadBuffer(
+    *oneShotCommands, paramsBuffer, 0, std::as_bytes(std::span(paramsVector)));
+  transferHelper->uploadBuffer(
+    *oneShotCommands, patchSizesBuffer, 0, std::as_bytes(std::span(patchSizes)));
 }
 
 void WaterGeneratorModule::loadShaders()
@@ -143,9 +198,9 @@ void WaterGeneratorModule::executeStart()
 
   ETNA_CHECK_VK_RESULT(commandBuffer.begin(vk::CommandBufferBeginInfo{}));
   {
-    paramsBuffer.map();
-    std::memcpy(paramsBuffer.data(), &params, sizeof(SpectrumGenerationParams));
-    paramsBuffer.unmap();
+    generalParamsBuffer.map();
+    std::memcpy(generalParamsBuffer.data(), &generalParams, sizeof(GeneralSpectrumParams));
+    generalParamsBuffer.unmap();
 
     updateParamsBuffer.map();
     std::memcpy(updateParamsBuffer.data(), &updateParams, sizeof(SpectrumUpdateParams));
@@ -261,28 +316,71 @@ void WaterGeneratorModule::drawGui()
   ImGui::Begin("Application Settings");
 
   static bool paramsChanged = false;
+  static bool generalParamsChanged = false;
   static bool updateParamsChanged = false;
 
   if (ImGui::CollapsingHeader("Water Generator"))
   {
-    ImGui::SeparatorText("Generation parameters");
+    ImGui::Text("Water spectrum parameters (regeneration needed for these to take effect)");
+    for (uint32_t i = 0; i < displayParamsVector.size(); i++)
+    {
+      auto& displayParams = displayParamsVector[i];
+      if (ImGui::TreeNode(&displayParams, "Settings %d", i))
+      {
+        float scale = displayParams.scale;
+        float windSpeed = displayParams.windSpeed;
+        float windDirection = displayParams.windDirection;
+        float windActionLength = displayParams.windActionLength;
+        float spreadBlend = displayParams.spreadBlend;
+        float swell = displayParams.swell;
+        float peakEnhancement = displayParams.peakEnhancement;
+        float shortWavesFade = displayParams.shortWavesFade;
+        int32_t patchSize = patchSizes[i / 2];
+
+        paramsChanged =
+          paramsChanged || ImGui::DragFloat("Water scale", &scale, 0.01f, 0.0f, 5000.0f);
+        displayParams.scale = scale;
+        paramsChanged =
+          paramsChanged || ImGui::DragFloat("Wind speed", &windSpeed, 0.1f, 0.0f, 5000.0f);
+        displayParams.windSpeed = windSpeed;
+        paramsChanged =
+          paramsChanged || ImGui::DragFloat("Wind direction", &windDirection, 0.01f, 0.0f, 360.0f);
+        displayParams.windDirection = windDirection;
+        paramsChanged = paramsChanged ||
+          ImGui::DragFloat("Wind action length", &windActionLength, 1.0f, 0.0f, 10000000.0f);
+        displayParams.windActionLength = windActionLength;
+        paramsChanged =
+          paramsChanged || ImGui::DragFloat("Spread blend", &spreadBlend, 0.01f, 0.0f, 1.0f);
+        displayParams.spreadBlend = spreadBlend;
+        paramsChanged = paramsChanged || ImGui::DragFloat("Water swell", &swell, 0.01f, 0.0f, 1.0f);
+        displayParams.swell = swell;
+        paramsChanged = paramsChanged ||
+          ImGui::DragFloat("Water peak enchancement", &peakEnhancement, 0.1f, 0.0f, 5000.0f);
+        displayParams.peakEnhancement = peakEnhancement;
+        paramsChanged = paramsChanged ||
+          ImGui::DragFloat("Water short waves fade", &shortWavesFade, 0.1f, 0.0f, 5000.0f);
+        displayParams.shortWavesFade = shortWavesFade;
+        paramsChanged = paramsChanged || ImGui::DragInt("Patch Size", &patchSize, 1, 0, 4096);
+        patchSizes[i / 2] = patchSize;
+
+        ImGui::TreePop();
+      }
+    }
 
     float foamDecayRate = updateParams.foamDecayRate;
     float foamBias = updateParams.foamBias;
     float foamThreshold = updateParams.foamThreshold;
     float foamMultiplier = updateParams.foamMultiplier;
     float wavePeriod = updateParams.wavePeriod;
-    float gravity = updateParams.gravity;
 
-    float windDirection[] = {params.windDirection.x, params.windDirection.y};
-    float windSpeed = params.windSpeed;
-    float amplitude = params.amplitude;
-    float lowCutoff = params.lowCutoff;
-    float highCutoff = params.highCutoff;
-    int32_t seed = params.seed;
-    int32_t patchSize = params.patchSize;
+    float gravity = generalParams.gravity;
+    float depth = generalParams.depth;
+    float lowCutoff = generalParams.lowCutoff;
+    float highCutoff = generalParams.highCutoff;
+    int32_t seed = generalParams.seed;
 
-    ImGui::Text("Water update parameters");
+    ImGui::SeparatorText("Water update parameters");
+
     updateParamsChanged = updateParamsChanged ||
       ImGui::DragFloat("Foam Decay Rate", &foamDecayRate, 0.01f, 0.0f, 100.0f);
     updateParams.foamDecayRate = foamDecayRate;
@@ -298,31 +396,43 @@ void WaterGeneratorModule::drawGui()
     updateParamsChanged =
       updateParamsChanged || ImGui::DragFloat("Wave Period", &wavePeriod, 1.0f, 0.00001f, 5000.0f);
     updateParams.wavePeriod = wavePeriod;
-    updateParamsChanged =
-      updateParamsChanged || ImGui::DragFloat("Gravity", &gravity, 0.1f, 0.0f, 5000.0f);
-    updateParams.gravity = gravity;
 
-    ImGui::Text("Water regeneration needed for these to take effect");
-    paramsChanged = paramsChanged || ImGui::DragFloat2("Wind Direction", windDirection, 0.1f);
-    params.windDirection = glm::vec2(windDirection[0], windDirection[1]);
-    paramsChanged =
-      paramsChanged || ImGui::DragFloat("Wind Speed", &windSpeed, 0.1f, 0.0f, 5000.0f);
-    params.windSpeed = windSpeed;
-    paramsChanged = paramsChanged || ImGui::DragFloat("Amplitude", &amplitude, 0.1f, 0.0f, 5000.0f);
-    params.amplitude = amplitude;
-    paramsChanged = paramsChanged || ImGui::DragFloat("Low Cutoff", &lowCutoff, 0.01, 0, 200);
-    params.lowCutoff = lowCutoff;
-    paramsChanged = paramsChanged || ImGui::DragFloat("High Cutoff", &highCutoff, 0.1, 200, 10000);
-    params.highCutoff = highCutoff;
-    paramsChanged = paramsChanged || ImGui::DragInt("Seed", &seed, 1, 0, 5000000);
-    params.seed = seed;
-    paramsChanged = paramsChanged || ImGui::DragInt("Patch Size", &patchSize, 1, 0, 4096);
-    params.patchSize = patchSize;
+    ImGui::SeparatorText(
+      "General spectrum parameters (regeneration needed for these to take effect)");
+
+    generalParamsChanged =
+      generalParamsChanged || ImGui::DragFloat("Gravity", &gravity, 0.1f, 0.0f, 5000.0f);
+    generalParams.gravity = gravity;
+    generalParamsChanged = generalParamsChanged || ImGui::DragFloat("Depth", &depth, 0.01, 0, 200);
+    generalParams.depth = depth;
+    generalParamsChanged =
+      generalParamsChanged || ImGui::DragFloat("Low Cutoff", &lowCutoff, 0.01, 0, 200);
+    generalParams.lowCutoff = lowCutoff;
+    generalParamsChanged =
+      generalParamsChanged || ImGui::DragFloat("High Cutoff", &highCutoff, 0.1, 200, 10000);
+    generalParams.highCutoff = highCutoff;
+    generalParamsChanged = generalParamsChanged || ImGui::DragInt("Seed", &seed, 1, 0, 5000000);
+    generalParams.seed = seed;
+
 
     if (ImGui::Button("Regenerate Water"))
     {
       executeStart();
     }
+  }
+
+  if (paramsChanged)
+  {
+    ETNA_CHECK_VK_RESULT(etna::get_context().getDevice().waitIdle());
+    for (uint32_t i = 0; i < displayParamsVector.size(); i++)
+    {
+      paramsVector[i] = recalculateParams(displayParamsVector[i]);
+    }
+    transferHelper->uploadBuffer(
+      *oneShotCommands, paramsBuffer, 0, std::as_bytes(std::span(paramsVector)));
+    transferHelper->uploadBuffer(
+      *oneShotCommands, patchSizesBuffer, 0, std::as_bytes(std::span(patchSizes)));
+    paramsChanged = false;
   }
 
   if (updateParamsChanged)
@@ -333,17 +443,33 @@ void WaterGeneratorModule::drawGui()
     updateParamsChanged = false;
   }
 
-  if (paramsChanged)
+  if (generalParamsChanged)
   {
-    paramsBuffer.map();
-    std::memcpy(paramsBuffer.data(), &params, sizeof(SpectrumGenerationParams));
-    paramsBuffer.unmap();
-    paramsChanged = false;
+    generalParamsBuffer.map();
+    std::memcpy(generalParamsBuffer.data(), &generalParams, sizeof(GeneralSpectrumParams));
+    generalParamsBuffer.unmap();
+    generalParamsChanged = false;
   }
 
   ImGui::End();
 }
 
+SpectrumGenerationParams WaterGeneratorModule::recalculateParams(
+  const DisplaySpectrumParams& display_params)
+{
+  return SpectrumGenerationParams{
+    .scale = display_params.scale,
+    .angle = display_params.windDirection / 180.0f * glm::pi<float>(),
+    .spreadBlend = display_params.spreadBlend,
+    .swell = glm::clamp(display_params.swell, 0.01f, 1.0f),
+    .jonswapAlpha = jonswapAlpha(
+      generalParams.gravity, display_params.windActionLength, display_params.windSpeed),
+    .peakFrequency = jonswapPeakFrequency(
+      generalParams.gravity, display_params.windActionLength, display_params.windSpeed),
+    .peakEnhancement = display_params.peakEnhancement,
+    .shortWavesFade = display_params.shortWavesFade,
+  };
+}
 
 void WaterGeneratorModule::generateInitialSpectrum(
   vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout)
@@ -358,6 +484,9 @@ void WaterGeneratorModule::generateInitialSpectrum(
       etna::Binding{
         0, initialSpectrumTexture.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral)},
       etna::Binding{1, paramsBuffer.genBinding()},
+      etna::Binding{2, generalParamsBuffer.genBinding()},
+      etna::Binding{3, infoBuffer.genBinding()},
+      etna::Binding{4, patchSizesBuffer.genBinding()},
     });
 
   auto vkSet = set.getVkSet();
@@ -386,8 +515,11 @@ void WaterGeneratorModule::updateSpectrumForFFT(
         2,
         updatedSpectrumDisplacementTexture.genBinding(
           textureSampler.get(), vk::ImageLayout::eGeneral)},
-      etna::Binding{3, paramsBuffer.genBinding()},
-      etna::Binding{4, updateParamsBuffer.genBinding()},
+      etna::Binding{3, generalParamsBuffer.genBinding()},
+      etna::Binding{4, paramsBuffer.genBinding()},
+      etna::Binding{5, updateParamsBuffer.genBinding()},
+      etna::Binding{6, infoBuffer.genBinding()},
+      etna::Binding{7, patchSizesBuffer.genBinding()},
     });
 
   auto vkSet = set.getVkSet();
@@ -438,9 +570,7 @@ void WaterGeneratorModule::executeInverseFFT(
   auto shaderInfo = etna::get_shader_program(shader_program);
 
   auto set = etna::create_descriptor_set(
-    shaderInfo.getDescriptorLayoutId(1),
-    cmd_buf,
-    {etna::Binding{0, paramsBuffer.genBinding()}, etna::Binding{1, infoBuffer.genBinding()}});
+    shaderInfo.getDescriptorLayoutId(1), cmd_buf, {etna::Binding{0, infoBuffer.genBinding()}});
 
   auto vkSet = set.getVkSet();
 
@@ -469,8 +599,7 @@ void WaterGeneratorModule::assembleMaps(
           textureSampler.get(), vk::ImageLayout::eGeneral)},
       etna::Binding{2, heightMap.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral)},
       etna::Binding{3, normalMap.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral)},
-      etna::Binding{4, paramsBuffer.genBinding()},
-      etna::Binding{5, updateParamsBuffer.genBinding()},
+      etna::Binding{4, updateParamsBuffer.genBinding()},
     });
 
   auto vkSet = set.getVkSet();

@@ -59,7 +59,7 @@ float getNearestDistanceFromCamera(vec3 first, vec3 second) {
 }
 
 vec2 getPositionInHeightMap(vec3 position) {
-  return 0.5 * vec2(getHorizontalCoords(position)) / params.extent + 0.5;
+  return 0.5 * vec2(getHorizontalCoords(position)) / (params.chunk * 16) + 0.5;
 }
 
 float getTesselationLevel(float dist) {

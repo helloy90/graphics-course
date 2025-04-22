@@ -13,16 +13,12 @@ layout(binding = 1, rgba32f) readonly uniform image2D updatedSpectrumDisplacemen
 layout(binding = 2, rgba32f) uniform image2D heightMap;
 layout(binding = 3, rgba32f) writeonly uniform image2D normalMap;
 
-layout(binding = 4) uniform params_t {
-    SpectrumGenerationParams params;
-};
-
-layout(binding = 5) uniform update_params_t {
+layout(binding = 4) uniform update_params_t {
     SpectrumUpdateParams updateParams;
 };
 
 vec4 permute(vec4 data, ivec2 index, ivec2 size) {
-    return data * (1.0 - 2.0 * ((index.x + index.y) % 2)) / size.x;
+    return data * (1.0 - 2.0 * ((index.x + index.y) % 2));
 }
 
 void main(void) {

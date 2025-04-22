@@ -2,17 +2,13 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_GOOGLE_include_directive : require
 
-#include "SpectrumGenerationParams.h"
 #include "complex.glsl"
 
 layout(local_size_x = 1024) in;
 
 layout(set = 0, binding = 0, rg32f) uniform image2D spectrumTextures[8];
 
-layout(set = 1, binding = 0) readonly uniform params_t {
-    SpectrumGenerationParams params;
-};
-layout(set = 1, binding = 1) readonly uniform info_t {
+layout(set = 1, binding = 0) readonly uniform info_t {
     uint size;
     uint steps;
     uint texturesAmount;

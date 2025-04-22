@@ -6,6 +6,9 @@
 #include <etna/OneShotCmdMgr.hpp>
 #include <etna/Sampler.hpp>
 
+#include "etna/BlockingTransferHelper.hpp"
+#include "shaders/DisplaySpectrumParams.h"
+#include "shaders/GeneralSpectrumParams.h"
 #include "shaders/SpectrumGenerationParams.h"
 #include "shaders/SpectrumUpdateParams.h"
 
@@ -36,6 +39,8 @@ private:
   };
 
 private:
+  SpectrumGenerationParams recalculateParams(const DisplaySpectrumParams& display_params);
+
   void generateInitialSpectrum(vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout);
 
   void updateSpectrumForFFT(
@@ -53,9 +58,14 @@ private:
   void assembleMaps(vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout);
 
 private:
-  SpectrumGenerationParams params;
+  std::vector<SpectrumGenerationParams> paramsVector;
+  std::vector<uint32_t> patchSizes;
+  GeneralSpectrumParams generalParams;
+  std::vector<DisplaySpectrumParams> displayParamsVector;
   SpectrumUpdateParams updateParams;
   etna::Buffer paramsBuffer;
+  etna::Buffer patchSizesBuffer;
+  etna::Buffer generalParamsBuffer;
   etna::Buffer updateParamsBuffer;
 
   InverseFFTInfo info;
@@ -83,4 +93,5 @@ private:
   etna::Sampler textureSampler;
 
   std::unique_ptr<etna::OneShotCmdMgr> oneShotCommands;
+  std::unique_ptr<etna::BlockingTransferHelper> transferHelper;
 };

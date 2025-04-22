@@ -95,7 +95,8 @@ void main() {
     const float NdotV = clampedDot(surfaceNormal, fromPosToCamera) + 0.00001;
     const float NdotH = clampedDot(surfaceNormal, halfVector) + 0.00001;
 
-    const vec3 reflection = texture(skybox, reflect(-fromPosToCamera, normal)).rgb * params.reflectionStrength;
+    const vec3 reflectedDir = reflect(-fromPosToCamera, normal);
+    vec3 reflection = texture(skybox, reflectedDir).rgb * params.reflectionStrength;
 
     const vec3 sunIrradiance = sunIntensity * sunColor;
 
@@ -126,6 +127,6 @@ void main() {
 
     float foam = clamp(displacementAndFoam.w, 0.0, 1.0);
 
-    fragColor = vec4(mix(brdf, params.foamColor.xyz, foam), 1);
+    fragColor = vec4(mix(brdf, params.foamColor.xyz, foam), 1.0);
     // fragColor = vec4(params.scatterColor.xyz, 1);
 }
