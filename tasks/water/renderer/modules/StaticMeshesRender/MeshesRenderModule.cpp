@@ -57,8 +57,8 @@ void MeshesRenderModule::loadScene(std::filesystem::path path)
   ETNA_CHECK_VK_RESULT(commandBuffer.end());
   oneShotCommands->submitAndWait(commandBuffer);
 
-  params.instancesCount = sceneMgr->getInstanceMeshes().size();
-  params.relemsCount = sceneMgr->getRenderElements().size();
+  params.instancesCount = static_cast<shader_uint>(sceneMgr->getInstanceMeshes().size());
+  params.relemsCount = static_cast<shader_uint>(sceneMgr->getRenderElements().size());
 
   paramsBuffer.map();
   std::memcpy(paramsBuffer.data(), &params, sizeof(MeshesParams));
@@ -190,7 +190,7 @@ void MeshesRenderModule::cullMeshes(
   cmd_buf.pushConstants<glm::mat4x4>(
     pipeline_layout, vk::ShaderStageFlagBits::eCompute, 0, {proj_view});
 
-  cmd_buf.dispatch((sceneMgr->getInstanceMeshes().size() + 127) / 128, 1, 1);
+  cmd_buf.dispatch((static_cast<uint32_t>(sceneMgr->getInstanceMeshes().size()) + 127) / 128, 1, 1);
 
   {
     std::array bufferBarriers = {
@@ -251,6 +251,6 @@ void MeshesRenderModule::renderScene(
   cmd_buf.drawIndexedIndirect(
     sceneMgr->getDrawCommandsBuffer().get(),
     0,
-    sceneMgr->getRenderElements().size(),
+    static_cast<uint32_t>(sceneMgr->getRenderElements().size()),
     sizeof(vk::DrawIndexedIndirectCommand));
 }

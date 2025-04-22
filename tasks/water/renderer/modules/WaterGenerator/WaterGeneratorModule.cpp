@@ -403,15 +403,15 @@ void WaterGeneratorModule::drawGui()
     generalParamsChanged =
       generalParamsChanged || ImGui::DragFloat("Gravity", &gravity, 0.1f, 0.0f, 5000.0f);
     generalParams.gravity = gravity;
-    generalParamsChanged = generalParamsChanged || ImGui::DragFloat("Depth", &depth, 0.01, 0, 200);
+    generalParamsChanged = generalParamsChanged || ImGui::DragFloat("Depth", &depth, 0.01f, 0.0f, 200.0f);
     generalParams.depth = depth;
     generalParamsChanged =
-      generalParamsChanged || ImGui::DragFloat("Low Cutoff", &lowCutoff, 0.01, 0, 200);
+      generalParamsChanged || ImGui::DragFloat("Low Cutoff", &lowCutoff, 0.01f, 0.0f, 200.0f);
     generalParams.lowCutoff = lowCutoff;
     generalParamsChanged =
-      generalParamsChanged || ImGui::DragFloat("High Cutoff", &highCutoff, 0.1, 200, 10000);
+      generalParamsChanged || ImGui::DragFloat("High Cutoff", &highCutoff, 0.1f, 200.0f, 10000.0f);
     generalParams.highCutoff = highCutoff;
-    generalParamsChanged = generalParamsChanged || ImGui::DragInt("Seed", &seed, 1, 0, 5000000);
+    generalParamsChanged = generalParamsChanged || ImGui::DragInt("Seed", &seed, 1.0f, 0.0f, 5000000.0f);
     generalParams.seed = seed;
 
 

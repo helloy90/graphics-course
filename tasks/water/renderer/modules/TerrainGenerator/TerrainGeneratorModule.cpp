@@ -47,7 +47,10 @@ void TerrainGeneratorModule::allocateResources(vk::Format map_format, vk::Extent
   terrainSampler = etna::Sampler(
     etna::Sampler::CreateInfo{.filter = vk::Filter::eLinear, .name = "terrain_sampler"});
 
-  params = {.extent = {extent.width, extent.height}, .numberOfSamples = 5, .persistence = 0.3};
+  params = {
+    .extent = {extent.width, extent.height},
+    .numberOfSamples = 5,
+    .persistence = shader_float(0.3)};
 }
 
 void TerrainGeneratorModule::loadShaders()

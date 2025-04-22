@@ -18,7 +18,7 @@ WaterRenderModule::WaterRenderModule()
        .waterInChunks = shader_uvec2(128),
        .waterOffset = shader_vec2(-1024),
        .extrusionInChunks = shader_uvec2(0),
-       .heightOffset = 0.3})
+       .heightOffset = shader_float(0.3)})
   , renderParams(
       {.scatterColor = shader_vec4(0.016, 0.0736, 0.16, 1),
        .bubbleColor = shader_vec4(0, 0.02, 0.016, 1),
