@@ -1,5 +1,6 @@
 #pragma once
 
+#include "etna/BlockingTransferHelper.hpp"
 #include <etna/OneShotCmdMgr.hpp>
 #include <etna/Buffer.hpp>
 #include <etna/Image.hpp>
@@ -27,5 +28,11 @@ void blit_image(
   vk::Image source_image,
   vk::Image target_image,
   vk::Offset3D offset_size);
+
+etna::Image load_texture(
+  etna::BlockingTransferHelper& transfer_helper,
+  etna::OneShotCmdMgr& one_shot_commands,
+  std::filesystem::path filename,
+  vk::Format format);
 
 }; // namespace render_utility
