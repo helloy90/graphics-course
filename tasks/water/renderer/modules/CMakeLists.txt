@@ -1,0 +1,7 @@
+add_subdirectory(Light)
+add_subdirectory(StaticMeshesRender)
+add_subdirectory(TerrainGenerator)
+add_subdirectory(Tonemapping)
+add_subdirectory(TerrainRender)
+add_subdirectory(WaterGenerator)
+add_subdirectory(WaterRender)
