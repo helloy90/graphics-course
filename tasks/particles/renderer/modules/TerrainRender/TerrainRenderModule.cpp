@@ -42,21 +42,23 @@ TerrainRenderModule::TerrainRenderModule(HeightParams par)
 
 void TerrainRenderModule::allocateResources()
 {
-  paramsBuffer = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
-    .size = sizeof(TerrainParams),
-    .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
-    .memoryUsage = VMA_MEMORY_USAGE_AUTO,
-    .allocationCreate =
-      VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
-    .name = "terrainParams"});
+  paramsBuffer = etna::get_context().createBuffer(
+    etna::Buffer::CreateInfo{
+      .size = sizeof(TerrainParams),
+      .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
+      .memoryUsage = VMA_MEMORY_USAGE_AUTO,
+      .allocationCreate =
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+      .name = "terrainParams"});
 
-  heightParamsBuffer = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
-    .size = sizeof(HeightParams),
-    .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
-    .memoryUsage = VMA_MEMORY_USAGE_AUTO,
-    .allocationCreate =
-      VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
-    .name = "terrainHeightParams"});
+  heightParamsBuffer = etna::get_context().createBuffer(
+    etna::Buffer::CreateInfo{
+      .size = sizeof(HeightParams),
+      .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
+      .memoryUsage = VMA_MEMORY_USAGE_AUTO,
+      .allocationCreate =
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+      .name = "terrainHeightParams"});
 
   paramsBuffer.map();
   std::memcpy(paramsBuffer.data(), &params, sizeof(TerrainParams));
