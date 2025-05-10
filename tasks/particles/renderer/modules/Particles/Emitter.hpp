@@ -1,42 +1,78 @@
 #pragma once
 
+#include <vector>
+
 #include <glm/glm.hpp>
 
+#include "render_utils/RandomGenerator.hpp"
+
+
+enum ParticleType : uint32_t
+{
+  Invalid = ~uint32_t(0),
+  Voxel = 0,
+  Pixel = 1
+};
 
 class Emitter
 {
-public:
-  explicit Emitter(std::uint32_t max_amount);
-
-  void update();
-
-public:
-    enum ParticleType : uint32_t {
-        Invalid = ~uint32_t(0),
-        Voxel = 0,
-        Pixel = 1
-    };
-
 private:
   struct ParticleCPU
   {
-    glm::vec4 posAndBirthTime;
+    glm::vec3 position;
+    float timeLeft;
     glm::vec3 velocity;
   };
 
   struct EmitterInfo
   {
-    glm::vec3 spawnpoint;
-    float spawnRadius;
-    glm::vec3 initialVelocity;
-    float speedRandomness; // dispersion from initial
-    float lifetime;
-    float spawnRate; // per second
+    glm::vec4 position;
+    ParticleType particleType;
   };
 
+  struct SpawnInfo
+  {
+    glm::vec3 spawnpoint; // relative to emitter
+    float spawnRadius;    // 0 for point spawn
+    glm::vec3 direction;
+    glm::vec3 directionRandomness;
+    float initialVelocity;
+    float speedRandomness; // dispersion from initial
+    float lifetime;
+    float spawnRate; // time between consecutive spawns
+  };
+
+public:
+  Emitter();
+
+  explicit Emitter(EmitterInfo info);
+  explicit Emitter(SpawnInfo info);
+  explicit Emitter(std::uint32_t max_particles_amount);
+
+  Emitter(EmitterInfo info, SpawnInfo spawn_info, std::uint32_t max_particles_amount);
+
+  void update(const glm::vec4& z_view, float detla_time);
+
+  void drawGui();
+
+  auto operator<=>(const Emitter& other) const;
+
 private:
-  void sort();
+  void despawn(std::uint32_t particle_index);
+
+  void spawn(ParticleCPU particle);
+
+  void sort(const glm::vec4& z_view);
 
 private:
   std::uint32_t maxParticlesAmount;
+  float timeSinceLastSpawn;
+  float depthLayer;
+
+  EmitterInfo info;
+  SpawnInfo spawnInfo;
+
+  RandomGenerator randomGenerator;
+
+  std::vector<ParticleCPU> particles;
 };
