@@ -54,7 +54,7 @@ CPMAddPackage(
 CPMAddPackage(
   NAME etna
   GITHUB_REPOSITORY helloy90/etna
-  GIT_TAG descSets
+  GIT_TAG main
 )
 
 # Type-erased function containers that actually work
