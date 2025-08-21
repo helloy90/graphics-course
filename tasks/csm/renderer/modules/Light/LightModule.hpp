@@ -8,6 +8,8 @@
 #include "DirectionalLight.h"
 #include "Light.h"
 #include "shaders/LightParams.h"
+#include "HeightParams.hpp"
+
 
 class LightModule
 {
@@ -20,13 +22,13 @@ public:
 
   void loadLights();
   void displaceLights(
-    const etna::Buffer& height_params_buffer,
+    HeightParams height_params,
     const etna::Image& terrain_map,
     const etna::Image& terrain_normal_map,
     const etna::Sampler& terrain_sampler);
 
   void drawGui(
-    const etna::Buffer& height_params_buffer,
+    HeightParams height_params,
     const etna::Image& terrain_map,
     const etna::Image& terrain_normal_map,
     const etna::Sampler& terrain_sampler);

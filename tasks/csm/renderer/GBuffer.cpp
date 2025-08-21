@@ -23,7 +23,7 @@ GBuffer::GBuffer(glm::uvec2 resolution, vk::Format render_target_format)
   normal = ctx.createImage(etna::Image::CreateInfo{
     .extent = vk::Extent3D{resolution.x, resolution.y, 1},
     .name = "normal",
-    .format = vk::Format::eR8G8B8A8Snorm,
+    .format = vk::Format::eR16G16B16A16Snorm,
     .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled |
       vk::ImageUsageFlagBits::eStorage,
     .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,

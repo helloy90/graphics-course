@@ -6,11 +6,19 @@
 
 struct TerrainGenerationParams
 {
-    shader_uvec2 extent;
-    shader_uint numberOfSamples;
-    shader_float persistence;
-    shader_float seed;
-    shader_vec2 gradientRotation;
+  shader_uint numberOfSamples;
+  shader_float seed;
+  shader_float gradientRotation;
+  shader_float amplitudeDecay;
+  shader_float initialAmplitude;
+  shader_float lacunarity;
+  shader_float noiseRotation;
+  shader_float scale;
+  shader_float heightAmplifier;
+  shader_float heightOffset;
+  shader_vec2 angleVariance;
+  shader_vec2 frequencyVariance;
+  shader_vec2 offset;
 };
 
 

@@ -12,20 +12,14 @@ layout (location = 1) in vec3 worldPosition[];
 
 layout (location = 0) out VS_OUT {
   vec3 pos;
-  vec3 normal;
+  vec2 texCoord;
 };
 
 layout (binding = 0) uniform params_t {
   TerrainParams params;
 };
 
-layout (binding = 1) uniform height_params_t {
-  float heightAmplifier;
-  float heightOffset;
-};
-
-layout (binding = 2) uniform sampler2D heightMap;
-layout (binding = 3) uniform sampler2D normalMap;
+layout (binding = 1) uniform sampler2D heightMap;
 
 layout(push_constant) uniform push_constant_t {
     mat4 projView;
@@ -50,10 +44,10 @@ void main() {
   vec3 currentVertex = interpolate4Vert2D(leftLower, leftUpper, rightLower, rightUpper, u, v);
   vec2 currentTexCoord = interpolate4Vert2D(texLeftLower, texLeftUpper, texRightLower, texRightUpper, u, v);
 
-  currentVertex.y = (texture(heightMap, currentTexCoord).x - heightOffset) * heightAmplifier;
+  currentVertex.y = texture(heightMap, currentTexCoord).x;
 
   pos = currentVertex;
-  normal = texture(normalMap, currentTexCoord).xyz;
+  texCoord = currentTexCoord;
 
   gl_Position = projView * vec4(currentVertex, 1.0);
 }

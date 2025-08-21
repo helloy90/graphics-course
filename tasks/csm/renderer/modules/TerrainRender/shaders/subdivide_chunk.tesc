@@ -16,12 +16,7 @@ layout (binding = 0) uniform params_t {
   TerrainParams params;
 };
 
-layout (binding = 1) uniform height_params_t {
-  float heightAmplifier;
-  float heightOffset;
-};
-
-layout (binding = 2) uniform sampler2D heightMap;
+layout (binding = 1) uniform sampler2D heightMap;
 
 layout(push_constant) uniform push_constant_t {
     mat4 projView;
@@ -72,7 +67,7 @@ bool within(float left, float value, float right) {
 }
 
 bool isInsideViewFrustum(vec3 pos) {
-  float height = (texture(heightMap, getPositionInHeightMap(pos)).x - heightOffset) * heightAmplifier;
+  float height = texture(heightMap, getPositionInHeightMap(pos)).x;
   vec4 clipSpaceCoord = projView * vec4(pos.x, height, pos.z, 1.0);
   return within(-clipSpaceCoord.w, clipSpaceCoord.x, clipSpaceCoord.w) 
           || within(-clipSpaceCoord.w, clipSpaceCoord.y, clipSpaceCoord.w)

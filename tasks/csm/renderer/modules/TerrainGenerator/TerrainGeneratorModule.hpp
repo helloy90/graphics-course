@@ -8,27 +8,39 @@
 #include <etna/ComputePipeline.hpp>
 #include <etna/OneShotCmdMgr.hpp>
 
+#include "HeightParams.hpp"
 #include "shaders/TerrainGenerationParams.h"
 
 
 class TerrainGeneratorModule
 {
 public:
+  struct CreateInfo
+  {
+    uint32_t maxNumberOfSamples;
+    TerrainGenerationParams params;
+  };
 
+public:
   TerrainGeneratorModule();
-  explicit TerrainGeneratorModule(uint32_t max_number_of_samples);
+  explicit TerrainGeneratorModule(CreateInfo info);
 
   void allocateResources(
     vk::Format map_format = vk::Format::eR32Sfloat, vk::Extent3D extent = {4096, 4096, 1});
   void loadShaders();
   void setupPipelines();
-  void execute(glm::vec2 normal_map_fidelity = {16, 16});
+  void execute();
 
   void drawGui();
 
   const etna::Image& getMap() const { return terrainMap; }
   const etna::Image& getNormalMap() const { return terrainNormalMap; }
   const etna::Sampler& getSampler() const { return terrainSampler; }
+
+  HeightParams getHeightParams() const
+  {
+    return {.amplifier = params.heightAmplifier, .offset = params.heightOffset};
+  }
 
 private:
   etna::Image terrainMap;
@@ -41,8 +53,7 @@ private:
 
   uint32_t maxNumberOfSamples;
 
-  etna::GraphicsPipeline terrainGenerationPipeline;
-  etna::ComputePipeline terrainNormalPipeline;
+  etna::ComputePipeline terrainGenerationPipeline;
 
   std::unique_ptr<etna::OneShotCmdMgr> oneShotCommands;
 };

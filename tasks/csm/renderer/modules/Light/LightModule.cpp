@@ -1,10 +1,12 @@
 #include "LightModule.hpp"
 #include "DirectionalLight.h"
+#include "HeightParams.hpp"
 
 #include <imgui.h>
 
 #include <etna/PipelineManager.hpp>
 #include <span>
+#include <vulkan/vulkan_enums.hpp>
 
 
 LightModule::LightModule()
@@ -19,13 +21,14 @@ LightModule::LightModule()
 
 void LightModule::allocateResources()
 {
-  paramsBuffer = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
-    .size = sizeof(params),
-    .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
-    .memoryUsage = VMA_MEMORY_USAGE_AUTO,
-    .allocationCreate =
-      VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
-    .name = "meshesParams"});
+  paramsBuffer = etna::get_context().createBuffer(
+    etna::Buffer::CreateInfo{
+      .size = sizeof(params),
+      .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
+      .memoryUsage = VMA_MEMORY_USAGE_AUTO,
+      .allocationCreate =
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+      .name = "meshesParams"});
 
   oneShotCommands = etna::get_context().createOneShotCmdMgr();
 
@@ -80,23 +83,25 @@ void LightModule::loadLights()
   }
 
   directionalLights = {DirectionalLight{
-    .direction = glm::vec3{1, -0.35, -3},
-    .intensity = 1.0f,
-    .color = glm::vec3{1, 0.694, 0.32}}};
+    .direction = glm::vec3{1, -0.35, -3}, .intensity = 1.0f, .color = glm::vec3{1, 0.694, 0.32}}};
 
   vk::DeviceSize directionalLightsSize = sizeof(DirectionalLight) * directionalLights.size();
   vk::DeviceSize lightsSize = sizeof(Light) * lights.size();
 
-  directionalLightsBuffer = ctx.createBuffer(etna::Buffer::CreateInfo{
-    .size = directionalLightsSize,
-    .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
-    .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-    .name = fmt::format("DirectionalLights")});
-  lightsBuffer = ctx.createBuffer(etna::Buffer::CreateInfo{
-    .size = lightsSize,
-    .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
-    .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-    .name = fmt::format("Lights")});
+  directionalLightsBuffer = ctx.createBuffer(
+    etna::Buffer::CreateInfo{
+      .size = directionalLightsSize,
+      .bufferUsage =
+        vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
+      .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+      .name = fmt::format("DirectionalLights")});
+  lightsBuffer = ctx.createBuffer(
+    etna::Buffer::CreateInfo{
+      .size = lightsSize,
+      .bufferUsage =
+        vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
+      .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+      .name = fmt::format("Lights")});
 
   transferHelper->uploadBuffer(
     *oneShotCommands, directionalLightsBuffer, 0, std::as_bytes(std::span(directionalLights)));
@@ -111,7 +116,7 @@ void LightModule::loadLights()
 }
 
 void LightModule::displaceLights(
-  const etna::Buffer& height_params_buffer,
+  HeightParams height_params,
   const etna::Image& terrain_map,
   const etna::Image& terrain_normal_map,
   const etna::Sampler& terrain_sampler)
@@ -161,9 +166,8 @@ void LightModule::displaceLights(
         shaderInfo.getDescriptorLayoutId(0),
         commandBuffer,
         {etna::Binding{0, paramsBuffer.genBinding()},
-         etna::Binding{1, height_params_buffer.genBinding()},
-         etna::Binding{2, terrain_map.genBinding(terrain_sampler.get(), vk::ImageLayout::eGeneral)},
-         etna::Binding{3, lightsBuffer.genBinding()}});
+         etna::Binding{1, terrain_map.genBinding(terrain_sampler.get(), vk::ImageLayout::eGeneral)},
+         etna::Binding{2, lightsBuffer.genBinding()}});
 
       auto vkSet = set.getVkSet();
 
@@ -175,6 +179,12 @@ void LightModule::displaceLights(
         &vkSet,
         0,
         nullptr);
+
+      commandBuffer.pushConstants<HeightParams>(
+        lightDisplacementPipeline.getVkPipelineLayout(),
+        vk::ShaderStageFlagBits::eCompute,
+        0,
+        {height_params});
 
       commandBuffer.bindPipeline(
         vk::PipelineBindPoint::eCompute, lightDisplacementPipeline.getVkPipeline());
@@ -224,7 +234,7 @@ void LightModule::displaceLights(
 
 // TODO - find more elegant way
 void LightModule::drawGui(
-  const etna::Buffer& height_params_buffer,
+  HeightParams height_params,
   const etna::Image& terrain_map,
   const etna::Image& terrain_normal_map,
   const etna::Sampler& terrain_sampler)
@@ -304,7 +314,7 @@ void LightModule::drawGui(
       ETNA_CHECK_VK_RESULT(etna::get_context().getDevice().waitIdle());
       transferHelper->uploadBuffer(
         *oneShotCommands, lightsBuffer, 0, std::as_bytes(std::span(lights)));
-      displaceLights(height_params_buffer, terrain_map, terrain_normal_map, terrain_sampler);
+      displaceLights(height_params, terrain_map, terrain_normal_map, terrain_sampler);
       lightsChanged = false;
     }
   }

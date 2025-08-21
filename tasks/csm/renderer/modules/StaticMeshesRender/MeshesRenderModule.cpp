@@ -110,7 +110,7 @@ void MeshesRenderModule::setupPipelines(bool wireframe_enabled, vk::Format rende
       .fragmentShaderOutput =
         {
           .colorAttachmentFormats =
-            {render_target_format, vk::Format::eR8G8B8A8Snorm, vk::Format::eR8G8B8A8Unorm},
+            {render_target_format, vk::Format::eR16G16B16A16Snorm, vk::Format::eR8G8B8A8Unorm},
           .depthAttachmentFormat = vk::Format::eD32Sfloat,
         },
     });

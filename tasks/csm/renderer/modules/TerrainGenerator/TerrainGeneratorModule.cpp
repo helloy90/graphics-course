@@ -1,4 +1,6 @@
 #include "TerrainGeneratorModule.hpp"
+#include "cpp_glsl_compat.h"
+#include "etna/DescriptorSet.hpp"
 
 #include <imgui.h>
 
@@ -9,12 +11,27 @@
 
 
 TerrainGeneratorModule::TerrainGeneratorModule()
-  : maxNumberOfSamples(16)
+  : params(
+      {.numberOfSamples = 10,
+       .seed = 1258.0f,
+       .gradientRotation = 0.0f,
+       .amplitudeDecay = 0.45f,
+       .initialAmplitude = 0.5f,
+       .lacunarity = 2.0f,
+       .noiseRotation = 0.0f,
+       .scale = 100.0f,
+       .heightAmplifier = 200.0f,
+       .heightOffset = 200.0f,
+       .angleVariance = shader_vec2(0.0f, 0.0f),
+       .frequencyVariance = shader_vec2(0.0f),
+       .offset = shader_vec2(0.0f, 0.0f)})
+  , maxNumberOfSamples(16)
 {
 }
 
-TerrainGeneratorModule::TerrainGeneratorModule(uint32_t max_number_of_samples)
-  : maxNumberOfSamples(max_number_of_samples)
+TerrainGeneratorModule::TerrainGeneratorModule(TerrainGeneratorModule::CreateInfo info)
+  : params(info.params)
+  , maxNumberOfSamples(info.maxNumberOfSamples)
 {
 }
 
@@ -22,64 +39,51 @@ void TerrainGeneratorModule::allocateResources(vk::Format map_format, vk::Extent
 {
   auto& ctx = etna::get_context();
 
-  terrainMap = ctx.createImage(etna::Image::CreateInfo{
-    .extent = extent,
-    .name = "terrain_map",
-    .format = map_format,
-    .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eColorAttachment |
-      vk::ImageUsageFlagBits::eStorage});
-  terrainNormalMap = ctx.createImage(etna::Image::CreateInfo{
-    .extent = extent,
-    .name = "terrain_normal_map",
-    .format = vk::Format::eR8G8B8A8Snorm,
-    .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage});
+  terrainMap = ctx.createImage(
+    etna::Image::CreateInfo{
+      .extent = extent,
+      .name = "terrain_map",
+      .format = map_format,
+      .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage});
+  terrainNormalMap = ctx.createImage(
+    etna::Image::CreateInfo{
+      .extent = extent,
+      .name = "terrain_normal_map",
+      .format = vk::Format::eR32G32B32A32Sfloat,
+      .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage});
 
-  paramsBuffer = ctx.createBuffer(etna::Buffer::CreateInfo{
-    .size = sizeof(TerrainGenerationParams),
-    .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
-    .memoryUsage = VMA_MEMORY_USAGE_AUTO,
-    .allocationCreate =
-      VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
-    .name = "terrainGenerationParams"});
+  paramsBuffer = ctx.createBuffer(
+    etna::Buffer::CreateInfo{
+      .size = sizeof(TerrainGenerationParams),
+      .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
+      .memoryUsage = VMA_MEMORY_USAGE_AUTO,
+      .allocationCreate =
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+      .name = "terrainGenerationParams"});
 
   oneShotCommands = ctx.createOneShotCmdMgr();
 
   terrainSampler = etna::Sampler(
-    etna::Sampler::CreateInfo{.filter = vk::Filter::eLinear, .name = "terrain_sampler"});
-
-  params = {
-    .extent = {extent.width, extent.height},
-    .numberOfSamples = 5,
-    .persistence = shader_float(0.3)};
+    etna::Sampler::CreateInfo{
+      .filter = vk::Filter::eLinear,
+      .addressMode = vk::SamplerAddressMode::eRepeat,
+      .name = "terrain_sampler"});
 }
 
 void TerrainGeneratorModule::loadShaders()
 {
   etna::create_program(
-    "terrain_generator",
-    {TERRAIN_GENERATOR_MODULE_SHADERS_ROOT "decoy.vert.spv",
-     TERRAIN_GENERATOR_MODULE_SHADERS_ROOT "generator.frag.spv"});
-  etna::create_program(
-    "terrain_normal_map_calculation",
-    {TERRAIN_GENERATOR_MODULE_SHADERS_ROOT "calculate_normal.comp.spv"});
+    "terrain_generator", {TERRAIN_GENERATOR_MODULE_SHADERS_ROOT "generator.comp.spv"});
 }
 
 void TerrainGeneratorModule::setupPipelines()
 {
   auto& pipelineManager = etna::get_context().getPipelineManager();
 
-  terrainGenerationPipeline = pipelineManager.createGraphicsPipeline(
-    "terrain_generator",
-    etna::GraphicsPipeline::CreateInfo{
-      .fragmentShaderOutput = {
-        .colorAttachmentFormats = {terrainMap.getFormat()},
-      }});
-
-  terrainNormalPipeline =
-    pipelineManager.createComputePipeline("terrain_normal_map_calculation", {});
+  terrainGenerationPipeline = pipelineManager.createComputePipeline("terrain_generator", {});
 }
 
-void TerrainGeneratorModule::execute(glm::vec2 normal_map_fidelity)
+void TerrainGeneratorModule::execute()
 {
   auto commandBuffer = oneShotCommands->start();
 
@@ -92,55 +96,10 @@ void TerrainGeneratorModule::execute(glm::vec2 normal_map_fidelity)
     etna::set_state(
       commandBuffer,
       terrainMap.get(),
-      vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-      vk::AccessFlagBits2::eColorAttachmentWrite,
-      vk::ImageLayout::eColorAttachmentOptimal,
-      vk::ImageAspectFlagBits::eColor);
-
-    etna::flush_barriers(commandBuffer);
-
-    auto extent = terrainMap.getExtent();
-    glm::uvec2 glmExtent = {extent.width, extent.height};
-
-    {
-      etna::RenderTargetState state(
-        commandBuffer,
-        {{}, {glmExtent.x, glmExtent.y}},
-        {{terrainMap.get(), terrainMap.getView({})}},
-        {});
-
-      auto shaderInfo = etna::get_shader_program("terrain_generator");
-      auto set = etna::create_descriptor_set(
-        shaderInfo.getDescriptorLayoutId(0),
-        commandBuffer,
-        {etna::Binding{0, paramsBuffer.genBinding()}});
-
-      auto vkSet = set.getVkSet();
-
-      commandBuffer.bindDescriptorSets(
-        vk::PipelineBindPoint::eGraphics,
-        terrainGenerationPipeline.getVkPipelineLayout(),
-        0,
-        1,
-        &vkSet,
-        0,
-        nullptr);
-
-
-      commandBuffer.bindPipeline(
-        vk::PipelineBindPoint::eGraphics, terrainGenerationPipeline.getVkPipeline());
-
-      commandBuffer.draw(3, 1, 0, 0);
-    }
-
-    etna::set_state(
-      commandBuffer,
-      terrainMap.get(),
       vk::PipelineStageFlagBits2::eComputeShader,
-      vk::AccessFlagBits2::eShaderStorageRead,
+      vk::AccessFlagBits2::eShaderStorageWrite,
       vk::ImageLayout::eGeneral,
       vk::ImageAspectFlagBits::eColor);
-
     etna::set_state(
       commandBuffer,
       terrainNormalMap.get(),
@@ -151,21 +110,24 @@ void TerrainGeneratorModule::execute(glm::vec2 normal_map_fidelity)
 
     etna::flush_barriers(commandBuffer);
 
-    {
-      auto shaderInfo = etna::get_shader_program("terrain_normal_map_calculation");
+    auto extent = terrainMap.getExtent();
+    glm::uvec2 glmExtent = {extent.width, extent.height};
 
+    {
+      auto shaderInfo = etna::get_shader_program("terrain_generator");
       auto set = etna::create_descriptor_set(
         shaderInfo.getDescriptorLayoutId(0),
         commandBuffer,
         {etna::Binding{0, terrainMap.genBinding(terrainSampler.get(), vk::ImageLayout::eGeneral)},
          etna::Binding{
-           1, terrainNormalMap.genBinding(terrainSampler.get(), vk::ImageLayout::eGeneral)}});
+           1, terrainNormalMap.genBinding(terrainSampler.get(), vk::ImageLayout::eGeneral)},
+         etna::Binding{2, paramsBuffer.genBinding()}});
 
       auto vkSet = set.getVkSet();
 
       commandBuffer.bindDescriptorSets(
         vk::PipelineBindPoint::eCompute,
-        terrainNormalPipeline.getVkPipelineLayout(),
+        terrainGenerationPipeline.getVkPipelineLayout(),
         0,
         1,
         &vkSet,
@@ -173,13 +135,7 @@ void TerrainGeneratorModule::execute(glm::vec2 normal_map_fidelity)
         nullptr);
 
       commandBuffer.bindPipeline(
-        vk::PipelineBindPoint::eCompute, terrainNormalPipeline.getVkPipeline());
-
-      commandBuffer.pushConstants<glm::uvec2>(
-        terrainNormalPipeline.getVkPipelineLayout(),
-        vk::ShaderStageFlagBits::eCompute,
-        0,
-        {normal_map_fidelity});
+        vk::PipelineBindPoint::eCompute, terrainGenerationPipeline.getVkPipeline());
 
       commandBuffer.dispatch((glmExtent.x + 31) / 32, (glmExtent.y + 31) / 32, 1);
     }
@@ -213,8 +169,6 @@ void TerrainGeneratorModule::drawGui()
 
   static ImU32 numberOfSamplesMin = 1;
   static ImU32 numberOfSamplesMax = maxNumberOfSamples;
-  static float persistenceMin = 0.0f;
-  static float persistenceMax = 1.0f;
 
   if (ImGui::CollapsingHeader("Terrain Generation"))
   {
@@ -226,13 +180,32 @@ void TerrainGeneratorModule::drawGui()
       &numberOfSamplesMin,
       &numberOfSamplesMax,
       "%u");
-    ImGui::SliderScalar(
-      "Persistence",
-      ImGuiDataType_Float,
-      &params.persistence,
-      &persistenceMin,
-      &persistenceMax,
-      "%f");
+
+    ImGui::InputScalar("Seed", ImGuiDataType_Float, &params.seed);
+
+    ImGui::DragFloat("Gradient Rotation", &params.gradientRotation, 0.01f, 0.0f, 360.0f);
+    ImGui::DragFloat("Amplitude Decay", &params.amplitudeDecay, 0.01f, 0.0f, 1.0f);
+    ImGui::DragFloat("Initial Amplitude", &params.initialAmplitude, 0.1f, 0.0f, 5000.0f);
+    ImGui::DragFloat("Lacunarity", &params.lacunarity, 0.01f, 0.0f, 10.0f);
+
+    ImGui::DragFloatRange2(
+      "Angle Variance", &params.angleVariance.x, &params.angleVariance.y, 0.01f, 0.0f, 360.0f);
+    ImGui::DragFloat("Noise Rotation", &params.noiseRotation, 0.01f, 0.0f, 360.0f);
+
+    float frequencyVariance[] = {params.frequencyVariance.x, params.frequencyVariance.y};
+    ImGui::InputFloat2("Frequency Variance", frequencyVariance);
+    params.frequencyVariance = shader_vec2(frequencyVariance[0], frequencyVariance[1]);
+
+    float offset[] = {params.offset.x, params.offset.y};
+    ImGui::InputFloat2("Offset", offset);
+    params.offset = shader_vec2(offset[0], offset[1]);
+
+    ImGui::DragFloat("Scale", &params.scale, 0.01f, 0.0f, 5000.0f);
+
+    ImGui::SeparatorText("Height Adjustment");
+    ImGui::SliderFloat("Height Amplifier", &params.heightAmplifier, 0, 10000, "%.3f");
+    ImGui::InputFloat("Height Offset", &params.heightOffset);
+
     if (ImGui::Button("Regenerate Terrain"))
     {
       execute();

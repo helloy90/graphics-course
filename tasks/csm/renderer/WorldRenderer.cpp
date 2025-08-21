@@ -17,7 +17,7 @@ WorldRenderer::WorldRenderer()
   : lightModule()
   , staticMeshesRenderModule()
   , terrainGeneratorModule()
-  , terrainRenderModule({.amplifier = 200.0f, .offset = 0.6f})
+  , terrainRenderModule()
   , tonemappingModule()
   , waterGeneratorModule()
   , waterRenderModule()
@@ -73,10 +73,10 @@ void WorldRenderer::loadScene(std::filesystem::path path)
 {
   staticMeshesRenderModule.loadScene(path);
 
-  terrainGeneratorModule.execute({8, 8});
+  terrainGeneratorModule.execute();
 
   lightModule.displaceLights(
-    terrainRenderModule.getHeightParamsBuffer(),
+    terrainGeneratorModule.getHeightParams(),
     terrainGeneratorModule.getMap(),
     terrainGeneratorModule.getNormalMap(),
     terrainGeneratorModule.getSampler());
@@ -262,7 +262,7 @@ void WorldRenderer::drawGui()
   ImGui::SeparatorText("Specific Settings");
 
   lightModule.drawGui(
-    terrainRenderModule.getHeightParamsBuffer(),
+    terrainGeneratorModule.getHeightParams(),
     terrainGeneratorModule.getMap(),
     terrainGeneratorModule.getNormalMap(),
     terrainGeneratorModule.getSampler());
@@ -339,6 +339,8 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
     //   // waterGeneratorModule.executeStart();
     //   waterGeneratorModule.executeProgress(cmd_buf, renderPacket.time);
     // }
+
+    // terrainGeneratorModule.execute();
 
     etna::set_state(
       cmd_buf,
