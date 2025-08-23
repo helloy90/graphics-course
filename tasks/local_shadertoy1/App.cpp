@@ -1,8 +1,16 @@
 #include "App.hpp"
+#include "GLFW/glfw3.h"
+#include "render_utils/shaders/cpp_glsl_compat.h"
+#include "spdlog/spdlog.h"
+#include "wsi/ButtonState.hpp"
+#include "wsi/KeyboardKey.hpp"
 
+#include <cstddef>
 #include <etna/Etna.hpp>
 #include <etna/GlobalContext.hpp>
 #include <etna/PipelineManager.hpp>
+#include <vulkan/vulkan_enums.hpp>
+#include <vulkan/vulkan_structs.hpp>
 
 
 App::App()
@@ -75,6 +83,30 @@ App::App()
 
 
   // TODO: Initialize any additional resources you require here!
+
+  initComputeSystems();
+}
+
+void App::initComputeSystems()
+{
+
+  // Create shader program
+  etna::create_program("local_shadertoy", {LOCAL_SHADERTOY1_SHADERS_ROOT "toy.comp.spv"});
+
+  // Create pipeline
+  compPipeline =
+    etna::get_context().getPipelineManager().createComputePipeline("local_shadertoy", {});
+
+  // Create storage image
+  storage = etna::get_context().createImage(etna::Image::CreateInfo{
+    .extent = vk::Extent3D{resolution.x, resolution.y, 1},
+    .name = "storage_image",
+    .format = vk::Format::eR8G8B8A8Snorm,
+    .imageUsage = vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eTransferSrc |
+      vk::ImageUsageFlagBits::eSampled,
+  });
+
+  sampler = etna::Sampler({.name = "sampler"});
 }
 
 App::~App()
@@ -88,12 +120,31 @@ void App::run()
   {
     windowing.poll();
 
+    processInput();
+
     drawFrame();
   }
 
   // We need to wait for the GPU to execute the last frame before destroying
   // all resources and closing the application.
   ETNA_CHECK_VK_RESULT(etna::get_context().getDevice().waitIdle());
+}
+
+void App::processInput() {
+  auto& keyboard = osWindow->keyboard;
+  if (keyboard[KeyboardKey::kB] == ButtonState::Falling) {
+    const int retval = std::system("cd " GRAPHICS_COURSE_ROOT "/build"
+                                   " && cmake --build . --target local_shadertoy_shaders");
+
+    if (retval != 0)
+      spdlog::warn("Shader recompilation returned a non-zero return code!");
+    else
+    {
+      ETNA_CHECK_VK_RESULT(etna::get_context().getDevice().waitIdle());
+      etna::reload_shaders();
+      spdlog::info("Successfully reloaded shaders!");
+    }
+  }
 }
 
 void App::drawFrame()
@@ -137,9 +188,114 @@ void App::drawFrame()
       // and blit/copy operations.
       etna::flush_barriers(currentCmdBuf);
 
-
       // TODO: Record your commands here!
 
+      // Configure image
+      etna::set_state(
+        currentCmdBuf,
+        storage.get(),
+        vk::PipelineStageFlagBits2::eComputeShader,
+        vk::AccessFlagBits2::eShaderWrite,
+        vk::ImageLayout::eTransferSrcOptimal,
+        vk::ImageAspectFlagBits::eColor);
+
+      etna::flush_barriers(currentCmdBuf);
+
+      // Bind image to shader
+      auto computeShaderInfo = etna::get_shader_program("local_shadertoy");
+
+      auto set = etna::create_descriptor_set(
+        computeShaderInfo.getDescriptorLayoutId(0),
+        currentCmdBuf,
+        {etna::Binding{0, storage.genBinding(sampler.get(), vk::ImageLayout::eGeneral)}});
+
+      auto vkSet = set.getVkSet();
+      currentCmdBuf.bindPipeline(vk::PipelineBindPoint::eCompute, compPipeline.getVkPipeline());
+      currentCmdBuf.bindDescriptorSets(
+        vk::PipelineBindPoint::eCompute,
+        compPipeline.getVkPipelineLayout(),
+        0,
+        1,
+        &vkSet,
+        0,
+        nullptr);
+
+      // Getting mouse coords
+      double mouseX = 0;
+      double mouseY = 0;
+      glfwGetCursorPos(osWindow->native(), &mouseX, &mouseY);
+
+      pushConst.iResolution = resolution;
+        pushConst.mouseX = static_cast<float>(mouseX);
+        pushConst.mouseY = static_cast<float>(mouseY);
+
+      currentCmdBuf.pushConstants<PushConstants>(
+        compPipeline.getVkPipelineLayout(), vk::ShaderStageFlagBits::eCompute, 0, {pushConst});
+
+      etna::flush_barriers(currentCmdBuf);
+
+      // Launch shader
+      currentCmdBuf.dispatch((resolution.x / 32) + 1, (resolution.y / 32) + 1, 1);
+
+      etna::set_state(
+        currentCmdBuf,
+        storage.get(),
+        vk::PipelineStageFlagBits2::eBlit,
+        vk::AccessFlagBits2::eTransferRead,
+        vk::ImageLayout::eTransferSrcOptimal,
+        vk::ImageAspectFlagBits::eColor);
+
+      etna::set_state(
+        currentCmdBuf,
+        backbuffer,
+        vk::PipelineStageFlagBits2::eBlit,
+        vk::AccessFlagBits2::eTransferWrite,
+        vk::ImageLayout::eTransferDstOptimal,
+        vk::ImageAspectFlagBits::eColor);
+
+      etna::flush_barriers(currentCmdBuf);
+
+      // Source info
+      std::array<vk::Offset3D, 2> srcOffset = {
+        vk::Offset3D{},
+        vk::Offset3D{static_cast<int32_t>(resolution.x), static_cast<int32_t>(resolution.y), 1}};
+      auto srdImageSubrecourceLayers = vk::ImageSubresourceLayers{
+        .aspectMask = vk::ImageAspectFlagBits::eColor,
+        .mipLevel = 0,
+        .baseArrayLayer = 0,
+        .layerCount = 1};
+      // Destination info
+      std::array<vk::Offset3D, 2> dstOffset = {
+        vk::Offset3D{},
+        vk::Offset3D{static_cast<int32_t>(resolution.x), static_cast<int32_t>(resolution.y), 1}};
+      auto dstImageSubrecourceLayers = vk::ImageSubresourceLayers{
+        .aspectMask = vk::ImageAspectFlagBits::eColor,
+        .mipLevel = 0,
+        .baseArrayLayer = 0,
+        .layerCount = 1};
+
+      // Create blit info
+      auto imageBlit = vk::ImageBlit2{
+        .sType = vk::StructureType::eImageBlit2,
+        .pNext = nullptr,
+        .srcSubresource = srdImageSubrecourceLayers,
+        .srcOffsets = srcOffset,
+        .dstSubresource = dstImageSubrecourceLayers,
+        .dstOffsets = dstOffset};
+
+      auto blitInfo = vk::BlitImageInfo2{
+        .sType = vk::StructureType::eBlitImageInfo2,
+        .pNext = nullptr,
+        .srcImage = storage.get(),
+        .srcImageLayout = vk::ImageLayout::eTransferSrcOptimal,
+        .dstImage = backbuffer,
+        .dstImageLayout = vk::ImageLayout::eTransferDstOptimal,
+        .regionCount = 1,
+        .pRegions = &imageBlit,
+        .filter = vk::Filter::eLinear};
+
+      // Apply blit
+      currentCmdBuf.blitImage2(&blitInfo);
 
       // At the end of "rendering", we are required to change how the pixels of the
       // swpchain image are laid out in memory to something that is appropriate
