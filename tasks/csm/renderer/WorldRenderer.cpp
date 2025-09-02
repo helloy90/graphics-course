@@ -81,7 +81,7 @@ void WorldRenderer::loadScene(std::filesystem::path path)
     terrainGeneratorModule.getNormalMap(),
     terrainGeneratorModule.getSampler());
 
-  // waterGeneratorModule.executeStart();
+  waterGeneratorModule.executeStart();
 }
 
 void WorldRenderer::loadShaders()
@@ -334,13 +334,10 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
     std::memcpy(currentConstants.data(), &params, sizeof(UniformParams));
     currentConstants.unmap();
 
-    // if (!timeStopped)
-    // {
-    //   // waterGeneratorModule.executeStart();
-    //   waterGeneratorModule.executeProgress(cmd_buf, renderPacket.time);
-    // }
-
-    // terrainGeneratorModule.execute();
+    if (!timeStopped)
+    {
+      waterGeneratorModule.executeProgress(cmd_buf, renderPacket.time);
+    }
 
     etna::set_state(
       cmd_buf,
@@ -417,19 +414,19 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
 
     etna::flush_barriers(cmd_buf);
 
-    // waterRenderModule.execute(
-    //   cmd_buf,
-    //   renderPacket,
-    //   resolution,
-    //   {{.image = renderTarget.get(),
-    //     .view = renderTarget.getView({}),
-    //     .loadOp = vk::AttachmentLoadOp::eLoad}},
-    //   gBuffer->genDepthAttachmentParams(vk::AttachmentLoadOp::eLoad),
-    //   waterGeneratorModule.getHeightMap(),
-    //   waterGeneratorModule.getNormalMap(),
-    //   waterGeneratorModule.getSampler(),
-    //   lightModule.getDirectionalLightsBuffer(),
-    // cubemapTexture);
+    waterRenderModule.execute(
+      cmd_buf,
+      renderPacket,
+      resolution,
+      {{.image = renderTarget.get(),
+        .view = renderTarget.getView({}),
+        .loadOp = vk::AttachmentLoadOp::eLoad}},
+      gBuffer->genDepthAttachmentParams(vk::AttachmentLoadOp::eLoad),
+      waterGeneratorModule.getHeightMap(),
+      waterGeneratorModule.getNormalMap(),
+      waterGeneratorModule.getSampler(),
+      lightModule.getDirectionalLightsBuffer(),
+    cubemapTexture);
 
     if (tonemappingEnabled)
     {

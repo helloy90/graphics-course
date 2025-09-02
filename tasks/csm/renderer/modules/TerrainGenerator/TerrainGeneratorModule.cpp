@@ -20,7 +20,7 @@ TerrainGeneratorModule::TerrainGeneratorModule()
        .lacunarity = 2.0f,
        .noiseRotation = 0.0f,
        .scale = 100.0f,
-       .heightAmplifier = 200.0f,
+       .heightAmplifier = 165.0f,
        .heightOffset = 200.0f,
        .angleVariance = shader_vec2(0.0f, 0.0f),
        .frequencyVariance = shader_vec2(0.0f),
