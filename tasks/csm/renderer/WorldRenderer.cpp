@@ -351,7 +351,7 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
       cmd_buf,
       waterGeneratorModule.getHeightMap().get(),
       vk::PipelineStageFlagBits2::eTessellationControlShader |
-        vk::PipelineStageFlagBits2::eTessellationEvaluationShader,
+        vk::PipelineStageFlagBits2::eTessellationEvaluationShader | vk::PipelineStageFlagBits2::eFragmentShader,
       vk::AccessFlagBits2::eShaderSampledRead,
       vk::ImageLayout::eShaderReadOnlyOptimal,
       vk::ImageAspectFlagBits::eColor);

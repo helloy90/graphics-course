@@ -58,7 +58,7 @@ public:
   auto operator<=>(const Emitter& other) const;
 
 private:
-  void despawn(std::uint32_t particle_index);
+  void despawn(std::size_t particle_index);
 
   void spawn(ParticleCPU particle);
 

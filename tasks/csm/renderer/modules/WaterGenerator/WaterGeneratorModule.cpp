@@ -257,6 +257,7 @@ void WaterGeneratorModule::executeStart()
 void WaterGeneratorModule::executeProgress(vk::CommandBuffer cmd_buf, float time)
 {
   ETNA_PROFILE_GPU(cmd_buf, waterProgress);
+  
   etna::set_state(
     cmd_buf,
     updatedSpectrumSlopeTexture.get(),

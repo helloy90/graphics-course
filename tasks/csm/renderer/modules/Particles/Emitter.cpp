@@ -75,7 +75,7 @@ auto Emitter::operator<=>(const Emitter& other) const
   return depthLayer <=> other.depthLayer;
 }
 
-void Emitter::despawn(std::uint32_t particle_index)
+void Emitter::despawn(std::size_t particle_index)
 {
   std::swap(particles.back(), particles[particle_index]);
   particles.pop_back();
