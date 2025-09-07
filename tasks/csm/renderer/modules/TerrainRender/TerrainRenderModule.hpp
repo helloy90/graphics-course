@@ -6,6 +6,7 @@
 #include <etna/RenderTargetStates.hpp>
 #include <etna/Buffer.hpp>
 #include <etna/Sampler.hpp>
+#include <etna/OneShotCmdMgr.hpp>
 
 #include "shaders/TerrainParams.h"
 #include "../RenderPacket.hpp"
@@ -20,15 +21,15 @@ public:
   void allocateResources();
   void loadShaders();
   void setupPipelines(bool wireframe_enabled, vk::Format render_target_format);
+
+  void loadMaps(const std::vector<etna::Binding>& terrain_bindings);
+
   void execute(
     vk::CommandBuffer cmd_buf,
     const RenderPacket& packet,
     glm::uvec2 extent,
     std::vector<etna::RenderTargetState::AttachmentParams> color_attachment_params,
-    etna::RenderTargetState::AttachmentParams depth_attachment_params,
-    const etna::Image& terrain_map,
-    const etna::Image& terrain_normal_map,
-    const etna::Sampler& terrain_sampler);
+    etna::RenderTargetState::AttachmentParams depth_attachment_params);
 
   void drawGui();
 
@@ -36,17 +37,16 @@ private:
   void renderTerrain(
     vk::CommandBuffer cmd_buf,
     vk::PipelineLayout pipeline_layout,
-    const RenderPacket& packet,
-    const etna::Image& terrain_map,
-    const etna::Image& terrain_normal_map,
-    const etna::Sampler& terrain_sampler);
+    const RenderPacket& packet);
 
 private:
   TerrainParams params;
-  // HeightParams heightParams;
 
   etna::Buffer paramsBuffer;
-  // etna::Buffer heightParamsBuffer;
+
+  std::unique_ptr<etna::PersistentDescriptorSet> terrainSet;
 
   etna::GraphicsPipeline terrainRenderPipeline;
+
+  std::unique_ptr<etna::OneShotCmdMgr> oneShotCommands;
 };

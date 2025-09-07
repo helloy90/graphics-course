@@ -10,7 +10,7 @@ layout (location = 0) out vec4 gAlbedo;
 layout (location = 1) out vec4 gNormal;
 layout (location = 2) out vec4 gMaterial;
 
-layout (binding = 2) uniform sampler2D normalMap;
+layout (set = 0, binding = 1) uniform sampler2D normalMap;
 
 void main() {
     gAlbedo = vec4(0.5, 0.5, 0.5, 1);

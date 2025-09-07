@@ -140,23 +140,23 @@ void TerrainGeneratorModule::execute()
       commandBuffer.dispatch((glmExtent.x + 31) / 32, (glmExtent.y + 31) / 32, 1);
     }
 
-    etna::set_state(
-      commandBuffer,
-      terrainMap.get(),
-      vk::PipelineStageFlagBits2::eTessellationEvaluationShader,
-      vk::AccessFlagBits2::eShaderSampledRead,
-      vk::ImageLayout::eShaderReadOnlyOptimal,
-      vk::ImageAspectFlagBits::eColor);
+    // etna::set_state(
+    //   commandBuffer,
+    //   terrainMap.get(),
+    //   vk::PipelineStageFlagBits2::eTessellationEvaluationShader,
+    //   vk::AccessFlagBits2::eShaderSampledRead,
+    //   vk::ImageLayout::eShaderReadOnlyOptimal,
+    //   vk::ImageAspectFlagBits::eColor);
 
-    etna::set_state(
-      commandBuffer,
-      terrainNormalMap.get(),
-      vk::PipelineStageFlagBits2::eTessellationEvaluationShader,
-      vk::AccessFlagBits2::eShaderSampledRead,
-      vk::ImageLayout::eShaderReadOnlyOptimal,
-      vk::ImageAspectFlagBits::eColor);
+    // etna::set_state(
+    //   commandBuffer,
+    //   terrainNormalMap.get(),
+    //   vk::PipelineStageFlagBits2::eTessellationEvaluationShader,
+    //   vk::AccessFlagBits2::eShaderSampledRead,
+    //   vk::ImageLayout::eShaderReadOnlyOptimal,
+    //   vk::ImageAspectFlagBits::eColor);
 
-    etna::flush_barriers(commandBuffer);
+    // etna::flush_barriers(commandBuffer);
   }
   ETNA_CHECK_VK_RESULT(commandBuffer.end());
 
@@ -213,4 +213,24 @@ void TerrainGeneratorModule::drawGui()
   }
 
   ImGui::End();
+}
+
+std::vector<etna::Binding> TerrainGeneratorModule::getBindings(vk::ImageLayout layout) const
+{
+  return {
+    etna::Binding{0, terrainMap.genBinding(terrainSampler.get(), layout)},
+    etna::Binding{1, terrainNormalMap.genBinding(terrainSampler.get(), layout)}};
+}
+
+void TerrainGeneratorModule::setMapsState(
+  vk::CommandBuffer com_buffer,
+  vk::PipelineStageFlags2 pipeline_stage_flags,
+  vk::AccessFlags2 access_flags,
+  vk::ImageLayout layout,
+  vk::ImageAspectFlags aspect_flags)
+{
+  etna::set_state(
+    com_buffer, terrainMap.get(), pipeline_stage_flags, access_flags, layout, aspect_flags);
+  etna::set_state(
+    com_buffer, terrainNormalMap.get(), pipeline_stage_flags, access_flags, layout, aspect_flags);
 }

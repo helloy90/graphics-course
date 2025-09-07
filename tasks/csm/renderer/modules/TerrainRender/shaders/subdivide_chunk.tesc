@@ -12,11 +12,11 @@ layout (location = 0) in uint instanceIndex[];
 layout (location = 0) out vec2 heightMapTextureCoord[];
 layout (location = 1) out vec3 worldPosition[];
 
-layout (binding = 0) uniform params_t {
+layout (set = 0, binding = 0) uniform sampler2D heightMap;
+
+layout (set = 1, binding = 0) uniform params_t {
   TerrainParams params;
 };
-
-layout (binding = 1) uniform sampler2D heightMap;
 
 layout(push_constant) uniform push_constant_t {
     mat4 projView;

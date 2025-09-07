@@ -7,7 +7,9 @@
 #include <etna/Etna.hpp>
 #include <etna/PipelineManager.hpp>
 #include <etna/Profiling.hpp>
+#include <vector>
 
+#include "etna/DescriptorSet.hpp"
 #include "shaders/TerrainParams.h"
 
 
@@ -40,6 +42,8 @@ void TerrainRenderModule::allocateResources()
   paramsBuffer.map();
   std::memcpy(paramsBuffer.data(), &params, sizeof(TerrainParams));
   paramsBuffer.unmap();
+
+  oneShotCommands = etna::get_context().createOneShotCmdMgr();
 }
 
 void TerrainRenderModule::loadShaders()
@@ -97,15 +101,28 @@ void TerrainRenderModule::setupPipelines(bool wireframe_enabled, vk::Format rend
     });
 }
 
+void TerrainRenderModule::loadMaps(const std::vector<etna::Binding>& terrain_bindings)
+{
+  auto shaderInfo = etna::get_shader_program("terrain_render");
+  terrainSet =
+    std::make_unique<etna::PersistentDescriptorSet>(etna::create_persistent_descriptor_set(
+      shaderInfo.getDescriptorLayoutId(0), terrain_bindings, true));
+
+  auto commandBuffer = oneShotCommands->start();
+  ETNA_CHECK_VK_RESULT(commandBuffer.begin(vk::CommandBufferBeginInfo{}));
+  {
+    terrainSet->processBarriers(commandBuffer);
+  }
+  ETNA_CHECK_VK_RESULT(commandBuffer.end());
+  oneShotCommands->submitAndWait(commandBuffer);
+}
+
 void TerrainRenderModule::execute(
   vk::CommandBuffer cmd_buf,
   const RenderPacket& packet,
   glm::uvec2 extent,
   std::vector<etna::RenderTargetState::AttachmentParams> color_attachment_params,
-  etna::RenderTargetState::AttachmentParams depth_attachment_params,
-  const etna::Image& terrain_map,
-  const etna::Image& terrain_normal_map,
-  const etna::Sampler& terrain_sampler)
+  etna::RenderTargetState::AttachmentParams depth_attachment_params)
 {
   {
     ETNA_PROFILE_GPU(cmd_buf, renderTerrain);
@@ -113,47 +130,25 @@ void TerrainRenderModule::execute(
       cmd_buf, {{0, 0}, {extent.x, extent.y}}, color_attachment_params, depth_attachment_params);
 
     cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, terrainRenderPipeline.getVkPipeline());
-    renderTerrain(
-      cmd_buf,
-      terrainRenderPipeline.getVkPipelineLayout(),
-      packet,
-      terrain_map,
-      terrain_normal_map,
-      terrain_sampler);
+    renderTerrain(cmd_buf, terrainRenderPipeline.getVkPipelineLayout(), packet);
   }
 }
 
-void TerrainRenderModule::drawGui()
-{
-
-}
+void TerrainRenderModule::drawGui() {}
 
 void TerrainRenderModule::renderTerrain(
-  vk::CommandBuffer cmd_buf,
-  vk::PipelineLayout pipeline_layout,
-  const RenderPacket& packet,
-  const etna::Image& terrain_map,
-  const etna::Image& terrain_normal_map,
-  const etna::Sampler& terrain_sampler)
+  vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout, const RenderPacket& packet)
 {
   ZoneScoped;
 
   auto shaderInfo = etna::get_shader_program("terrain_render");
   auto set = etna::create_descriptor_set(
-    shaderInfo.getDescriptorLayoutId(0),
-    cmd_buf,
-    {etna::Binding{0, paramsBuffer.genBinding()},
-     etna::Binding{
-       1, terrain_map.genBinding(terrain_sampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
-     etna::Binding{
-       2,
-       terrain_normal_map.genBinding(
-         terrain_sampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)}});
+    shaderInfo.getDescriptorLayoutId(1), cmd_buf, {etna::Binding{0, paramsBuffer.genBinding()}});
 
   auto vkSet = set.getVkSet();
 
   cmd_buf.bindDescriptorSets(
-    vk::PipelineBindPoint::eGraphics, pipeline_layout, 0, 1, &vkSet, 0, nullptr);
+    vk::PipelineBindPoint::eGraphics, pipeline_layout, 0, {terrainSet->getVkSet(), vkSet}, {});
 
   cmd_buf.pushConstants<RenderPacket>(
     pipeline_layout,

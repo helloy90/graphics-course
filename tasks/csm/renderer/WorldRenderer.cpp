@@ -34,24 +34,26 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
 
   auto& ctx = etna::get_context();
 
-  renderTarget = ctx.createImage(etna::Image::CreateInfo{
-    .extent = vk::Extent3D{resolution.x, resolution.y, 1},
-    .name = "render_target",
-    .format = renderTargetFormat,
-    .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled |
-      vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eTransferSrc,
-  });
+  renderTarget = ctx.createImage(
+    etna::Image::CreateInfo{
+      .extent = vk::Extent3D{resolution.x, resolution.y, 1},
+      .name = "render_target",
+      .format = renderTargetFormat,
+      .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled |
+        vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eTransferSrc,
+    });
 
   gBuffer.emplace(resolution, renderTargetFormat);
 
   constantsBuffer.emplace(ctx.getMainWorkCount(), [&ctx](std::size_t i) {
-    return ctx.createBuffer(etna::Buffer::CreateInfo{
-      .size = sizeof(UniformParams),
-      .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
-      .memoryUsage = VMA_MEMORY_USAGE_AUTO,
-      .allocationCreate =
-        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
-      .name = fmt::format("constants{}", i)});
+    return ctx.createBuffer(
+      etna::Buffer::CreateInfo{
+        .size = sizeof(UniformParams),
+        .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
+        .memoryUsage = VMA_MEMORY_USAGE_AUTO,
+        .allocationCreate =
+          VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+        .name = fmt::format("constants{}", i)});
   });
 
   oneShotCommands = ctx.createOneShotCmdMgr();
@@ -75,11 +77,32 @@ void WorldRenderer::loadScene(std::filesystem::path path)
 
   terrainGeneratorModule.execute();
 
-  lightModule.displaceLights(
-    terrainGeneratorModule.getHeightParams(),
-    terrainGeneratorModule.getMap(),
-    terrainGeneratorModule.getNormalMap(),
-    terrainGeneratorModule.getSampler());
+  lightModule.loadLights(
+    {Light{.pos = {0, 27, 0}, .radius = 0, .worldPos = {}, .color = {1, 1, 1}, .intensity = 15},
+     Light{.pos = {0, 5, 0}, .radius = 0, .worldPos = {}, .color = {1, 0, 1}, .intensity = 15},
+     Light{.pos = {0, 5, 25}, .radius = 0, .worldPos = {}, .color = {1, 1, 1}, .intensity = 15},
+     Light{.pos = {3, 5, 50}, .radius = 0, .worldPos = {}, .color = {0.5, 1, 0.5}, .intensity = 15},
+     Light{.pos = {75, 5, 75}, .radius = 0, .worldPos = {}, .color = {1, 0.5, 1}, .intensity = 15},
+     Light{.pos = {50, 5, 20}, .radius = 0, .worldPos = {}, .color = {0, 1, 1}, .intensity = 15},
+     Light{.pos = {25, 5, 50}, .radius = 0, .worldPos = {}, .color = {1, 1, 0}, .intensity = 15},
+     Light{.pos = {50, 5, 50}, .radius = 0, .worldPos = {}, .color = {0.3, 1, 0}, .intensity = 15},
+     Light{.pos = {25, 5, 10}, .radius = 0, .worldPos = {}, .color = {1, 1, 0}, .intensity = 15},
+     Light{
+       .pos = {100, 5, 100}, .radius = 0, .worldPos = {}, .color = {1, 0.5, 0.5}, .intensity = 15},
+     Light{.pos = {150, 5, 150}, .radius = 0, .worldPos = {}, .color = {1, 1, 1}, .intensity = 100},
+     Light{.pos = {25, 5, 10}, .radius = 0, .worldPos = {}, .color = {1, 1, 0}, .intensity = 15},
+     Light{.pos = {10, 5, 25}, .radius = 0, .worldPos = {}, .color = {1, 0, 1}, .intensity = 15}},
+    {DirectionalLight{
+      .direction = glm::vec3{1, -0.35, -3},
+      .intensity = 1.0f,
+      .color = glm::vec3{1, 0.694, 0.32}}});
+
+  lightModule.loadMaps(terrainGeneratorModule.getBindings(vk::ImageLayout::eGeneral));
+
+  lightModule.displaceLights();
+
+  terrainRenderModule.loadMaps(
+    terrainGeneratorModule.getBindings(vk::ImageLayout::eShaderReadOnlyOptimal));
 
   waterGeneratorModule.executeStart();
 }
@@ -171,13 +194,14 @@ void WorldRenderer::loadCubemap()
   const vk::DeviceSize cubemapSize = width * height * 4 * layerCount;
   const vk::DeviceSize layerSize = cubemapSize / layerCount;
 
-  etna::Buffer cubemapBuffer = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
-    .size = cubemapSize,
-    .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer |
-      vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eTransferSrc |
-      vk::BufferUsageFlagBits::eTransferDst,
-    .name = "cubemap_buffer",
-  });
+  etna::Buffer cubemapBuffer = etna::get_context().createBuffer(
+    etna::Buffer::CreateInfo{
+      .size = cubemapSize,
+      .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer |
+        vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eTransferSrc |
+        vk::BufferUsageFlagBits::eTransferDst,
+      .name = "cubemap_buffer",
+    });
 
   for (uint32_t i = 0; i < layerCount; i++)
   {
@@ -186,15 +210,16 @@ void WorldRenderer::loadCubemap()
       *oneShotCommands, cubemapBuffer, static_cast<uint32_t>(layerSize * i), std::as_bytes(source));
   }
 
-  cubemapTexture = etna::get_context().createImage(etna::Image::CreateInfo{
-    .extent = vk::Extent3D{static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1},
-    .name = "cubemap_image",
-    .format = vk::Format::eR8G8B8A8Srgb,
-    .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst |
-      vk::ImageUsageFlagBits::eTransferSrc,
-    .layers = layerCount,
-    .mipLevels = mipLevels,
-    .flags = vk::ImageCreateFlagBits::eCubeCompatible});
+  cubemapTexture = etna::get_context().createImage(
+    etna::Image::CreateInfo{
+      .extent = vk::Extent3D{static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1},
+      .name = "cubemap_image",
+      .format = vk::Format::eR8G8B8A8Srgb,
+      .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst |
+        vk::ImageUsageFlagBits::eTransferSrc,
+      .layers = layerCount,
+      .mipLevels = mipLevels,
+      .flags = vk::ImageCreateFlagBits::eCubeCompatible});
 
   render_utility::local_copy_buffer_to_image(
     *oneShotCommands, cubemapBuffer, cubemapTexture, layerCount);
@@ -206,7 +231,6 @@ void WorldRenderer::loadCubemap()
   {
     stbi_image_free(textures[i]);
   }
-
 }
 
 
@@ -261,11 +285,7 @@ void WorldRenderer::drawGui()
 
   ImGui::SeparatorText("Specific Settings");
 
-  lightModule.drawGui(
-    terrainGeneratorModule.getHeightParams(),
-    terrainGeneratorModule.getMap(),
-    terrainGeneratorModule.getNormalMap(),
-    terrainGeneratorModule.getSampler());
+  lightModule.drawGui();
   staticMeshesRenderModule.drawGui();
   terrainGeneratorModule.drawGui();
   terrainRenderModule.drawGui();
@@ -339,19 +359,20 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
       waterGeneratorModule.executeProgress(cmd_buf, renderPacket.time);
     }
 
-    etna::set_state(
-      cmd_buf,
-      terrainGeneratorModule.getMap().get(),
-      vk::PipelineStageFlagBits2::eTessellationEvaluationShader,
-      vk::AccessFlagBits2::eShaderSampledRead,
-      vk::ImageLayout::eShaderReadOnlyOptimal,
-      vk::ImageAspectFlagBits::eColor);
+    // etna::set_state(
+    //   cmd_buf,
+    //   terrainGeneratorModule.getMap().get(),
+    //   vk::PipelineStageFlagBits2::eTessellationEvaluationShader,
+    //   vk::AccessFlagBits2::eShaderSampledRead,
+    //   vk::ImageLayout::eShaderReadOnlyOptimal,
+    //   vk::ImageAspectFlagBits::eColor);
 
     etna::set_state(
       cmd_buf,
       waterGeneratorModule.getHeightMap().get(),
       vk::PipelineStageFlagBits2::eTessellationControlShader |
-        vk::PipelineStageFlagBits2::eTessellationEvaluationShader | vk::PipelineStageFlagBits2::eFragmentShader,
+        vk::PipelineStageFlagBits2::eTessellationEvaluationShader |
+        vk::PipelineStageFlagBits2::eFragmentShader,
       vk::AccessFlagBits2::eShaderSampledRead,
       vk::ImageLayout::eShaderReadOnlyOptimal,
       vk::ImageAspectFlagBits::eColor);
@@ -373,10 +394,7 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
       renderPacket,
       resolution,
       gBuffer->genColorAttachmentParams(),
-      gBuffer->genDepthAttachmentParams(),
-      terrainGeneratorModule.getMap(),
-      terrainGeneratorModule.getNormalMap(),
-      terrainGeneratorModule.getSampler());
+      gBuffer->genDepthAttachmentParams());
 
     staticMeshesRenderModule.execute(
       cmd_buf,
@@ -426,7 +444,7 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
       waterGeneratorModule.getNormalMap(),
       waterGeneratorModule.getSampler(),
       lightModule.getDirectionalLightsBuffer(),
-    cubemapTexture);
+      cubemapTexture);
 
     if (tonemappingEnabled)
     {

@@ -15,11 +15,11 @@ layout (location = 0) out VS_OUT {
   vec2 texCoord;
 };
 
-layout (binding = 0) uniform params_t {
+layout (set = 0, binding = 0) uniform sampler2D heightMap;
+
+layout (set = 1, binding = 0) uniform params_t {
   TerrainParams params;
 };
-
-layout (binding = 1) uniform sampler2D heightMap;
 
 layout(push_constant) uniform push_constant_t {
     mat4 projView;

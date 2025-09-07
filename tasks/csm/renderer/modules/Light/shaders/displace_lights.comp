@@ -6,22 +6,17 @@
 
 layout(local_size_x = 128) in;
 
-layout(binding = 0) readonly uniform params_t
+layout(set = 0, binding = 0, r32f) uniform image2D heightMap;
+layout(set = 0, binding = 1, r32f) uniform image2D normalMap;
+
+layout(set = 1, binding = 0) readonly uniform params_t
 {
   LightParams params;
 };
 
-layout(binding = 1, r32f) readonly uniform image2D terrainMap;
-
-layout(binding = 2) buffer lights
+layout(set = 1, binding = 1) buffer lights
 {
   Light lightsBuffer[];
-};
-
-layout(push_constant) uniform push_constant_t
-{
-  float heightAmplifier;
-  float heightOffset;
 };
 
 void main()
@@ -36,7 +31,7 @@ void main()
 
   ivec2 lightPosOnTerrainMap = ivec2(currentLight.pos.xz);
 
-  float height = imageLoad(terrainMap, lightPosOnTerrainMap).x;
+  float height = imageLoad(heightMap, lightPosOnTerrainMap).x;
 
   currentLight.worldPos = vec4(currentLight.pos, 1);
   currentLight.worldPos.y += height;

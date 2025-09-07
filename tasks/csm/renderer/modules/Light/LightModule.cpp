@@ -1,12 +1,9 @@
 #include "LightModule.hpp"
 #include "DirectionalLight.h"
-#include "HeightParams.hpp"
 
 #include <imgui.h>
 
 #include <etna/PipelineManager.hpp>
-#include <span>
-#include <vulkan/vulkan_enums.hpp>
 
 
 LightModule::LightModule()
@@ -34,8 +31,6 @@ void LightModule::allocateResources()
 
   transferHelper = std::make_unique<etna::BlockingTransferHelper>(
     etna::BlockingTransferHelper::CreateInfo{.stagingSize = 4096 * 4096 * 6});
-
-  loadLights();
 }
 
 void LightModule::loadShaders()
@@ -51,25 +46,11 @@ void LightModule::setupPipelines()
   lightDisplacementPipeline = pipelineManager.createComputePipeline("lights_displacement", {});
 }
 
-void LightModule::loadLights()
+void LightModule::loadLights(const std::vector<Light>& new_lights, const std::vector<DirectionalLight>& new_directional_lights)
 {
   auto& ctx = etna::get_context();
 
-  lights = {
-    Light{.pos = {0, 27, 0}, .radius = 0, .worldPos = {}, .color = {1, 1, 1}, .intensity = 15},
-    Light{.pos = {0, 5, 0}, .radius = 0, .worldPos = {}, .color = {1, 0, 1}, .intensity = 15},
-    Light{.pos = {0, 5, 25}, .radius = 0, .worldPos = {}, .color = {1, 1, 1}, .intensity = 15},
-    Light{.pos = {3, 5, 50}, .radius = 0, .worldPos = {}, .color = {0.5, 1, 0.5}, .intensity = 15},
-    Light{.pos = {75, 5, 75}, .radius = 0, .worldPos = {}, .color = {1, 0.5, 1}, .intensity = 15},
-    Light{.pos = {50, 5, 20}, .radius = 0, .worldPos = {}, .color = {0, 1, 1}, .intensity = 15},
-    Light{.pos = {25, 5, 50}, .radius = 0, .worldPos = {}, .color = {1, 1, 0}, .intensity = 15},
-    Light{.pos = {50, 5, 50}, .radius = 0, .worldPos = {}, .color = {0.3, 1, 0}, .intensity = 15},
-    Light{.pos = {25, 5, 10}, .radius = 0, .worldPos = {}, .color = {1, 1, 0}, .intensity = 15},
-    Light{
-      .pos = {100, 5, 100}, .radius = 0, .worldPos = {}, .color = {1, 0.5, 0.5}, .intensity = 15},
-    Light{.pos = {150, 5, 150}, .radius = 0, .worldPos = {}, .color = {1, 1, 1}, .intensity = 100},
-    Light{.pos = {25, 5, 10}, .radius = 0, .worldPos = {}, .color = {1, 1, 0}, .intensity = 15},
-    Light{.pos = {10, 5, 25}, .radius = 0, .worldPos = {}, .color = {1, 0, 1}, .intensity = 15}};
+  lights = new_lights;
 
   for (auto& light : lights)
   {
@@ -82,8 +63,7 @@ void LightModule::loadLights()
     // spdlog::info("radius - {}", light.radius);
   }
 
-  directionalLights = {DirectionalLight{
-    .direction = glm::vec3{1, -0.35, -3}, .intensity = 1.0f, .color = glm::vec3{1, 0.694, 0.32}}};
+  directionalLights = new_directional_lights;
 
   vk::DeviceSize directionalLightsSize = sizeof(DirectionalLight) * directionalLights.size();
   vk::DeviceSize lightsSize = sizeof(Light) * lights.size();
@@ -115,33 +95,29 @@ void LightModule::loadLights()
   paramsBuffer.unmap();
 }
 
-void LightModule::displaceLights(
-  HeightParams height_params,
-  const etna::Image& terrain_map,
-  const etna::Image& terrain_normal_map,
-  const etna::Sampler& terrain_sampler)
+void LightModule::displaceLights()
 {
   auto commandBuffer = oneShotCommands->start();
 
   ETNA_CHECK_VK_RESULT(commandBuffer.begin(vk::CommandBufferBeginInfo{}));
   {
-    etna::set_state(
-      commandBuffer,
-      terrain_map.get(),
-      vk::PipelineStageFlagBits2::eComputeShader,
-      vk::AccessFlagBits2::eShaderStorageRead,
-      vk::ImageLayout::eGeneral,
-      vk::ImageAspectFlagBits::eColor);
+    // etna::set_state(
+    //   commandBuffer,
+    //   terrain_map.get(),
+    //   vk::PipelineStageFlagBits2::eComputeShader,
+    //   vk::AccessFlagBits2::eShaderStorageRead,
+    //   vk::ImageLayout::eGeneral,
+    //   vk::ImageAspectFlagBits::eColor);
 
-    etna::set_state(
-      commandBuffer,
-      terrain_normal_map.get(),
-      vk::PipelineStageFlagBits2::eComputeShader,
-      vk::AccessFlagBits2::eShaderStorageWrite,
-      vk::ImageLayout::eGeneral,
-      vk::ImageAspectFlagBits::eColor);
+    // etna::set_state(
+    //   commandBuffer,
+    //   terrain_normal_map.get(),
+    //   vk::PipelineStageFlagBits2::eComputeShader,
+    //   vk::AccessFlagBits2::eShaderStorageWrite,
+    //   vk::ImageLayout::eGeneral,
+    //   vk::ImageAspectFlagBits::eColor);
 
-    etna::flush_barriers(commandBuffer);
+    // etna::flush_barriers(commandBuffer);
 
     {
       std::array bufferBarriers = {vk::BufferMemoryBarrier2{
@@ -163,11 +139,10 @@ void LightModule::displaceLights(
       auto shaderInfo = etna::get_shader_program("lights_displacement");
 
       auto set = etna::create_descriptor_set(
-        shaderInfo.getDescriptorLayoutId(0),
+        shaderInfo.getDescriptorLayoutId(1),
         commandBuffer,
         {etna::Binding{0, paramsBuffer.genBinding()},
-         etna::Binding{1, terrain_map.genBinding(terrain_sampler.get(), vk::ImageLayout::eGeneral)},
-         etna::Binding{2, lightsBuffer.genBinding()}});
+         etna::Binding{1, lightsBuffer.genBinding()}});
 
       auto vkSet = set.getVkSet();
 
@@ -175,16 +150,7 @@ void LightModule::displaceLights(
         vk::PipelineBindPoint::eCompute,
         lightDisplacementPipeline.getVkPipelineLayout(),
         0,
-        1,
-        &vkSet,
-        0,
-        nullptr);
-
-      commandBuffer.pushConstants<HeightParams>(
-        lightDisplacementPipeline.getVkPipelineLayout(),
-        vk::ShaderStageFlagBits::eCompute,
-        0,
-        {height_params});
+        {terrainSet->getVkSet(), vkSet}, {});
 
       commandBuffer.bindPipeline(
         vk::PipelineBindPoint::eCompute, lightDisplacementPipeline.getVkPipeline());
@@ -209,35 +175,30 @@ void LightModule::displaceLights(
       commandBuffer.pipelineBarrier2(dependencyInfo);
     }
 
-    etna::set_state(
-      commandBuffer,
-      terrain_map.get(),
-      vk::PipelineStageFlagBits2::eTessellationEvaluationShader,
-      vk::AccessFlagBits2::eShaderSampledRead,
-      vk::ImageLayout::eShaderReadOnlyOptimal,
-      vk::ImageAspectFlagBits::eColor);
+    // etna::set_state(
+    //   commandBuffer,
+    //   terrain_map.get(),
+    //   vk::PipelineStageFlagBits2::eTessellationEvaluationShader,
+    //   vk::AccessFlagBits2::eShaderSampledRead,
+    //   vk::ImageLayout::eShaderReadOnlyOptimal,
+    //   vk::ImageAspectFlagBits::eColor);
 
-    etna::set_state(
-      commandBuffer,
-      terrain_normal_map.get(),
-      vk::PipelineStageFlagBits2::eTessellationEvaluationShader,
-      vk::AccessFlagBits2::eShaderSampledRead,
-      vk::ImageLayout::eShaderReadOnlyOptimal,
-      vk::ImageAspectFlagBits::eColor);
+    // etna::set_state(
+    //   commandBuffer,
+    //   terrain_normal_map.get(),
+    //   vk::PipelineStageFlagBits2::eTessellationEvaluationShader,
+    //   vk::AccessFlagBits2::eShaderSampledRead,
+    //   vk::ImageLayout::eShaderReadOnlyOptimal,
+    //   vk::ImageAspectFlagBits::eColor);
 
-    etna::flush_barriers(commandBuffer);
+    // etna::flush_barriers(commandBuffer);
   }
   ETNA_CHECK_VK_RESULT(commandBuffer.end());
 
   oneShotCommands->submitAndWait(commandBuffer);
 }
 
-// TODO - find more elegant way
-void LightModule::drawGui(
-  HeightParams height_params,
-  const etna::Image& terrain_map,
-  const etna::Image& terrain_normal_map,
-  const etna::Sampler& terrain_sampler)
+void LightModule::drawGui()
 {
   ImGui::Begin("Application Settings");
 
@@ -314,10 +275,25 @@ void LightModule::drawGui(
       ETNA_CHECK_VK_RESULT(etna::get_context().getDevice().waitIdle());
       transferHelper->uploadBuffer(
         *oneShotCommands, lightsBuffer, 0, std::as_bytes(std::span(lights)));
-      displaceLights(height_params, terrain_map, terrain_normal_map, terrain_sampler);
+      displaceLights();
       lightsChanged = false;
     }
   }
 
   ImGui::End();
+}
+
+void LightModule::loadMaps(const std::vector<etna::Binding>& terrain_bindings) {
+  auto shaderInfo = etna::get_shader_program("lights_displacement");
+  terrainSet =
+    std::make_unique<etna::PersistentDescriptorSet>(etna::create_persistent_descriptor_set(
+      shaderInfo.getDescriptorLayoutId(0), terrain_bindings, true));
+
+  auto commandBuffer = oneShotCommands->start();
+  ETNA_CHECK_VK_RESULT(commandBuffer.begin(vk::CommandBufferBeginInfo{}));
+  {
+    terrainSet->processBarriers(commandBuffer);
+  }
+  ETNA_CHECK_VK_RESULT(commandBuffer.end());
+  oneShotCommands->submitAndWait(commandBuffer);
 }

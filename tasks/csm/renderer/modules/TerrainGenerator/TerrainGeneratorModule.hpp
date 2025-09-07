@@ -8,7 +8,6 @@
 #include <etna/ComputePipeline.hpp>
 #include <etna/OneShotCmdMgr.hpp>
 
-#include "HeightParams.hpp"
 #include "shaders/TerrainGenerationParams.h"
 
 
@@ -33,14 +32,17 @@ public:
 
   void drawGui();
 
-  const etna::Image& getMap() const { return terrainMap; }
-  const etna::Image& getNormalMap() const { return terrainNormalMap; }
-  const etna::Sampler& getSampler() const { return terrainSampler; }
+  std::vector<etna::Binding> getBindings(vk::ImageLayout layout) const;
 
-  HeightParams getHeightParams() const
-  {
-    return {.amplifier = params.heightAmplifier, .offset = params.heightOffset};
-  }
+  // no flush
+  void setMapsState(
+    vk::CommandBuffer com_buffer,
+    vk::PipelineStageFlags2 pipeline_stage_flags,
+    vk::AccessFlags2 access_flags,
+    vk::ImageLayout layout,
+    vk::ImageAspectFlags aspect_flags);
+
+  const etna::Sampler& getSampler() const { return terrainSampler; }
 
 private:
   etna::Image terrainMap;
