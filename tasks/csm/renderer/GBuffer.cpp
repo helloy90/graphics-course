@@ -96,6 +96,14 @@ void GBuffer::prepareForRender(vk::CommandBuffer cmd_buf)
     vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
     vk::ImageLayout::eDepthStencilAttachmentOptimal,
     vk::ImageAspectFlagBits::eDepth);
+  etna::set_state(
+    cmd_buf,
+    shadows.get(),
+    vk::PipelineStageFlagBits2::eEarlyFragmentTests |
+      vk::PipelineStageFlagBits2::eLateFragmentTests,
+    vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
+    vk::ImageLayout::eDepthStencilAttachmentOptimal,
+    vk::ImageAspectFlagBits::eDepth);
 }
 
 void GBuffer::continueDepthWrite(vk::CommandBuffer cmd_buf)
@@ -137,6 +145,13 @@ void GBuffer::prepareForRead(vk::CommandBuffer cmd_buf)
   etna::set_state(
     cmd_buf,
     depth.get(),
+    vk::PipelineStageFlagBits2::eFragmentShader,
+    vk::AccessFlagBits2::eShaderSampledRead,
+    vk::ImageLayout::eShaderReadOnlyOptimal,
+    vk::ImageAspectFlagBits::eDepth);
+  etna::set_state(
+    cmd_buf,
+    shadows.get(),
     vk::PipelineStageFlagBits2::eFragmentShader,
     vk::AccessFlagBits2::eShaderSampledRead,
     vk::ImageLayout::eShaderReadOnlyOptimal,

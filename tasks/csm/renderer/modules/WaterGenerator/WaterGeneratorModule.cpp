@@ -71,6 +71,9 @@ void WaterGeneratorModule::allocateResources(uint32_t textures_extent)
 
   info = {.size = textures_extent, .logSize = logExtent, .texturesAmount = 2};
 
+  paramsVector.clear();
+  paramsVector.reserve(displayParamsVector.size());
+
   for (uint32_t i = 0; i < displayParamsVector.size(); i++)
   {
     paramsVector.emplace_back(recalculateParams(displayParamsVector[i]));
@@ -148,6 +151,7 @@ void WaterGeneratorModule::allocateResources(uint32_t textures_extent)
     .name = "spectrum_sampler"});
 
   ETNA_VERIFYF(patchSizes.size() * 2 == paramsVector.size(), "Incorrect amount of patches");
+  
   transferHelper->uploadBuffer(
     *oneShotCommands, paramsBuffer, 0, std::as_bytes(std::span(paramsVector)));
   transferHelper->uploadBuffer(

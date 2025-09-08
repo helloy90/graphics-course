@@ -19,7 +19,9 @@ public:
   void loadShaders();
   void setupPipelines();
 
-  void loadLights(const std::vector<Light>& new_lights, const std::vector<DirectionalLight>& new_directional_lights);
+  void loadLights(
+    const std::vector<Light>& new_lights,
+    const std::vector<DirectionalLight>& new_directional_lights);
   void displaceLights();
 
   void drawGui();

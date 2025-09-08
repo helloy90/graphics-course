@@ -8,9 +8,24 @@
 App::App()
 {
   glm::uvec2 initialRes = {1280, 720};
-  mainWindow = windowing.createWindow(OsWindow::CreateInfo{
-    .resolution = initialRes,
-  });
+  mainWindow = windowing.createWindow(
+    OsWindow::CreateInfo{
+      .resolution = initialRes,
+      .resizeable = true,
+      .refreshCb =
+        [this]() {
+          // NOTE: this is only called when the window is being resized.
+          drawFrame(0);
+          FrameMark;
+        },
+      .resizeCb =
+        [this](glm::uvec2 res) {
+          if (res.x == 0 || res.y == 0)
+            return;
+
+          renderer->recreateSwapchain(res);
+        },
+    });
 
   renderer.reset(new Renderer(initialRes));
 
@@ -74,11 +89,9 @@ void App::drawFrame(float dt)
 {
   ZoneScoped;
 
-  renderer->update(FramePacket{
-    .mainCam = mainCam,
-    .currentTime = static_cast<float>(windowing.getTime()),
-    .deltaTime = dt
-  });
+  renderer->update(
+    FramePacket{
+      .mainCam = mainCam, .currentTime = static_cast<float>(windowing.getTime()), .deltaTime = dt});
   renderer->drawFrame();
 }
 

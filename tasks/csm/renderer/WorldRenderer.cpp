@@ -75,6 +75,11 @@ void WorldRenderer::loadScene(std::filesystem::path path)
 {
   staticMeshesRenderModule.loadScene(path);
 
+  loadInfo();
+}
+
+void WorldRenderer::loadInfo()
+{
   terrainGeneratorModule.execute();
 
   lightModule.loadLights(
