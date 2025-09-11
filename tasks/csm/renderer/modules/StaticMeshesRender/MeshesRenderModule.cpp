@@ -1,4 +1,5 @@
 #include "MeshesRenderModule.hpp"
+#include "RenderPacket.hpp"
 
 #include <tracy/Tracy.hpp>
 
@@ -15,13 +16,14 @@ MeshesRenderModule::MeshesRenderModule()
 
 void MeshesRenderModule::allocateResources()
 {
-  paramsBuffer = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
-    .size = sizeof(MeshesParams),
-    .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
-    .memoryUsage = VMA_MEMORY_USAGE_AUTO,
-    .allocationCreate =
-      VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
-    .name = "meshesParams"});
+  paramsBuffer = etna::get_context().createBuffer(
+    etna::Buffer::CreateInfo{
+      .size = sizeof(MeshesParams),
+      .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
+      .memoryUsage = VMA_MEMORY_USAGE_AUTO,
+      .allocationCreate =
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+      .name = "meshesParams"});
 
   staticMeshSampler = etna::Sampler(
     etna::Sampler::CreateInfo{.filter = vk::Filter::eLinear, .name = "static_mesh_sampler"});
@@ -37,6 +39,8 @@ void MeshesRenderModule::loadShaders()
     "static_mesh_material",
     {STATIC_MESHES_MODULE_SHADERS_ROOT "static_mesh.frag.spv",
      STATIC_MESHES_MODULE_SHADERS_ROOT "static_mesh.vert.spv"});
+  etna::create_program(
+    "static_mesh_shadow", {STATIC_MESHES_MODULE_SHADERS_ROOT "static_mesh_shadow.vert.spv"});
 
   etna::create_program("culling_meshes", {STATIC_MESHES_MODULE_SHADERS_ROOT "culling.comp.spv"});
 }
@@ -115,13 +119,29 @@ void MeshesRenderModule::setupPipelines(bool wireframe_enabled, vk::Format rende
         },
     });
 
+  staticMeshShadowPipeline = pipelineManager.createGraphicsPipeline(
+    "static_mesh_shadow",
+    etna::GraphicsPipeline::CreateInfo{
+      .vertexShaderInput = sceneVertexInputDesc,
+      .rasterizationConfig =
+        vk::PipelineRasterizationStateCreateInfo{
+          .polygonMode = vk::PolygonMode::eFill,
+          .cullMode = vk::CullModeFlagBits::eBack,
+          .frontFace = vk::FrontFace::eCounterClockwise,
+          .lineWidth = 1.f,
+        },
+      .fragmentShaderOutput =
+        {
+          .depthAttachmentFormat = vk::Format::eD32Sfloat,
+        },
+    });
+
   cullingPipeline = pipelineManager.createComputePipeline("culling_meshes", {});
 }
 
-void MeshesRenderModule::execute(
+void MeshesRenderModule::executeRender(
   vk::CommandBuffer cmd_buf,
   const RenderPacket& packet,
-  glm::uvec2 extent,
   std::vector<etna::RenderTargetState::AttachmentParams> color_attachment_params,
   etna::RenderTargetState::AttachmentParams depth_attachment_params)
 {
@@ -131,10 +151,57 @@ void MeshesRenderModule::execute(
   {
     ETNA_PROFILE_GPU(cmd_buf, renderScene);
     etna::RenderTargetState renderTargets(
-      cmd_buf, {{0, 0}, {extent.x, extent.y}}, color_attachment_params, depth_attachment_params);
+      cmd_buf,
+      {{0, 0}, {packet.resolution.x, packet.resolution.y}},
+      color_attachment_params,
+      depth_attachment_params);
 
     cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, staticMeshPipeline.getVkPipeline());
     renderScene(cmd_buf, staticMeshPipeline.getVkPipelineLayout(), packet.projView);
+  }
+}
+
+void MeshesRenderModule::executeShadowMapping(
+  vk::CommandBuffer cmd_buf,
+  const RenderPacket& packet,
+  const etna::Buffer& light_info,
+  etna::RenderTargetState::AttachmentParams shadow_mapping_attachment_params)
+{
+  {
+    ETNA_PROFILE_GPU(cmd_buf, shadowMapScene);
+    etna::RenderTargetState renderTargets(
+      cmd_buf,
+      {{0, 0}, {packet.resolution.x, packet.resolution.y}},
+      {},
+      shadow_mapping_attachment_params);
+
+    cmd_buf.bindPipeline(
+      vk::PipelineBindPoint::eGraphics, staticMeshShadowPipeline.getVkPipeline());
+
+    cmd_buf.bindVertexBuffers(0, {sceneMgr->getVertexBuffer()}, {0});
+    cmd_buf.bindIndexBuffer(sceneMgr->getIndexBuffer(), 0, vk::IndexType::eUint32);
+
+    auto shaderInfo = etna::get_shader_program("static_mesh_shadow");
+
+    auto set = etna::create_descriptor_set(
+      shaderInfo.getDescriptorLayoutId(0),
+      cmd_buf,
+      {etna::Binding{0, sceneMgr->getInstanceMatricesBuffer().genBinding()},
+       etna::Binding{1, sceneMgr->getDrawInstanceIndicesBuffer().genBinding()},
+       etna::Binding{2, light_info.genBinding()}});
+
+    cmd_buf.bindDescriptorSets(
+      vk::PipelineBindPoint::eGraphics,
+      staticMeshShadowPipeline.getVkPipelineLayout(),
+      0,
+      {set.getVkSet()},
+      {});
+
+    cmd_buf.drawIndexedIndirect(
+      sceneMgr->getDrawCommandsBuffer().get(),
+      0,
+      static_cast<uint32_t>(sceneMgr->getRenderElements().size()),
+      sizeof(vk::DrawIndexedIndirectCommand));
   }
 }
 

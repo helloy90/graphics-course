@@ -41,7 +41,7 @@ App::App()
   // note - maybe bad (see shadowmap)
   ImGuiRenderer::enableImGuiForWindow(mainWindow->native());
 
-  renderer->loadScene(GRAPHICS_COURSE_RESOURCES_ROOT "/scenes/Avocado/Avocado_baked.gltf");
+  renderer->loadScene(GRAPHICS_COURSE_RESOURCES_ROOT "/scenes/lovely_town/scene_baked.gltf");
 }
 
 void App::run()

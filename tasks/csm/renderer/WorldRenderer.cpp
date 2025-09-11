@@ -8,7 +8,6 @@
 #include <etna/PipelineManager.hpp>
 #include <etna/Profiling.hpp>
 #include <etna/RenderTargetStates.hpp>
-#include <vulkan/vulkan_enums.hpp>
 
 #include "render_utils/Utilities.hpp"
 
@@ -98,9 +97,17 @@ void WorldRenderer::loadInfo()
      Light{.pos = {25, 5, 10}, .radius = 0, .worldPos = {}, .color = {1, 1, 0}, .intensity = 15},
      Light{.pos = {10, 5, 25}, .radius = 0, .worldPos = {}, .color = {1, 0, 1}, .intensity = 15}},
     {DirectionalLight{
-      .direction = glm::vec3{1, -0.35, -3},
-      .intensity = 1.0f,
-      .color = glm::vec3{1, 0.694, 0.32}}});
+      .direction = glm::vec3{1, -0.35, -3}, .intensity = 1.0f, .color = glm::vec3{1, 0.694, 0.32}}},
+    {ShadowCastingDirectionalLight(
+      ShadowCastingDirectionalLight::CreateInfo{
+        .light =
+          DirectionalLight{
+            .direction = glm::vec3{1, -0.35, -3},
+            .intensity = 1.0f,
+            .color = glm::vec3{1, 0.694, 0.32}},
+        .position = glm::vec3{1, -0.35, -3} * glm::vec3(-2000.0f),
+        .radius = 1000.0f,
+        .distance = 4000.0f})});
 
   lightModule.loadMaps(terrainGeneratorModule.getBindings(vk::ImageLayout::eGeneral));
 
@@ -109,7 +116,7 @@ void WorldRenderer::loadInfo()
   terrainRenderModule.loadMaps(
     terrainGeneratorModule.getBindings(vk::ImageLayout::eShaderReadOnlyOptimal));
 
-  waterGeneratorModule.executeStart();
+  // waterGeneratorModule.executeStart();
 }
 
 void WorldRenderer::loadShaders()
@@ -269,7 +276,8 @@ void WorldRenderer::update(const FramePacket& packet)
     renderPacket = {
       .projView = params.projView,
       .cameraWorldPosition = params.cameraWorldPosition,
-      .time = packet.currentTime};
+      .time = packet.currentTime,
+      .resolution = resolution};
   }
 }
 
@@ -317,28 +325,32 @@ void WorldRenderer::deferredShading(
   ZoneScoped;
 
   auto shaderInfo = etna::get_shader_program("deferred_shading");
-  auto set = etna::create_descriptor_set(
+  auto gSet = etna::create_descriptor_set(
     shaderInfo.getDescriptorLayoutId(0),
     cmd_buf,
+    {gBuffer->genAlbedoBinding(0),
+     gBuffer->genNormalBinding(1),
+     gBuffer->genMaterialBinding(2),
+     gBuffer->genDepthBinding(3),
+     gBuffer->genShadowBinding(4)});
+
+  auto set = etna::create_descriptor_set(
+    shaderInfo.getDescriptorLayoutId(1),
+    cmd_buf,
     {etna::Binding{0, constants.genBinding()},
-     gBuffer->genAlbedoBinding(1),
-     gBuffer->genNormalBinding(2),
-     gBuffer->genMaterialBinding(3),
-     gBuffer->genDepthBinding(4),
-     etna::Binding{5, lightModule.getPointLightsBuffer().genBinding()},
-     etna::Binding{6, lightModule.getDirectionalLightsBuffer().genBinding()},
-     etna::Binding{7, lightModule.getLightParamsBuffer().genBinding()},
+     etna::Binding{1, lightModule.getPointLightsBuffer().genBinding()},
+     etna::Binding{2, lightModule.getDirectionalLightsBuffer().genBinding()},
+     etna::Binding{3, lightModule.getShadowCastingDirLightInfoBuffer().genBinding()},
+     etna::Binding{4, lightModule.getLightParamsBuffer().genBinding()},
      etna::Binding{
-       8,
+       5,
        cubemapTexture.genBinding(
          staticMeshesRenderModule.getStaticMeshSampler().get(),
          vk::ImageLayout::eShaderReadOnlyOptimal,
          {.type = vk::ImageViewType::eCube})}});
 
-  auto vkSet = set.getVkSet();
-
   cmd_buf.bindDescriptorSets(
-    vk::PipelineBindPoint::eGraphics, pipeline_layout, 0, 1, &vkSet, 0, nullptr);
+    vk::PipelineBindPoint::eGraphics, pipeline_layout, 0, {gSet.getVkSet(), set.getVkSet()}, {});
 
   cmd_buf.pushConstants(
     pipeline_layout, vk::ShaderStageFlagBits::eFragment, 0, sizeof(glm::uvec2), &resolution);
@@ -361,7 +373,7 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
 
     if (!timeStopped)
     {
-      waterGeneratorModule.executeProgress(cmd_buf, renderPacket.time);
+      // waterGeneratorModule.executeProgress(cmd_buf, renderPacket.time);
     }
 
     // etna::set_state(
@@ -394,19 +406,23 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
 
     etna::flush_barriers(cmd_buf);
 
-    terrainRenderModule.execute(
+    terrainRenderModule.executeRender(
       cmd_buf,
       renderPacket,
-      resolution,
       gBuffer->genColorAttachmentParams(),
       gBuffer->genDepthAttachmentParams());
 
-    staticMeshesRenderModule.execute(
+    staticMeshesRenderModule.executeRender(
       cmd_buf,
       renderPacket,
-      resolution,
       gBuffer->genColorAttachmentParams(vk::AttachmentLoadOp::eLoad),
       gBuffer->genDepthAttachmentParams(vk::AttachmentLoadOp::eLoad));
+
+    staticMeshesRenderModule.executeShadowMapping(
+      cmd_buf,
+      renderPacket,
+      lightModule.getShadowCastingDirLightInfoBuffer(),
+      gBuffer->genShadowMappingAttachmentParams());
 
     etna::set_state(
       cmd_buf,
@@ -437,19 +453,18 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
 
     etna::flush_barriers(cmd_buf);
 
-    waterRenderModule.execute(
-      cmd_buf,
-      renderPacket,
-      resolution,
-      {{.image = renderTarget.get(),
-        .view = renderTarget.getView({}),
-        .loadOp = vk::AttachmentLoadOp::eLoad}},
-      gBuffer->genDepthAttachmentParams(vk::AttachmentLoadOp::eLoad),
-      waterGeneratorModule.getHeightMap(),
-      waterGeneratorModule.getNormalMap(),
-      waterGeneratorModule.getSampler(),
-      lightModule.getDirectionalLightsBuffer(),
-      cubemapTexture);
+    // waterRenderModule.executeRender(
+    //   cmd_buf,
+    //   renderPacket,
+    //   {{.image = renderTarget.get(),
+    //     .view = renderTarget.getView({}),
+    //     .loadOp = vk::AttachmentLoadOp::eLoad}},
+    //   gBuffer->genDepthAttachmentParams(vk::AttachmentLoadOp::eLoad),
+    //   waterGeneratorModule.getHeightMap(),
+    //   waterGeneratorModule.getNormalMap(),
+    //   waterGeneratorModule.getSampler(),
+    //   lightModule.getDirectionalLightsBuffer(),
+    //   cubemapTexture);
 
     if (tonemappingEnabled)
     {

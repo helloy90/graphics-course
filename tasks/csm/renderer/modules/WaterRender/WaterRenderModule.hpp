@@ -4,6 +4,7 @@
 #include <etna/RenderTargetStates.hpp>
 #include <etna/Buffer.hpp>
 #include <etna/Sampler.hpp>
+#include <glm/fwd.hpp>
 
 #include "shaders/WaterParams.h"
 #include "shaders/WaterRenderParams.h"
@@ -19,10 +20,9 @@ public:
   void allocateResources();
   void loadShaders();
   void setupPipelines(bool wireframe_enabled, vk::Format render_target_format);
-  void execute(
+  void executeRender(
     vk::CommandBuffer cmd_buf,
     const RenderPacket& packet,
-    glm::uvec2 extent,
     std::vector<etna::RenderTargetState::AttachmentParams> color_attachment_params,
     etna::RenderTargetState::AttachmentParams depth_attachment_params,
     const etna::Image& water_map,
@@ -32,6 +32,13 @@ public:
     const etna::Image& cubemap);
 
   void drawGui();
+
+private:
+  struct PushConstants
+  {
+    glm::mat4 projView;
+    glm::vec3 cameraWorldPosition;
+  };
 
 private:
   void renderWater(

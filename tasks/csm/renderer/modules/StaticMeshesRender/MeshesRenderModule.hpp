@@ -24,12 +24,17 @@ public:
   void loadShaders();
   void loadScene(std::filesystem::path path);
   void setupPipelines(bool wireframe_enabled, vk::Format render_target_format);
-  void execute(
+  void executeRender(
     vk::CommandBuffer cmd_buf,
     const RenderPacket& packet,
-    glm::uvec2 extent,
     std::vector<etna::RenderTargetState::AttachmentParams> color_attachment_params,
     etna::RenderTargetState::AttachmentParams depth_attachment_params);
+
+  void executeShadowMapping(
+    vk::CommandBuffer cmd_buf,
+    const RenderPacket& packet,
+    const etna::Buffer& light_info,
+    etna::RenderTargetState::AttachmentParams shadow_mapping_attachment_params);
 
   void drawGui();
 
@@ -51,6 +56,7 @@ private:
   std::optional<etna::PersistentDescriptorSet> meshesDescriptorSet;
 
   etna::GraphicsPipeline staticMeshPipeline;
+  etna::GraphicsPipeline staticMeshShadowPipeline;
   etna::ComputePipeline cullingPipeline;
 
   etna::Sampler staticMeshSampler;

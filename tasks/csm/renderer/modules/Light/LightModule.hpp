@@ -7,6 +7,7 @@
 
 #include "DirectionalLight.h"
 #include "Light.h"
+#include "ShadowCastingDirectionalLight.hpp"
 #include "shaders/LightParams.h"
 
 
@@ -21,7 +22,8 @@ public:
 
   void loadLights(
     const std::vector<Light>& new_lights,
-    const std::vector<DirectionalLight>& new_directional_lights);
+    const std::vector<DirectionalLight>& new_directional_lights,
+    const std::vector<ShadowCastingDirectionalLight>& new_shadow_casting_dir_light);
   void displaceLights();
 
   void drawGui();
@@ -31,6 +33,10 @@ public:
   const etna::Buffer& getLightParamsBuffer() const { return paramsBuffer; }
   const etna::Buffer& getPointLightsBuffer() const { return lightsBuffer; }
   const etna::Buffer& getDirectionalLightsBuffer() const { return directionalLightsBuffer; }
+  const etna::Buffer& getShadowCastingDirLightInfoBuffer() const
+  {
+    return shadowCastingDirLightInfosBuffer;
+  }
 
 private:
   LightParams params;
@@ -38,9 +44,11 @@ private:
 
   std::vector<Light> lights;
   std::vector<DirectionalLight> directionalLights;
+  std::vector<ShadowCastingDirectionalLight> shadowCastingDirLights;
 
   etna::Buffer lightsBuffer;
   etna::Buffer directionalLightsBuffer;
+  etna::Buffer shadowCastingDirLightInfosBuffer;
 
   etna::ComputePipeline lightDisplacementPipeline;
 

@@ -34,7 +34,7 @@ void main()
   float height = imageLoad(heightMap, lightPosOnTerrainMap).x;
 
   currentLight.worldPos = vec4(currentLight.pos, 1);
-  currentLight.worldPos.y += height;
+  currentLight.worldPos.y += height + 1;
 
   lightsBuffer[index] = currentLight;
 }

@@ -8,6 +8,7 @@ struct LightParams
 {
   shader_uint lightsAmount;
   shader_uint directionalLightsAmount;
+  shader_uint shadowCastingDirLightsAmount;
   // attenuation constants
   shader_float constant;
   shader_float linear;

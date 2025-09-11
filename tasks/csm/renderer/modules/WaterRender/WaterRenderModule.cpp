@@ -50,21 +50,23 @@ WaterRenderModule::WaterRenderModule(WaterParams par)
 
 void WaterRenderModule::allocateResources()
 {
-  paramsBuffer = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
-    .size = sizeof(WaterParams),
-    .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
-    .memoryUsage = VMA_MEMORY_USAGE_AUTO,
-    .allocationCreate =
-      VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
-    .name = "waterParams"});
+  paramsBuffer = etna::get_context().createBuffer(
+    etna::Buffer::CreateInfo{
+      .size = sizeof(WaterParams),
+      .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
+      .memoryUsage = VMA_MEMORY_USAGE_AUTO,
+      .allocationCreate =
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+      .name = "waterParams"});
 
-  renderParamsBuffer = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
-    .size = sizeof(WaterRenderParams),
-    .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
-    .memoryUsage = VMA_MEMORY_USAGE_AUTO,
-    .allocationCreate =
-      VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
-    .name = "waterRenderParams"});
+  renderParamsBuffer = etna::get_context().createBuffer(
+    etna::Buffer::CreateInfo{
+      .size = sizeof(WaterRenderParams),
+      .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
+      .memoryUsage = VMA_MEMORY_USAGE_AUTO,
+      .allocationCreate =
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+      .name = "waterRenderParams"});
 
   paramsBuffer.map();
   std::memcpy(paramsBuffer.data(), &params, sizeof(WaterParams));
@@ -127,10 +129,9 @@ void WaterRenderModule::setupPipelines(bool wireframe_enabled, vk::Format render
     });
 }
 
-void WaterRenderModule::execute(
+void WaterRenderModule::executeRender(
   vk::CommandBuffer cmd_buf,
   const RenderPacket& packet,
-  glm::uvec2 extent,
   std::vector<etna::RenderTargetState::AttachmentParams> color_attachment_params,
   etna::RenderTargetState::AttachmentParams depth_attachment_params,
   const etna::Image& water_map,
@@ -142,7 +143,7 @@ void WaterRenderModule::execute(
   {
     ETNA_PROFILE_GPU(cmd_buf, renderWater);
     etna::RenderTargetState renderTargets(
-      cmd_buf, {{0, 0}, {extent.x, extent.y}}, color_attachment_params, depth_attachment_params);
+      cmd_buf, {{0, 0}, {packet.resolution.x, packet.resolution.y}}, color_attachment_params, depth_attachment_params);
 
     cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, waterRenderPipeline.getVkPipeline());
     renderWater(
@@ -271,12 +272,12 @@ void WaterRenderModule::renderWater(
   cmd_buf.bindDescriptorSets(
     vk::PipelineBindPoint::eGraphics, pipeline_layout, 0, 1, &vkSet, 0, nullptr);
 
-  cmd_buf.pushConstants<RenderPacket>(
+  cmd_buf.pushConstants<PushConstants>(
     pipeline_layout,
     vk::ShaderStageFlagBits::eTessellationControl |
       vk::ShaderStageFlagBits::eTessellationEvaluation | vk::ShaderStageFlagBits::eFragment,
     0,
-    {packet});
+    {{packet.projView, packet.cameraWorldPosition}});
 
   cmd_buf.draw(
     4,

@@ -55,7 +55,7 @@ GBuffer::GBuffer(glm::uvec2 resolution, vk::Format render_target_format)
     etna::Image::CreateInfo{
       .extent = vk::Extent3D{2048, 2048, 1},
       .name = "shadows",
-      .format = vk::Format::eD16Unorm,
+      .format = vk::Format::eD32Sfloat,
       .imageUsage =
         vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled,
       .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,

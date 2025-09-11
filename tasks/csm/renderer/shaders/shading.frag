@@ -8,29 +8,36 @@
 
 layout(location = 0) out vec4 fragColor;
 
-layout(binding = 0) uniform params {
-  UniformParams uniformParams;
+layout(set = 0, binding = 0) uniform sampler2D gAlbedo;
+layout(set = 0, binding = 1) uniform sampler2D gNormal;
+layout(set = 0, binding = 2) uniform sampler2D gMaterial;
+layout(set = 0, binding = 3) uniform sampler2D gDepth;
+layout(set = 0, binding = 4) uniform sampler2D gShadow;
+
+layout(set = 1, binding = 0) uniform params_t {
+  UniformParams params;
 };
 
-layout(binding = 1) uniform sampler2D gAlbedo;
-layout(binding = 2) uniform sampler2D gNormal;
-layout(binding = 3) uniform sampler2D gMaterial;
-layout(binding = 4) uniform sampler2D gDepth;
-
-layout(binding = 5) readonly buffer lights {
+layout(set = 1, binding = 1) readonly buffer lights_t {
     Light lightsBuffer[];
 };
-layout(binding = 6) readonly buffer directionalLights {
+
+layout(set = 1, binding = 2) readonly buffer directional_lights_t {
     DirectionalLight directionalLightsBuffer[];
 };
 
-layout(binding = 7) readonly uniform light_params_t {
+layout(set = 1, binding = 3) readonly buffer shadow_casting_dir_lights_t {
+    mat4 projView;
+    DirectionalLight light;
+};
+
+layout(set = 1, binding = 4) readonly uniform light_params_t {
     uint lightsAmount;
     uint directionalLightsAmount;
     float[] _;
 };
 
-layout(binding = 8) uniform samplerCube cubemap;
+layout(set = 1, binding = 5) uniform samplerCube cubemap;
 
 layout(push_constant) uniform resolution_t {
     uvec2 resolution;
@@ -120,7 +127,7 @@ vec3 computeLightPBR(vec3 baseColor, vec3 pos, Light light, vec3 normal, vec3 re
 
     const vec3 pointToLight = light.worldPos.xyz - pos;
 
-    const vec3 fromPosToCamera = normalize(uniformParams.cameraWorldPosition - pos); // V
+    const vec3 fromPosToCamera = normalize(params.cameraWorldPosition - pos); // V
     const vec3 fromPosToLight = normalize(pointToLight); // L
     const vec3 surfaceNormal = normalize(normal); // N
     const vec3 halfVector = normalize(fromPosToLight + fromPosToCamera); // H
@@ -156,7 +163,7 @@ vec3 computeLightPBR(vec3 baseColor, vec3 pos, DirectionalLight light, vec3 norm
 
     const vec3 pointToLight = -light.direction;
 
-    const vec3 fromPosToCamera = normalize(uniformParams.cameraWorldPosition - pos); // V
+    const vec3 fromPosToCamera = normalize(params.cameraWorldPosition - pos); // V
     const vec3 fromPosToLight = normalize(pointToLight); // L
     const vec3 surfaceNormal = normalize(normal); // N
     const vec3 halfVector = normalize(fromPosToLight + fromPosToCamera); // H
@@ -194,21 +201,21 @@ void main() {
 
     const vec4 screenSpacePosition = vec4(texCoord * 2.0 - 1.0, depth, 1.0);
 
-    vec4 viewSpacePosition = uniformParams.invProj * screenSpacePosition;
+    vec4 viewSpacePosition = params.invProj * screenSpacePosition;
     viewSpacePosition /= viewSpacePosition.w;
 
-    const vec3 viewSpaceNormal = normalize((transpose(uniformParams.invView) * vec4(normal, 0.0)).xyz);
+    const vec3 viewSpaceNormal = normalize((transpose(params.invView) * vec4(normal, 0.0)).xyz);
     
-    vec4 worldSpacePosition = (uniformParams.invProjView * screenSpacePosition);
+    vec4 worldSpacePosition = (params.invProjView * screenSpacePosition);
     worldSpacePosition /= worldSpacePosition.w;
 
-    const vec3 viewDirection = (worldSpacePosition.xyz - uniformParams.cameraWorldPosition);
+    const vec3 viewDirection = (worldSpacePosition.xyz - params.cameraWorldPosition);
     const vec3 reflection = texture(cubemap, reflect(viewDirection, normal)).rgb;
 
     // change to IBL later
     vec3 color = vec3(albedo * 0.3);
 
-    vec3 skyboxTexCoord = (uniformParams.invProjViewMat3 * screenSpacePosition).xyz;
+    vec3 skyboxTexCoord = (params.invProjViewMat3 * screenSpacePosition).xyz;
     vec3 skyboxColor = texture(cubemap, normalize(skyboxTexCoord)).rgb;
 
     for (uint i = 0; i < directionalLightsAmount; i++) {

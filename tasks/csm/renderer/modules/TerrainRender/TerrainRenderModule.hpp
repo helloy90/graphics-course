@@ -1,5 +1,6 @@
 #pragma once
 
+#include <glm/fwd.hpp>
 #include <glm/glm.hpp>
 
 #include <etna/GraphicsPipeline.hpp>
@@ -24,20 +25,24 @@ public:
 
   void loadMaps(const std::vector<etna::Binding>& terrain_bindings);
 
-  void execute(
+  void executeRender(
     vk::CommandBuffer cmd_buf,
     const RenderPacket& packet,
-    glm::uvec2 extent,
     std::vector<etna::RenderTargetState::AttachmentParams> color_attachment_params,
     etna::RenderTargetState::AttachmentParams depth_attachment_params);
 
   void drawGui();
 
 private:
+  struct PushConstants
+  {
+    glm::mat4x4 projView;
+    glm::vec3 cameraWorldPosition;
+  };
+
+private:
   void renderTerrain(
-    vk::CommandBuffer cmd_buf,
-    vk::PipelineLayout pipeline_layout,
-    const RenderPacket& packet);
+    vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout, const RenderPacket& packet);
 
 private:
   TerrainParams params;

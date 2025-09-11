@@ -37,9 +37,9 @@ layout(set = 1, binding = 0) readonly buffer relems_t {
 layout(location = 0) in VS_OUT
 {
   vec3 wPos;
-  vec3 wNorm;
-  vec4 wTangent;
-  vec3 wBitangent;
+  // vec3 wNorm;
+  // vec4 wTangent;
+  // vec3 wBitangent;
   vec3 wNormOut;
   vec2 texCoord;
   flat uint relemIdx;

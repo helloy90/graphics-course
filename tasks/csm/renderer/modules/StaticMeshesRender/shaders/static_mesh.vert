@@ -51,9 +51,9 @@ layout(push_constant) uniform proj_view_t {
 layout (location = 0) out VS_OUT
 {
   vec3 wPos;
-  vec3 wNorm;
-  vec4 wTangent;
-  vec3 wBitangent;
+  // vec3 wNorm;
+  // vec4 wTangent;
+  // vec3 wBitangent;
   vec3 wNormOut;
   vec2 texCoord;
   flat uint relemIdx;
