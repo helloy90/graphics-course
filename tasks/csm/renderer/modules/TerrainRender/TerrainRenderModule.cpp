@@ -7,9 +7,7 @@
 #include <etna/Etna.hpp>
 #include <etna/PipelineManager.hpp>
 #include <etna/Profiling.hpp>
-#include <vector>
 
-#include "etna/DescriptorSet.hpp"
 #include "shaders/TerrainParams.h"
 
 
@@ -54,6 +52,12 @@ void TerrainRenderModule::loadShaders()
      TERRAIN_RENDER_MODULE_SHADERS_ROOT "subdivide_chunk.tesc.spv",
      TERRAIN_RENDER_MODULE_SHADERS_ROOT "process_chunk.tese.spv",
      TERRAIN_RENDER_MODULE_SHADERS_ROOT "terrain.frag.spv"});
+
+  etna::create_program(
+    "terrain_shadow",
+    {TERRAIN_RENDER_MODULE_SHADERS_ROOT "chunk_shadow.vert.spv",
+     TERRAIN_RENDER_MODULE_SHADERS_ROOT "subdivide_chunk_shadow.tesc.spv",
+     TERRAIN_RENDER_MODULE_SHADERS_ROOT "process_chunk_shadow.tese.spv"});
 }
 
 void TerrainRenderModule::setupPipelines(bool wireframe_enabled, vk::Format render_target_format)
@@ -99,6 +103,23 @@ void TerrainRenderModule::setupPipelines(bool wireframe_enabled, vk::Format rend
           .depthAttachmentFormat = vk::Format::eD32Sfloat,
         },
     });
+
+  terrainShadowPipeline = pipelineManager.createGraphicsPipeline(
+    "terrain_shadow",
+    etna::GraphicsPipeline::CreateInfo{
+      .inputAssemblyConfig = {.topology = vk::PrimitiveTopology::ePatchList},
+      .rasterizationConfig =
+        vk::PipelineRasterizationStateCreateInfo{
+          .polygonMode = vk::PolygonMode::eFill,
+          .cullMode = vk::CullModeFlagBits::eBack,
+          .frontFace = vk::FrontFace::eCounterClockwise,
+          .lineWidth = 1.f,
+        },
+      .fragmentShaderOutput =
+        {
+          .depthAttachmentFormat = vk::Format::eD32Sfloat,
+        },
+    });
 }
 
 void TerrainRenderModule::loadMaps(const std::vector<etna::Binding>& terrain_bindings)
@@ -108,10 +129,16 @@ void TerrainRenderModule::loadMaps(const std::vector<etna::Binding>& terrain_bin
     std::make_unique<etna::PersistentDescriptorSet>(etna::create_persistent_descriptor_set(
       shaderInfo.getDescriptorLayoutId(0), terrain_bindings, true));
 
+  auto shaderShadowInfo = etna::get_shader_program("terrain_shadow");
+  terrainShadowSet =
+    std::make_unique<etna::PersistentDescriptorSet>(etna::create_persistent_descriptor_set(
+      shaderShadowInfo.getDescriptorLayoutId(0), {terrain_bindings[0]}, true));
+
   auto commandBuffer = oneShotCommands->start();
   ETNA_CHECK_VK_RESULT(commandBuffer.begin(vk::CommandBufferBeginInfo{}));
   {
     terrainSet->processBarriers(commandBuffer);
+    terrainShadowSet->processBarriers(commandBuffer);
   }
   ETNA_CHECK_VK_RESULT(commandBuffer.end());
   oneShotCommands->submitAndWait(commandBuffer);
@@ -126,10 +153,52 @@ void TerrainRenderModule::executeRender(
   {
     ETNA_PROFILE_GPU(cmd_buf, renderTerrain);
     etna::RenderTargetState renderTargets(
-      cmd_buf, {{0, 0}, {packet.resolution.x, packet.resolution.y}}, color_attachment_params, depth_attachment_params);
+      cmd_buf,
+      {{0, 0}, {packet.resolution.x, packet.resolution.y}},
+      color_attachment_params,
+      depth_attachment_params);
 
     cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, terrainRenderPipeline.getVkPipeline());
     renderTerrain(cmd_buf, terrainRenderPipeline.getVkPipelineLayout(), packet);
+  }
+}
+
+void TerrainRenderModule::executeShadowMapping(
+  vk::CommandBuffer cmd_buf,
+  const RenderPacket& packet,
+  vk::Extent2D extent,
+  const etna::Buffer& light_info,
+  etna::RenderTargetState::AttachmentParams shadow_mapping_attachment_params)
+{
+  {
+    ETNA_PROFILE_GPU(cmd_buf, shadowTerrain);
+    etna::RenderTargetState renderTargets(
+      cmd_buf, {{0, 0}, extent}, {}, shadow_mapping_attachment_params);
+
+    cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, terrainShadowPipeline.getVkPipeline());
+    auto shaderInfo = etna::get_shader_program("terrain_shadow");
+    auto set = etna::create_descriptor_set(
+      shaderInfo.getDescriptorLayoutId(1),
+      cmd_buf,
+      {etna::Binding{0, paramsBuffer.genBinding()}, etna::Binding{1, light_info.genBinding()}});
+
+    auto vkSet = set.getVkSet();
+
+    cmd_buf.bindDescriptorSets(
+      vk::PipelineBindPoint::eGraphics,
+      terrainShadowPipeline.getVkPipelineLayout(),
+      0,
+      {terrainShadowSet->getVkSet(), vkSet},
+      {});
+
+    cmd_buf.pushConstants<PushConstants>(
+      terrainShadowPipeline.getVkPipelineLayout(),
+      vk::ShaderStageFlagBits::eTessellationControl |
+        vk::ShaderStageFlagBits::eTessellationEvaluation,
+      0,
+      {{packet.projView, packet.cameraWorldPosition}});
+
+    cmd_buf.draw(4, params.terrainInChunks.x * params.terrainInChunks.y, 0, 0);
   }
 }
 

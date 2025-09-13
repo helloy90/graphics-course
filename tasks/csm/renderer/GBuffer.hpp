@@ -38,6 +38,12 @@ public:
   etna::Binding genDepthBinding(uint32_t index);
   etna::Binding genShadowBinding(uint32_t index);
 
+  vk::Extent2D getShadowTextureExtent() const
+  {
+    const auto& extent = shadows.getExtent();
+    return {extent.width, extent.height};
+  }
+
 private:
   etna::Image albedo;
   etna::Image normal;

@@ -105,9 +105,9 @@ void WorldRenderer::loadInfo()
             .direction = glm::vec3{1, -0.35, -3},
             .intensity = 1.0f,
             .color = glm::vec3{1, 0.694, 0.32}},
-        .position = glm::vec3{1, -0.35, -3} * glm::vec3(-2000.0f),
-        .radius = 1000.0f,
-        .distance = 4000.0f})});
+        .position = glm::vec3{1, -0.35, -3} * glm::vec3(-500.0f),
+        .radius = 10.0f,
+        .distance = 10000.0f})});
 
   lightModule.loadMaps(terrainGeneratorModule.getBindings(vk::ImageLayout::eGeneral));
 
@@ -406,6 +406,19 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
 
     etna::flush_barriers(cmd_buf);
 
+    staticMeshesRenderModule.executeShadowMapping(
+      cmd_buf,
+      gBuffer->getShadowTextureExtent(),
+      lightModule.getShadowCastingDirLightInfoBuffer(),
+      gBuffer->genShadowMappingAttachmentParams());
+
+    terrainRenderModule.executeShadowMapping(
+      cmd_buf,
+      renderPacket,
+      gBuffer->getShadowTextureExtent(),
+      lightModule.getShadowCastingDirLightInfoBuffer(),
+      gBuffer->genShadowMappingAttachmentParams(vk::AttachmentLoadOp::eLoad));
+
     terrainRenderModule.executeRender(
       cmd_buf,
       renderPacket,
@@ -417,12 +430,6 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
       renderPacket,
       gBuffer->genColorAttachmentParams(vk::AttachmentLoadOp::eLoad),
       gBuffer->genDepthAttachmentParams(vk::AttachmentLoadOp::eLoad));
-
-    staticMeshesRenderModule.executeShadowMapping(
-      cmd_buf,
-      renderPacket,
-      lightModule.getShadowCastingDirLightInfoBuffer(),
-      gBuffer->genShadowMappingAttachmentParams());
 
     etna::set_state(
       cmd_buf,

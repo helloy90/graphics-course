@@ -19,6 +19,12 @@ layout(set = 1, binding = 0) uniform params_t
   TerrainParams params;
 };
 
+layout(set = 1, binding = 1) readonly buffer light_info_t
+{
+  mat4 lightProjView;
+  float _[];
+};
+
 layout(push_constant) uniform push_constant_t
 {
   mat4 projView;
@@ -38,7 +44,6 @@ vec3 getPosition(uint vertex)
     currentInstanceIndex % params.terrainInChunks.x,
     currentInstanceIndex / params.terrainInChunks.x);
   uvec2 coordsOfVertexInChunk = uvec2(vertex / 2, vertex % 2);
-  // start position is terrainOffset
   vec2 worldCoords =
     params.terrainOffset + vec2((coordsOfChunkInGrid + coordsOfVertexInChunk) * params.chunk);
   return toTerrainCoords(vec3(worldCoords, 0));

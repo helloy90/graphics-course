@@ -31,6 +31,13 @@ public:
     std::vector<etna::RenderTargetState::AttachmentParams> color_attachment_params,
     etna::RenderTargetState::AttachmentParams depth_attachment_params);
 
+  void executeShadowMapping(
+    vk::CommandBuffer cmd_buf,
+    const RenderPacket& packet,
+    vk::Extent2D extent,
+    const etna::Buffer& light_info,
+    etna::RenderTargetState::AttachmentParams shadow_mapping_attachment_params);
+
   void drawGui();
 
 private:
@@ -50,8 +57,10 @@ private:
   etna::Buffer paramsBuffer;
 
   std::unique_ptr<etna::PersistentDescriptorSet> terrainSet;
+  std::unique_ptr<etna::PersistentDescriptorSet> terrainShadowSet;
 
   etna::GraphicsPipeline terrainRenderPipeline;
+  etna::GraphicsPipeline terrainShadowPipeline;
 
   std::unique_ptr<etna::OneShotCmdMgr> oneShotCommands;
 };

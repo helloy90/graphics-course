@@ -14,5 +14,8 @@ target_add_shaders(terrain_render_module
     shaders/chunk.vert
     shaders/subdivide_chunk.tesc
     shaders/process_chunk.tese
+    shaders/chunk_shadow.vert
+    shaders/subdivide_chunk_shadow.tesc
+    shaders/process_chunk_shadow.tese
     shaders/terrain.frag
 )

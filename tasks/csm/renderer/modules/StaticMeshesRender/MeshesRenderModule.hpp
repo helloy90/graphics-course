@@ -32,7 +32,7 @@ public:
 
   void executeShadowMapping(
     vk::CommandBuffer cmd_buf,
-    const RenderPacket& packet,
+    vk::Extent2D extent,
     const etna::Buffer& light_info,
     etna::RenderTargetState::AttachmentParams shadow_mapping_attachment_params);
 

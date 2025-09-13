@@ -163,17 +163,14 @@ void MeshesRenderModule::executeRender(
 
 void MeshesRenderModule::executeShadowMapping(
   vk::CommandBuffer cmd_buf,
-  const RenderPacket& packet,
+  vk::Extent2D extent,
   const etna::Buffer& light_info,
   etna::RenderTargetState::AttachmentParams shadow_mapping_attachment_params)
 {
   {
     ETNA_PROFILE_GPU(cmd_buf, shadowMapScene);
     etna::RenderTargetState renderTargets(
-      cmd_buf,
-      {{0, 0}, {packet.resolution.x, packet.resolution.y}},
-      {},
-      shadow_mapping_attachment_params);
+      cmd_buf, {{0, 0}, extent}, {}, shadow_mapping_attachment_params);
 
     cmd_buf.bindPipeline(
       vk::PipelineBindPoint::eGraphics, staticMeshShadowPipeline.getVkPipeline());

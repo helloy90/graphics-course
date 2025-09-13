@@ -10,17 +10,17 @@ layout(quads, fractional_even_spacing, ccw) in;
 layout(location = 0) in vec2 heightMapTextureCoord[];
 layout(location = 1) in vec3 worldPosition[];
 
-layout(location = 0) out VS_OUT
-{
-  vec3 pos;
-  vec2 texCoord;
-};
-
 layout(set = 0, binding = 0) uniform sampler2D heightMap;
 
 layout(set = 1, binding = 0) uniform params_t
 {
   TerrainParams params;
+};
+
+layout(set = 1, binding = 1) readonly buffer light_info_t
+{
+  mat4 lightProjView;
+  float _[];
 };
 
 layout(push_constant) uniform push_constant_t
@@ -31,7 +31,6 @@ layout(push_constant) uniform push_constant_t
 
 void main()
 {
-
   float u = gl_TessCoord.x;
   float v = gl_TessCoord.y;
 
@@ -51,8 +50,5 @@ void main()
 
   currentVertex.y = texture(heightMap, currentTexCoord).x;
 
-  pos = currentVertex;
-  texCoord = currentTexCoord;
-
-  gl_Position = projView * vec4(currentVertex, 1.0);
+  gl_Position = lightProjView * vec4(currentVertex, 1.0);
 }
