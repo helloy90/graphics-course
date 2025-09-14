@@ -27,14 +27,9 @@ void main()
     return;
   }
 
-  Light currentLight = lightsBuffer[index];
-
-  ivec2 lightPosOnTerrainMap = ivec2(currentLight.pos.xz);
+  ivec2 lightPosOnTerrainMap = ivec2(lightsBuffer[index].pos.xz);
 
   float height = imageLoad(heightMap, lightPosOnTerrainMap).x;
 
-  currentLight.worldPos = vec4(currentLight.pos, 1);
-  currentLight.worldPos.y += height + 1;
-
-  lightsBuffer[index] = currentLight;
+  lightsBuffer[index].pos.y += height + 1;
 }

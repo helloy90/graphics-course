@@ -99,7 +99,7 @@ void main()
   vec3 rightLower = getPosition(2);
   vec3 rightUpper = getPosition(3);
 
-  if (!isVisible(leftLower, leftUpper, rightLower, rightUpper))
+  if (false)
   {
     gl_TessLevelOuter[0] = 0;
     gl_TessLevelOuter[1] = 0;

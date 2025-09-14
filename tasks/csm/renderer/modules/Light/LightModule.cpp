@@ -1,6 +1,7 @@
 #include "LightModule.hpp"
 #include "DirectionalLight.h"
 #include "ShadowCastingDirectionalLight.hpp"
+#include "etna/Etna.hpp"
 
 #include <imgui.h>
 
@@ -72,6 +73,10 @@ void LightModule::loadLights(
 
   shadowCastingDirLights = new_shadow_casting_dir_lights;
 
+  params.directionalLightsAmount = static_cast<uint32_t>(directionalLights.size());
+  params.lightsAmount = static_cast<uint32_t>(lights.size());
+  params.shadowCastingDirLightsAmount = static_cast<uint32_t>(shadowCastingDirLights.size());
+
   std::vector<ShadowCastingDirectionalLight::ShaderInfo> infos;
 
   infos.reserve(shadowCastingDirLights.size());
@@ -87,7 +92,6 @@ void LightModule::loadLights(
       Light{
         .pos = {0, 0, 0},
         .radius = 0.0f,
-        .worldPos = {0, 0, 0, 0},
         .color = {0, 0, 0},
         .intensity = 0.0f});
   }
@@ -130,10 +134,6 @@ void LightModule::loadLights(
   transferHelper->uploadBuffer(
     *oneShotCommands, shadowCastingDirLightInfosBuffer, 0, std::as_bytes(std::span(infos)));
 
-  params.directionalLightsAmount = static_cast<uint32_t>(directionalLights.size());
-  params.lightsAmount = static_cast<uint32_t>(lights.size());
-  params.shadowCastingDirLightsAmount = static_cast<uint32_t>(shadowCastingDirLights.size());
-
   paramsBuffer.map();
   std::memcpy(paramsBuffer.data(), &params, sizeof(LightParams));
   paramsBuffer.unmap();
@@ -145,6 +145,9 @@ void LightModule::displaceLights()
 
   ETNA_CHECK_VK_RESULT(commandBuffer.begin(vk::CommandBufferBeginInfo{}));
   {
+    terrainSet->processBarriers(commandBuffer);
+    etna::flush_barriers(commandBuffer);
+
     {
       std::array bufferBarriers = {vk::BufferMemoryBarrier2{
         .srcStageMask = vk::PipelineStageFlagBits2::eTransfer,
@@ -297,12 +300,4 @@ void LightModule::loadMaps(const std::vector<etna::Binding>& terrain_bindings)
   terrainSet =
     std::make_unique<etna::PersistentDescriptorSet>(etna::create_persistent_descriptor_set(
       shaderInfo.getDescriptorLayoutId(0), terrain_bindings, true));
-
-  auto commandBuffer = oneShotCommands->start();
-  ETNA_CHECK_VK_RESULT(commandBuffer.begin(vk::CommandBufferBeginInfo{}));
-  {
-    terrainSet->processBarriers(commandBuffer);
-  }
-  ETNA_CHECK_VK_RESULT(commandBuffer.end());
-  oneShotCommands->submitAndWait(commandBuffer);
 }

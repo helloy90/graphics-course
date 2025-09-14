@@ -19,7 +19,7 @@ TerrainGeneratorModule::TerrainGeneratorModule()
        .initialAmplitude = 0.5f,
        .lacunarity = 2.0f,
        .noiseRotation = 0.0f,
-       .scale = 100.0f,
+       .scale = 300.0f,
        .heightAmplifier = 165.0f,
        .heightOffset = 200.0f,
        .angleVariance = shader_vec2(0.0f, 0.0f),
@@ -139,24 +139,6 @@ void TerrainGeneratorModule::execute()
 
       commandBuffer.dispatch((glmExtent.x + 31) / 32, (glmExtent.y + 31) / 32, 1);
     }
-
-    // etna::set_state(
-    //   commandBuffer,
-    //   terrainMap.get(),
-    //   vk::PipelineStageFlagBits2::eTessellationEvaluationShader,
-    //   vk::AccessFlagBits2::eShaderSampledRead,
-    //   vk::ImageLayout::eShaderReadOnlyOptimal,
-    //   vk::ImageAspectFlagBits::eColor);
-
-    // etna::set_state(
-    //   commandBuffer,
-    //   terrainNormalMap.get(),
-    //   vk::PipelineStageFlagBits2::eTessellationEvaluationShader,
-    //   vk::AccessFlagBits2::eShaderSampledRead,
-    //   vk::ImageLayout::eShaderReadOnlyOptimal,
-    //   vk::ImageAspectFlagBits::eColor);
-
-    // etna::flush_barriers(commandBuffer);
   }
   ETNA_CHECK_VK_RESULT(commandBuffer.end());
 

@@ -16,6 +16,6 @@ layout(set = 0, binding = 1) uniform sampler2D normalMap;
 void main()
 {
   gAlbedo = vec4(0.5, 0.5, 0.5, 1);
-  gNormal = texture(normalMap, texCoord);
+  gNormal = vec4(normalize(texture(normalMap, texCoord).xyz), 0.0);
   gMaterial = vec4(0, 1, 0.0, 1);
 }

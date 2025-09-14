@@ -13,7 +13,7 @@
 
 TerrainRenderModule::TerrainRenderModule()
   : params({
-      .extent = shader_uvec2(4096),
+      .extent = shader_uvec2(1024),
       .chunk = shader_uvec2(16),
       .terrainInChunks = shader_uvec2(64, 64),
       .terrainOffset = shader_vec2(-512, -512),
@@ -139,6 +139,8 @@ void TerrainRenderModule::loadMaps(const std::vector<etna::Binding>& terrain_bin
   {
     terrainSet->processBarriers(commandBuffer);
     terrainShadowSet->processBarriers(commandBuffer);
+
+    etna::flush_barriers(commandBuffer);
   }
   ETNA_CHECK_VK_RESULT(commandBuffer.end());
   oneShotCommands->submitAndWait(commandBuffer);
