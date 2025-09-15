@@ -28,7 +28,7 @@ layout(push_constant) uniform push_constant_t
 const float maxDistance = 256.0;
 const float minDistance = 32.0;
 
-const float maxTesselationLevel = 16.0;
+const float maxTesselationLevel = 32.0;
 const float minTesselationLevel = 4.0;
 
 vec3 getPosition(uint vertex)

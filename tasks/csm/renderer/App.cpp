@@ -71,7 +71,7 @@ void App::processInput(float dt)
     mainWindow->askToClose();
 
   if (is_held_down(mainWindow->keyboard[KeyboardKey::kLeftShift]))
-    camMoveSpeed = 100;
+    camMoveSpeed = 50;
   else
     camMoveSpeed = 2;
 

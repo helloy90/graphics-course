@@ -12,7 +12,7 @@
 
 TerrainGeneratorModule::TerrainGeneratorModule()
   : params(
-      {.numberOfSamples = 10,
+      {.numberOfSamples = 6,
        .seed = 1258.0f,
        .gradientRotation = 0.0f,
        .amplitudeDecay = 0.45f,

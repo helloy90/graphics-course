@@ -224,7 +224,10 @@ void main()
   const vec2 texCoord = gl_FragCoord.xy / resolution;
 
   const vec3 albedo = texture(gAlbedo, texCoord).rgb;
+
   const vec3 normal = texture(gNormal, texCoord).xyz;
+  const vec3 viewSpaceNormal = normalize((transpose(params.invView) * vec4(normal, 0.0)).xyz);
+
   const vec4 material = texture(gMaterial, texCoord);
   const float depth = texture(gDepth, texCoord).x;
 
@@ -232,8 +235,6 @@ void main()
 
   vec4 viewSpacePosition = params.invProj * screenSpacePosition;
   viewSpacePosition /= viewSpacePosition.w;
-
-  const vec3 viewSpaceNormal = normalize((transpose(params.invView) * vec4(normal, 0.0)).xyz);
 
   vec4 worldSpacePosition = (params.invProjView * screenSpacePosition);
   worldSpacePosition /= worldSpacePosition.w;
@@ -259,12 +260,12 @@ void main()
     (shadowTexCoord.x < 0.0001 || shadowTexCoord.x > 0.9999 || shadowTexCoord.y < 0.0001 ||
      shadowTexCoord.y > 0.9999);
 
-  const float shadow =
-    ((lightSpaceNDCPos.z < textureLod(gShadow, shadowTexCoord, 0).x + 0.001 || outOfView)) ? 0.0
-                                                                                           : 1.0;
+  const float lightDepth = textureLod(gShadow, shadowTexCoord, 0).x + 0.0005;
 
-  vec3 pbrColor =
-    computeLightPBR(albedo, worldSpacePosition.xyz, shadowCastingDirLight, normal, reflection, material);
+  const float shadow = ((lightSpaceNDCPos.z < lightDepth) || outOfView) ? 0.0 : 1.0;
+
+  vec3 pbrColor = computeLightPBR(
+    albedo, worldSpacePosition.xyz, shadowCastingDirLight, normal, reflection, material);
   skyboxColor += point;
   color += pbrColor * (1.0 - shadow);
 
