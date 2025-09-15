@@ -27,6 +27,7 @@ public:
     etna::RenderTargetState::AttachmentParams depth_attachment_params,
     const etna::Image& water_map,
     const etna::Image& water_normal_map,
+    const etna::Binding& shadow,
     const etna::Sampler& water_sampler,
     const etna::Buffer& directional_lights_buffer,
     const etna::Image& cubemap);
@@ -36,7 +37,7 @@ public:
 private:
   struct PushConstants
   {
-    glm::mat4 projView;
+    glm::mat4x4 projView;
     glm::vec3 cameraWorldPosition;
   };
 
@@ -47,6 +48,7 @@ private:
     const RenderPacket& packet,
     const etna::Image& water_map,
     const etna::Image& water_normal_map,
+    const etna::Binding& shadow,
     const etna::Sampler& water_sampler,
     const etna::Buffer& directional_lights_buffer,
     const etna::Image& cubemap);

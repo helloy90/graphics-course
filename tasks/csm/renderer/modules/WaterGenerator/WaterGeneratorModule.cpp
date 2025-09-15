@@ -32,11 +32,11 @@ WaterGeneratorModule::WaterGeneratorModule()
       .depth = shader_float(20),
       .lowCutoff = shader_float(0.0001f),
       .highCutoff = shader_float(9000.0f),
-      .seed = shader_uint(0),
+      .seed = shader_uint(38),
     })
   , displayParamsVector({
-      {.scale = shader_float(1.5),
-       .windSpeed = shader_float(5),
+      {.scale = shader_float(0.87),
+       .windSpeed = shader_float(1.2),
        .windDirection = shader_float(22),
        .windActionLength = shader_float(100000),
        .spreadBlend = shader_float(0.642),

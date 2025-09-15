@@ -119,7 +119,7 @@ void WorldRenderer::loadInfo()
   terrainRenderModule.loadMaps(
     terrainGeneratorModule.getBindings(vk::ImageLayout::eShaderReadOnlyOptimal));
 
-  // waterGeneratorModule.executeStart();
+  waterGeneratorModule.executeStart();
 }
 
 void WorldRenderer::loadShaders()
@@ -263,7 +263,6 @@ void WorldRenderer::update(const FramePacket& packet)
 {
   ZoneScoped;
 
-  // calc camera matrix
   {
     const float aspect = float(resolution.x) / float(resolution.y);
     params.view = packet.mainCam.viewTm();
@@ -274,8 +273,6 @@ void WorldRenderer::update(const FramePacket& packet)
     params.invProjView = glm::inverse(params.projView);
     params.invProjViewMat3 = glm::mat4x4(glm::inverse(glm::mat3x3(params.projView)));
     params.cameraWorldPosition = packet.mainCam.position;
-    // spdlog::info("camera position - {}, {}, {}", params.cameraWorldPosition.x,
-    // params.cameraWorldPosition.y, params.cameraWorldPosition.z);
     renderPacket = {
       .projView = params.projView,
       .cameraWorldPosition = params.cameraWorldPosition,
@@ -376,7 +373,7 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
 
     if (!timeStopped)
     {
-      // waterGeneratorModule.executeProgress(cmd_buf, renderPacket.time);
+      waterGeneratorModule.executeProgress(cmd_buf, renderPacket.time);
     }
 
     // etna::set_state(
@@ -463,18 +460,19 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
 
     etna::flush_barriers(cmd_buf);
 
-    // waterRenderModule.executeRender(
-    //   cmd_buf,
-    //   renderPacket,
-    //   {{.image = renderTarget.get(),
-    //     .view = renderTarget.getView({}),
-    //     .loadOp = vk::AttachmentLoadOp::eLoad}},
-    //   gBuffer->genDepthAttachmentParams(vk::AttachmentLoadOp::eLoad),
-    //   waterGeneratorModule.getHeightMap(),
-    //   waterGeneratorModule.getNormalMap(),
-    //   waterGeneratorModule.getSampler(),
-    //   lightModule.getDirectionalLightsBuffer(),
-    //   cubemapTexture);
+    waterRenderModule.executeRender(
+      cmd_buf,
+      renderPacket,
+      {{.image = renderTarget.get(),
+        .view = renderTarget.getView({}),
+        .loadOp = vk::AttachmentLoadOp::eLoad}},
+      gBuffer->genDepthAttachmentParams(vk::AttachmentLoadOp::eLoad),
+      waterGeneratorModule.getHeightMap(),
+      waterGeneratorModule.getNormalMap(),
+      gBuffer->genShadowBinding(4), // change later
+      waterGeneratorModule.getSampler(),
+      lightModule.getShadowCastingDirLightInfoBuffer(),
+      cubemapTexture);
 
     if (tonemappingEnabled)
     {

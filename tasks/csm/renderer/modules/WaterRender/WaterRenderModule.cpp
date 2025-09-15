@@ -136,6 +136,7 @@ void WaterRenderModule::executeRender(
   etna::RenderTargetState::AttachmentParams depth_attachment_params,
   const etna::Image& water_map,
   const etna::Image& water_normal_map,
+  const etna::Binding& shadow,
   const etna::Sampler& water_sampler,
   const etna::Buffer& directional_lights_buffer,
   const etna::Image& cubemap)
@@ -143,7 +144,10 @@ void WaterRenderModule::executeRender(
   {
     ETNA_PROFILE_GPU(cmd_buf, renderWater);
     etna::RenderTargetState renderTargets(
-      cmd_buf, {{0, 0}, {packet.resolution.x, packet.resolution.y}}, color_attachment_params, depth_attachment_params);
+      cmd_buf,
+      {{0, 0}, {packet.resolution.x, packet.resolution.y}},
+      color_attachment_params,
+      depth_attachment_params);
 
     cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, waterRenderPipeline.getVkPipeline());
     renderWater(
@@ -152,6 +156,7 @@ void WaterRenderModule::executeRender(
       packet,
       water_map,
       water_normal_map,
+      shadow,
       water_sampler,
       directional_lights_buffer,
       cubemap);
@@ -242,6 +247,7 @@ void WaterRenderModule::renderWater(
   const RenderPacket& packet,
   const etna::Image& water_map,
   const etna::Image& water_normal_map,
+  const etna::Binding& shadow,
   const etna::Sampler& water_sampler,
   const etna::Buffer& directional_lights_buffer,
   const etna::Image& cubemap)
@@ -259,13 +265,14 @@ void WaterRenderModule::renderWater(
      etna::Binding{
        3,
        water_normal_map.genBinding(water_sampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+     shadow,
      etna::Binding{
-       4,
+       5,
        cubemap.genBinding(
          water_sampler.get(),
          vk::ImageLayout::eShaderReadOnlyOptimal,
          {.type = vk::ImageViewType::eCube})},
-     etna::Binding{5, directional_lights_buffer.genBinding()}});
+     etna::Binding{6, directional_lights_buffer.genBinding()}});
 
   auto vkSet = set.getVkSet();
 
