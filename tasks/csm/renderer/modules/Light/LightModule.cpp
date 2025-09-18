@@ -3,9 +3,13 @@
 #include "ShadowCastingDirectionalLight.hpp"
 #include "etna/Etna.hpp"
 
+#include <cstddef>
+#include <cstring>
+#include <glm/fwd.hpp>
 #include <imgui.h>
 
 #include <etna/PipelineManager.hpp>
+#include <span>
 
 
 LightModule::LightModule()
@@ -52,7 +56,7 @@ void LightModule::setupPipelines()
 void LightModule::loadLights(
   const std::vector<Light>& new_lights,
   const std::vector<DirectionalLight>& new_directional_lights,
-  const std::vector<ShadowCastingDirectionalLight>& new_shadow_casting_dir_lights)
+  ShadowCastingDirectionalLight new_shadow_casting_dir_light)
 {
   auto& ctx = etna::get_context();
 
@@ -71,29 +75,16 @@ void LightModule::loadLights(
 
   directionalLights = new_directional_lights;
 
-  shadowCastingDirLights = new_shadow_casting_dir_lights;
+  shadowCastingDirLights = std::move(new_shadow_casting_dir_light);
 
   params.directionalLightsAmount = static_cast<uint32_t>(directionalLights.size());
   params.lightsAmount = static_cast<uint32_t>(lights.size());
-  params.shadowCastingDirLightsAmount = static_cast<uint32_t>(shadowCastingDirLights.size());
-
-  std::vector<ShadowCastingDirectionalLight::ShaderInfo> infos;
-
-  infos.reserve(shadowCastingDirLights.size());
-
-  for (const auto& light : shadowCastingDirLights)
-  {
-    infos.emplace_back(light.getInfo());
-  }
+  params.shadowCastingDirLightsAmount = 1;
 
   if (lights.empty())
   {
     lights.emplace_back(
-      Light{
-        .pos = {0, 0, 0},
-        .radius = 0.0f,
-        .color = {0, 0, 0},
-        .intensity = 0.0f});
+      Light{.pos = {0, 0, 0}, .radius = 0.0f, .color = {0, 0, 0}, .intensity = 0.0f});
   }
   if (directionalLights.empty())
   {
@@ -103,8 +94,10 @@ void LightModule::loadLights(
 
   vk::DeviceSize directionalLightsSize = sizeof(DirectionalLight) * directionalLights.size();
   vk::DeviceSize lightsSize = sizeof(Light) * lights.size();
-  vk::DeviceSize shadowCastingDirLightsSize =
-    sizeof(ShadowCastingDirectionalLight::ShaderInfo) * infos.size();
+
+  // std::vector<std::byte> infoBuffer = new_shadow_casting_dir_light.getInfoBuffer();
+
+  // spdlog::info("{} - size of info buffer", infoBuffer.size());
 
   lightsBuffer = ctx.createBuffer(
     etna::Buffer::CreateInfo{
@@ -120,19 +113,13 @@ void LightModule::loadLights(
         vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
       .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
       .name = fmt::format("DirectionalLights")});
-  shadowCastingDirLightInfosBuffer = ctx.createBuffer(
-    etna::Buffer::CreateInfo{
-      .size = shadowCastingDirLightsSize,
-      .bufferUsage =
-        vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
-      .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-      .name = fmt::format("ShadowCastingDirLightInfo")});
 
   transferHelper->uploadBuffer(
     *oneShotCommands, directionalLightsBuffer, 0, std::as_bytes(std::span(directionalLights)));
   transferHelper->uploadBuffer(*oneShotCommands, lightsBuffer, 0, std::as_bytes(std::span(lights)));
-  transferHelper->uploadBuffer(
-    *oneShotCommands, shadowCastingDirLightInfosBuffer, 0, std::as_bytes(std::span(infos)));
+  
+  // transferHelper->uploadBuffer(
+  //   *oneShotCommands, shadowCastingDirLightInfosBuffer, 0, std::as_bytes(std::span(infoBuffer)));
 
   paramsBuffer.map();
   std::memcpy(paramsBuffer.data(), &params, sizeof(LightParams));
@@ -207,6 +194,11 @@ void LightModule::displaceLights()
   ETNA_CHECK_VK_RESULT(commandBuffer.end());
 
   oneShotCommands->submitAndWait(commandBuffer);
+}
+
+void LightModule::update(const Camera& main_camera, float aspect_ratio)
+{
+  shadowCastingDirLights.update(main_camera, aspect_ratio);
 }
 
 void LightModule::drawGui()

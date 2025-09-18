@@ -23,7 +23,7 @@ public:
   void initVulkan(std::span<const char*> instance_extensions);
   void initFrameDelivery(vk::UniqueSurfaceKHR surface, ResolutionProvider res_provider);
   void recreateSwapchain(glm::uvec2 res);
-  void loadScene(std::filesystem::path path);
+  void loadScene(std::filesystem::path path, float near_plane, float far_plane);
 
   void debugInput(const Keyboard& kb);
   void update(const FramePacket& packet);

@@ -21,15 +21,21 @@ layout(binding = 1) uniform render_params_t
   WaterRenderParams params;
 };
 
+// for now
+#define SHADOW_CASCADES 3
+
 layout(binding = 2) uniform sampler2D heightMap;
 layout(binding = 3) uniform sampler2D normalMap;
-layout(binding = 4) uniform sampler2D gShadow;
+layout(binding = 4) uniform sampler2D gShadow[SHADOW_CASCADES];
 layout(binding = 5) uniform samplerCube skybox;
 
-layout(binding = 6) readonly buffer shadow_casting_dir_lights_t
+layout(binding = 6) readonly buffer light_info_t
 {
-  mat4 lightProjView;
   DirectionalLight shadowCastingDirLight;
+  uint cascadesAmount;
+  // float _padding;
+  mat4 lightProjViews[SHADOW_CASCADES];
+  float planes[SHADOW_CASCADES + 1];
 };
 
 layout(push_constant) uniform push_constant_t
@@ -114,7 +120,7 @@ void main()
   const vec3 reflectedDir = reflect(-fromPosToCamera, normal);
   vec3 reflection = texture(skybox, reflectedDir).rgb * params.reflectionStrength;
 
-  const vec4 lightSpacePos = lightProjView * vec4(pos, 1.0);
+  const vec4 lightSpacePos = lightProjViews[0] * vec4(pos, 1.0);
   const vec3 lightSpaceNDCPos = lightSpacePos.xyz / lightSpacePos.w;
 
   const vec2 shadowTexCoord = lightSpaceNDCPos.xy * 0.5 + vec2(0.5);
@@ -123,7 +129,7 @@ void main()
     (shadowTexCoord.x < 0.0001 || shadowTexCoord.x > 0.9999 || shadowTexCoord.y < 0.0001 ||
      shadowTexCoord.y > 0.9999);
 
-  const float lightDepth = textureLod(gShadow, shadowTexCoord, 0).x + 0.0005;
+  const float lightDepth = textureLod(gShadow[0], shadowTexCoord, 0).x + 0.0005;
 
   const float shadow = ((lightSpaceNDCPos.z < lightDepth) || outOfView) ? 0.0 : 1.0;
 

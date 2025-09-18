@@ -1,10 +1,11 @@
 #pragma once
 
-#include "DirectionalLight.h"
+#include <vector>
+
+#include <etna/Buffer.hpp>
+
 #include "scene/Camera.hpp"
-#include <glm/ext/matrix_clip_space.hpp>
-#include <glm/ext/matrix_transform.hpp>
-#include <glm/fwd.hpp>
+#include "DirectionalLight.h"
 
 
 class ShadowCastingDirectionalLight
@@ -13,34 +14,40 @@ public:
   struct CreateInfo
   {
     DirectionalLight light;
-    glm::vec3 position;
-    float radius;
-    float distance;
+    std::vector<float> planes; // including camera near and far planes
+    float planesOffset;
   };
 
+  // repack this struct later
   struct ShaderInfo
   {
-    glm::mat4x4 proj;
     DirectionalLight light;
+    uint32_t cascadesAmount;
+    float planesOffset;
+    float _padding[3] = {};
   };
 
 public:
   ShadowCastingDirectionalLight() = default;
 
-  explicit ShadowCastingDirectionalLight(const CreateInfo& info)
-  {
-    shadowCamera.lookAt(info.position, {0, 0, 0}, {0, 1, 0});
+  explicit ShadowCastingDirectionalLight(const CreateInfo& info);
 
-    shaderInfo = {
-      .proj = glm::orthoLH_ZO(
-                info.radius, -info.radius, info.radius, -info.radius, 0.0f, info.distance) *
-        shadowCamera.viewTm(),
-      .light = info.light};
-  }
+  void update(const Camera& main_camera, float aspect_ratio);
 
   const ShaderInfo& getInfo() const { return shaderInfo; }
+  const etna::Buffer& getInfoBuffer() const { return infoBuffer; }
+
+private:
+  std::array<glm::vec3, 8> getWorldSpaceFrustumCorners(const glm::mat4x4& proj_view);
+
+  glm::vec3 getFrustumCenter(const std::array<glm::vec3, 8>& corners);
 
 private:
   ShaderInfo shaderInfo;
+  std::vector<glm::mat4x4> projViewMatrices;
+  std::vector<float> planes;
+
+  etna::Buffer infoBuffer;
+
   Camera shadowCamera;
 };

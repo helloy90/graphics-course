@@ -1,5 +1,5 @@
 
-add_library(lights_module LightModule.cpp Light.h DirectionalLight.h)
+add_library(lights_module LightModule.cpp Light.h DirectionalLight.h ShadowCastingDirectionalLight.cpp)
 
 target_include_directories(lights_module PUBLIC ..)
 

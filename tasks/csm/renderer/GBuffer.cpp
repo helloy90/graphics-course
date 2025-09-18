@@ -4,18 +4,22 @@
 #include <etna/DescriptorSet.hpp>
 #include <etna/Etna.hpp>
 #include <etna/GlobalContext.hpp>
+#include <vector>
 
 
-GBuffer::GBuffer(glm::uvec2 resolution, vk::Format render_target_format)
+GBuffer::GBuffer(const CreateInfo& info)
 {
 
   auto& ctx = etna::get_context();
 
+  vk::Extent3D renderImagesExtent = {info.resolution.x, info.resolution.y, 1};
+  vk::Extent3D shadowImagesExtent = {info.shadowMapsResolution.x, info.shadowMapsResolution.y, 1};
+
   albedo = ctx.createImage(
     etna::Image::CreateInfo{
-      .extent = vk::Extent3D{resolution.x, resolution.y, 1},
+      .extent = renderImagesExtent,
       .name = "albedo",
-      .format = render_target_format,
+      .format = info.renderTargetFormat,
       .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled |
         vk::ImageUsageFlagBits::eStorage,
       .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
@@ -23,9 +27,9 @@ GBuffer::GBuffer(glm::uvec2 resolution, vk::Format render_target_format)
 
   normal = ctx.createImage(
     etna::Image::CreateInfo{
-      .extent = vk::Extent3D{resolution.x, resolution.y, 1},
+      .extent = renderImagesExtent,
       .name = "normal",
-      .format = vk::Format::eR16G16B16A16Snorm,
+      .format = info.normalsFormat,
       .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled |
         vk::ImageUsageFlagBits::eStorage,
       .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
@@ -33,7 +37,7 @@ GBuffer::GBuffer(glm::uvec2 resolution, vk::Format render_target_format)
 
   material = ctx.createImage(
     etna::Image::CreateInfo{
-      .extent = vk::Extent3D{resolution.x, resolution.y, 1},
+      .extent = renderImagesExtent,
       .name = "material",
       .format = vk::Format::eR8G8B8A8Unorm,
       .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled |
@@ -43,7 +47,7 @@ GBuffer::GBuffer(glm::uvec2 resolution, vk::Format render_target_format)
 
   depth = ctx.createImage(
     etna::Image::CreateInfo{
-      .extent = vk::Extent3D{resolution.x, resolution.y, 1},
+      .extent = renderImagesExtent,
       .name = "depth",
       .format = vk::Format::eD32Sfloat,
       .imageUsage =
@@ -51,15 +55,20 @@ GBuffer::GBuffer(glm::uvec2 resolution, vk::Format render_target_format)
       .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
       .allocationCreate = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT});
 
-  shadows = ctx.createImage(
-    etna::Image::CreateInfo{
-      .extent = vk::Extent3D{2048, 2048, 1},
-      .name = "shadows",
-      .format = vk::Format::eD32Sfloat,
-      .imageUsage =
-        vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled,
-      .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-      .allocationCreate = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT});
+  shadows.reserve(info.shadowCascadesAmount);
+
+  for (uint32_t i = 0; i < info.shadowCascadesAmount; i++)
+  {
+    shadows.emplace_back(ctx.createImage(
+      etna::Image::CreateInfo{
+        .extent = shadowImagesExtent,
+        .name = "shadows",
+        .format = info.shadowsFormat,
+        .imageUsage =
+          vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled,
+        .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+        .allocationCreate = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT}));
+  }
 
   sampler = etna::Sampler(
     etna::Sampler::CreateInfo{.filter = vk::Filter::eLinear, .name = "gBuffer_sampler"});
@@ -96,14 +105,18 @@ void GBuffer::prepareForRender(vk::CommandBuffer cmd_buf)
     vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
     vk::ImageLayout::eDepthStencilAttachmentOptimal,
     vk::ImageAspectFlagBits::eDepth);
-  etna::set_state(
-    cmd_buf,
-    shadows.get(),
-    vk::PipelineStageFlagBits2::eEarlyFragmentTests |
-      vk::PipelineStageFlagBits2::eLateFragmentTests,
-    vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
-    vk::ImageLayout::eDepthStencilAttachmentOptimal,
-    vk::ImageAspectFlagBits::eDepth);
+
+  for (const auto& shadowMap : shadows)
+  {
+    etna::set_state(
+      cmd_buf,
+      shadowMap.get(),
+      vk::PipelineStageFlagBits2::eEarlyFragmentTests |
+        vk::PipelineStageFlagBits2::eLateFragmentTests,
+      vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
+      vk::ImageLayout::eDepthStencilAttachmentOptimal,
+      vk::ImageAspectFlagBits::eDepth);
+  }
 }
 
 void GBuffer::continueDepthWrite(vk::CommandBuffer cmd_buf)
@@ -149,13 +162,17 @@ void GBuffer::prepareForRead(vk::CommandBuffer cmd_buf)
     vk::AccessFlagBits2::eShaderSampledRead,
     vk::ImageLayout::eShaderReadOnlyOptimal,
     vk::ImageAspectFlagBits::eDepth);
-  etna::set_state(
-    cmd_buf,
-    shadows.get(),
-    vk::PipelineStageFlagBits2::eFragmentShader,
-    vk::AccessFlagBits2::eShaderSampledRead,
-    vk::ImageLayout::eShaderReadOnlyOptimal,
-    vk::ImageAspectFlagBits::eDepth);
+
+  for (const auto& shadowMap : shadows)
+  {
+    etna::set_state(
+      cmd_buf,
+      shadowMap.get(),
+      vk::PipelineStageFlagBits2::eFragmentShader,
+      vk::AccessFlagBits2::eShaderSampledRead,
+      vk::ImageLayout::eShaderReadOnlyOptimal,
+      vk::ImageAspectFlagBits::eDepth);
+  }
 }
 
 std::vector<etna::RenderTargetState::AttachmentParams> GBuffer::genColorAttachmentParams(
@@ -175,10 +192,13 @@ etna::RenderTargetState::AttachmentParams GBuffer::genDepthAttachmentParams(
 }
 
 etna::RenderTargetState::AttachmentParams GBuffer::genShadowMappingAttachmentParams(
-  vk::AttachmentLoadOp load_op, vk::AttachmentStoreOp store_op)
+  uint32_t index, vk::AttachmentLoadOp load_op, vk::AttachmentStoreOp store_op)
 {
   return {
-    .image = shadows.get(), .view = shadows.getView({}), .loadOp = load_op, .storeOp = store_op};
+    .image = shadows[index].get(),
+    .view = shadows[index].getView({}),
+    .loadOp = load_op,
+    .storeOp = store_op};
 }
 
 etna::Binding GBuffer::genAlbedoBinding(uint32_t index)
@@ -205,8 +225,16 @@ etna::Binding GBuffer::genDepthBinding(uint32_t index)
     index, depth.genBinding(sampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)};
 }
 
-etna::Binding GBuffer::genShadowBinding(uint32_t index)
+std::vector<etna::Binding> GBuffer::genShadowBindings(uint32_t index)
 {
-  return etna::Binding{
-    index, shadows.genBinding(sampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)};
+  std::vector<etna::Binding> bindings;
+  bindings.reserve(shadows.size());
+  for (uint32_t i = 0; i < static_cast<uint32_t>(shadows.size()); i++)
+  {
+    bindings.emplace_back(
+      etna::Binding{
+        index, shadows[i].genBinding(sampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal), i});
+  }
+
+  return bindings;
 }

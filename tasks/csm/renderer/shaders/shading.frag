@@ -6,13 +6,17 @@
 #include "../modules/Light/Light.h"
 #include "../modules/Light/DirectionalLight.h"
 
+// for now
+#define SHADOW_CASCADES 3
+
+
 layout(location = 0) out vec4 fragColor;
 
 layout(set = 0, binding = 0) uniform sampler2D gAlbedo;
 layout(set = 0, binding = 1) uniform sampler2D gNormal;
 layout(set = 0, binding = 2) uniform sampler2D gMaterial;
 layout(set = 0, binding = 3) uniform sampler2D gDepth;
-layout(set = 0, binding = 4) uniform sampler2D gShadow;
+layout(set = 0, binding = 4) uniform sampler2D gShadow[SHADOW_CASCADES];
 
 layout(set = 1, binding = 0) uniform params_t
 {
@@ -29,11 +33,19 @@ layout(set = 1, binding = 2) readonly buffer directional_lights_t
   DirectionalLight directionalLightsBuffer[];
 };
 
+// fighting alignment rules
 layout(set = 1, binding = 3) readonly buffer shadow_casting_dir_lights_t
 {
-  mat4 lightProjView;
-  DirectionalLight shadowCastingDirLight;
+  vec3 shadowCastingDirLightDirection;
+  float shadowCastingDirLightIntensity;
+  vec3 shadowCastingDirLightColor;
+  uint cascadesAmount;
+  float planesOffset;
+  float _padding[3]; // should not be here
+  mat4 lightProjViews[SHADOW_CASCADES];
+  float planes[SHADOW_CASCADES + 1];
 };
+
 
 layout(set = 1, binding = 4) readonly uniform light_params_t
 {
@@ -219,13 +231,74 @@ vec3 computeLightPBR(
 }
 // -----------------------------------------------
 
+uint getShadowCascade(float depth)
+{
+  uint cascade = 0;
+  for (; cascade < cascadesAmount; cascade++)
+  {
+    if (depth < planes[cascade + 1])
+    {
+      break;
+    }
+  }
+
+  return cascade;
+}
+
+float computeShadow(vec4 worldPosition, uint currentCascade, vec3 normal, DirectionalLight light)
+{
+  const vec4 lightSpacePos = lightProjViews[currentCascade] * worldPosition;
+  vec3 lightSpaceNDCPos = lightSpacePos.xyz / lightSpacePos.w;
+
+  // lightSpaceNDCPos = lightSpaceNDCPos * 0.5 + vec3(0.5);
+
+  const vec2 shadowTexCoord = lightSpaceNDCPos.xy * 0.5 + vec2(0.5);
+
+  if (lightSpaceNDCPos.z > 1.0)
+  {
+    return 0.0;
+  }
+
+  float bias = 0.005 * tan(acos(clampedDot(normal, light.direction)));
+  bias = clamp(bias, 0, 0.01);
+
+
+  // float bias = max(0.05 * (1.0 - dot(normal, -light.direction)), 0.005);
+  // float biasModifier = 0.5;
+
+  // bias /= (planes[currentCascade] * 0.5);
+
+  float shadow = 0.0;
+  vec2 texelSize = 1.0 / vec2(textureSize(gShadow[0], 0));
+
+  for (int x = -1; x <= 1; x++)
+  {
+    for (int y = -1; y <= 1; y++)
+    {
+      const vec2 currentTexCoord = shadowTexCoord + vec2(x, y) * texelSize;
+      const bool outOfView =
+        (currentTexCoord.x < 0.00001 || currentTexCoord.x > 0.99999 ||
+         currentTexCoord.y < 0.00001 || currentTexCoord.y > 0.99999);
+
+      const float lightDepth = texture(gShadow[currentCascade], currentTexCoord).x;
+      shadow += ((lightSpaceNDCPos.z < lightDepth + bias) || outOfView) ? 0.0 : 1.0;
+    }
+  }
+
+  shadow /= 9.0;
+
+  // const float shadow = ((lightSpaceNDCPos.z < lightDepth + bias) || outOfView) ? 0.0 : 1.0;
+
+  return shadow;
+}
+
 void main()
 {
   const vec2 texCoord = gl_FragCoord.xy / resolution;
 
   const vec3 albedo = texture(gAlbedo, texCoord).rgb;
 
-  const vec3 normal = texture(gNormal, texCoord).xyz;
+  const vec3 normal = normalize(texture(gNormal, texCoord).xyz);
   const vec3 viewSpaceNormal = normalize((transpose(params.invView) * vec4(normal, 0.0)).xyz);
 
   const vec4 material = texture(gMaterial, texCoord);
@@ -248,26 +321,38 @@ void main()
   vec3 skyboxTexCoord = (params.invProjViewMat3 * screenSpacePosition).xyz;
   vec3 skyboxColor = texture(cubemap, normalize(skyboxTexCoord)).rgb;
 
+  DirectionalLight shadowCastingDirLight = {
+    shadowCastingDirLightDirection, shadowCastingDirLightIntensity, shadowCastingDirLightColor};
+
   vec3 point = shadowCastingDirLight.color *
     pow(clampedDot(normalize(-viewDirection), normalize(shadowCastingDirLight.direction)), 3500.0);
 
-  const vec4 lightSpacePos = lightProjView * worldSpacePosition;
-  const vec3 lightSpaceNDCPos = lightSpacePos.xyz / lightSpacePos.w;
+  uint currentCascade = getShadowCascade(viewSpacePosition.z);
 
-  const vec2 shadowTexCoord = lightSpaceNDCPos.xy * 0.5 + vec2(0.5);
+  vec3 shadowColor = vec3(0, 0, 0);
+  switch (currentCascade)
+  {
+  case 0:
+    shadowColor.rgb = vec3(1.0f, 0.25f, 0.25f);
+    break;
+  case 1:
+    shadowColor.rgb = vec3(0.25f, 1.0f, 0.25f);
+    break;
+  case 2:
+    shadowColor.rgb = vec3(0.25f, 0.25f, 1.0f);
+    break;
+  case 3:
+    shadowColor.rgb = vec3(1.0f, 0.25f, 1.0f);
+    break;
+  }
 
-  const bool outOfView =
-    (shadowTexCoord.x < 0.0001 || shadowTexCoord.x > 0.9999 || shadowTexCoord.y < 0.0001 ||
-     shadowTexCoord.y > 0.9999);
-
-  const float lightDepth = textureLod(gShadow, shadowTexCoord, 0).x + 0.0005;
-
-  const float shadow = ((lightSpaceNDCPos.z < lightDepth) || outOfView) ? 0.0 : 1.0;
+  const float shadow =
+    computeShadow(worldSpacePosition, currentCascade, normal, shadowCastingDirLight);
 
   vec3 pbrColor = computeLightPBR(
     albedo, worldSpacePosition.xyz, shadowCastingDirLight, normal, reflection, material);
   skyboxColor += point;
-  color += pbrColor * (1.0 - shadow);
+  color += pbrColor * (1.0 - shadow); // shadowColor * shadow;
 
   for (uint i = 0; i < directionalLightsAmount; i++)
   {

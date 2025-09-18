@@ -8,6 +8,7 @@
 #include "DirectionalLight.h"
 #include "Light.h"
 #include "ShadowCastingDirectionalLight.hpp"
+#include "etna/DescriptorSet.hpp"
 #include "shaders/LightParams.h"
 
 
@@ -23,8 +24,10 @@ public:
   void loadLights(
     const std::vector<Light>& new_lights,
     const std::vector<DirectionalLight>& new_directional_lights,
-    const std::vector<ShadowCastingDirectionalLight>& new_shadow_casting_dir_light);
+    ShadowCastingDirectionalLight new_shadow_casting_dir_light);
   void displaceLights();
+
+  void update(const Camera& main_camera, float aspect_ratio);
 
   void drawGui();
 
@@ -35,7 +38,20 @@ public:
   const etna::Buffer& getDirectionalLightsBuffer() const { return directionalLightsBuffer; }
   const etna::Buffer& getShadowCastingDirLightInfoBuffer() const
   {
-    return shadowCastingDirLightInfosBuffer;
+    return shadowCastingDirLights.getInfoBuffer();
+  }
+
+  etna::Binding getShadowCastingDirLightMatrixBinding(uint32_t index, uint32_t cascade_index) const
+  {
+    return etna::Binding{
+      index,
+      getShadowCastingDirLightInfoBuffer().genBinding(
+        sizeof(ShadowCastingDirectionalLight::ShaderInfo) +
+        // sizeof(ShadowCastingDirectionalLight::ShaderInfo::light) +
+        //   sizeof(ShadowCastingDirectionalLight::ShaderInfo::cascadesAmount) +
+          // sizeof(ShadowCastingDirectionalLight::ShaderInfo::_padding) +
+          sizeof(glm::mat4x4) * cascade_index,
+        sizeof(glm::mat4x4))};
   }
 
 private:
@@ -44,11 +60,12 @@ private:
 
   std::vector<Light> lights;
   std::vector<DirectionalLight> directionalLights;
-  std::vector<ShadowCastingDirectionalLight> shadowCastingDirLights;
+
+  // For now only one shadow casting light
+  ShadowCastingDirectionalLight shadowCastingDirLights;
 
   etna::Buffer lightsBuffer;
   etna::Buffer directionalLightsBuffer;
-  etna::Buffer shadowCastingDirLightInfosBuffer;
 
   etna::ComputePipeline lightDisplacementPipeline;
 

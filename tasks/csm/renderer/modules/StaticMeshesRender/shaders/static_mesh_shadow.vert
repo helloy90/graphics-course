@@ -18,10 +18,9 @@ layout(binding = 1) readonly buffer draw_instance_indices_t
   uint drawInstanceIndices[];
 };
 
-layout(binding = 2) readonly buffer light_info_t
+layout(binding = 9) readonly buffer light_info_t
 {
-  mat4 projView;
-  float _[];
+  mat4 lightProjView;
 };
 
 out gl_PerVertex
@@ -33,5 +32,5 @@ void main(void)
 {
   mat4 currentModelMatrix = instanceMatrices[drawInstanceIndices[gl_InstanceIndex]];
 
-  gl_Position = projView * currentModelMatrix * vec4(vPosNorm.xyz, 1.0);
+  gl_Position = lightProjView * currentModelMatrix * vec4(vPosNorm.xyz, 1.0);
 }

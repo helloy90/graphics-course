@@ -23,7 +23,7 @@ public:
   void allocateResources();
   void loadShaders();
   void loadScene(std::filesystem::path path);
-  void setupPipelines(bool wireframe_enabled, vk::Format render_target_format);
+  void setupPipelines(bool wireframe_enabled, vk::Format render_target_format, vk::Format shadow_target_format);
   void executeRender(
     vk::CommandBuffer cmd_buf,
     const RenderPacket& packet,
@@ -33,7 +33,7 @@ public:
   void executeShadowMapping(
     vk::CommandBuffer cmd_buf,
     vk::Extent2D extent,
-    const etna::Buffer& light_info,
+    etna::Binding light_info_binding,
     etna::RenderTargetState::AttachmentParams shadow_mapping_attachment_params);
 
   void drawGui();
@@ -43,6 +43,9 @@ public:
 private:
   void cullMeshes(
     vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout, const glm::mat4x4& proj_view);
+
+  void cullMeshes(
+    vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout, const etna::Binding& proj_view_binding);
 
   void renderScene(
     vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout, const glm::mat4x4& proj_view);
@@ -58,6 +61,7 @@ private:
   etna::GraphicsPipeline staticMeshPipeline;
   etna::GraphicsPipeline staticMeshShadowPipeline;
   etna::ComputePipeline cullingPipeline;
+  etna::ComputePipeline cullingShadowPipeline;
 
   etna::Sampler staticMeshSampler;
 

@@ -60,7 +60,8 @@ void TerrainRenderModule::loadShaders()
      TERRAIN_RENDER_MODULE_SHADERS_ROOT "process_chunk_shadow.tese.spv"});
 }
 
-void TerrainRenderModule::setupPipelines(bool wireframe_enabled, vk::Format render_target_format)
+void TerrainRenderModule::setupPipelines(
+  bool wireframe_enabled, vk::Format render_target_format, vk::Format shadow_target_format)
 {
   auto& pipelineManager = etna::get_context().getPipelineManager();
 
@@ -117,7 +118,7 @@ void TerrainRenderModule::setupPipelines(bool wireframe_enabled, vk::Format rend
         },
       .fragmentShaderOutput =
         {
-          .depthAttachmentFormat = vk::Format::eD32Sfloat,
+          .depthAttachmentFormat = shadow_target_format,
         },
     });
 }
@@ -169,7 +170,7 @@ void TerrainRenderModule::executeShadowMapping(
   vk::CommandBuffer cmd_buf,
   const RenderPacket& packet,
   vk::Extent2D extent,
-  const etna::Buffer& light_info,
+  etna::Binding light_info_binding,
   etna::RenderTargetState::AttachmentParams shadow_mapping_attachment_params)
 {
   {
@@ -182,7 +183,7 @@ void TerrainRenderModule::executeShadowMapping(
     auto set = etna::create_descriptor_set(
       shaderInfo.getDescriptorLayoutId(1),
       cmd_buf,
-      {etna::Binding{0, paramsBuffer.genBinding()}, etna::Binding{1, light_info.genBinding()}});
+      {etna::Binding{0, paramsBuffer.genBinding()}, light_info_binding});
 
     auto vkSet = set.getVkSet();
 

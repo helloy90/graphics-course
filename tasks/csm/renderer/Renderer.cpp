@@ -66,7 +66,12 @@ void Renderer::initFrameDelivery(vk::UniqueSurfaceKHR a_surface, ResolutionProvi
 
   resolution = {w, h};
 
-  worldRenderer = std::make_unique<WorldRenderer>();
+  worldRenderer = std::make_unique<WorldRenderer>(WorldRenderer::InitInfo{
+    .renderTargetFormat = vk::Format::eB10G11R11UfloatPack32,
+    .shadowCascadesAmount = 3,
+    .wireframeEnabled = false,
+    .tonemappingEnabled = false,
+    .timeStopped = false});
 
   guiRenderer = std::make_unique<ImGuiRenderer>(window->getCurrentFormat());
 
@@ -76,9 +81,10 @@ void Renderer::initFrameDelivery(vk::UniqueSurfaceKHR a_surface, ResolutionProvi
   worldRenderer->loadCubemap();
 }
 
-void Renderer::loadScene(std::filesystem::path path)
+// little bit ugly
+void Renderer::loadScene(std::filesystem::path path, float near_plane, float far_plane)
 {
-  worldRenderer->loadScene(path);
+  worldRenderer->loadScene(path, near_plane, far_plane);
 }
 
 void Renderer::recreateSwapchain(glm::uvec2 res)

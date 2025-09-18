@@ -20,7 +20,6 @@ layout(set = 1, binding = 0) uniform params_t
 layout(set = 1, binding = 1) readonly buffer light_info_t
 {
   mat4 lightProjView;
-  float _[];
 };
 
 layout(push_constant) uniform push_constant_t

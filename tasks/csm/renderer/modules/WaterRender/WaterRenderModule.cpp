@@ -136,7 +136,7 @@ void WaterRenderModule::executeRender(
   etna::RenderTargetState::AttachmentParams depth_attachment_params,
   const etna::Image& water_map,
   const etna::Image& water_normal_map,
-  const etna::Binding& shadow,
+  const std::vector<etna::Binding>& shadow,
   const etna::Sampler& water_sampler,
   const etna::Buffer& directional_lights_buffer,
   const etna::Image& cubemap)
@@ -247,7 +247,7 @@ void WaterRenderModule::renderWater(
   const RenderPacket& packet,
   const etna::Image& water_map,
   const etna::Image& water_normal_map,
-  const etna::Binding& shadow,
+  const std::vector<etna::Binding>& shadow,
   const etna::Sampler& water_sampler,
   const etna::Buffer& directional_lights_buffer,
   const etna::Image& cubemap)
@@ -255,24 +255,34 @@ void WaterRenderModule::renderWater(
   ZoneScoped;
 
   auto shaderInfo = etna::get_shader_program("water_render");
-  auto set = etna::create_descriptor_set(
-    shaderInfo.getDescriptorLayoutId(0),
-    cmd_buf,
-    {etna::Binding{0, paramsBuffer.genBinding()},
-     etna::Binding{1, renderParamsBuffer.genBinding()},
-     etna::Binding{
-       2, water_map.genBinding(water_sampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
-     etna::Binding{
-       3,
-       water_normal_map.genBinding(water_sampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
-     shadow,
-     etna::Binding{
-       5,
-       cubemap.genBinding(
-         water_sampler.get(),
-         vk::ImageLayout::eShaderReadOnlyOptimal,
-         {.type = vk::ImageViewType::eCube})},
-     etna::Binding{6, directional_lights_buffer.genBinding()}});
+
+  std::vector<etna::Binding> bindings;
+  bindings.reserve(6 + shadow.size());
+
+  bindings.emplace_back(etna::Binding{0, paramsBuffer.genBinding()});
+  bindings.emplace_back(etna::Binding{1, renderParamsBuffer.genBinding()});
+  bindings.emplace_back(
+    etna::Binding{
+      2, water_map.genBinding(water_sampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)});
+  bindings.emplace_back(
+    etna::Binding{
+      3,
+      water_normal_map.genBinding(water_sampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)});
+  for (std::size_t i = 0; i < shadow.size(); i++)
+  {
+    bindings.emplace_back(std::move(shadow[i]));
+  }
+  bindings.emplace_back(
+    etna::Binding{
+      5,
+      cubemap.genBinding(
+        water_sampler.get(),
+        vk::ImageLayout::eShaderReadOnlyOptimal,
+        {.type = vk::ImageViewType::eCube})});
+  bindings.emplace_back(etna::Binding{6, directional_lights_buffer.genBinding()});
+
+
+  auto set = etna::create_descriptor_set(shaderInfo.getDescriptorLayoutId(0), cmd_buf, bindings);
 
   auto vkSet = set.getVkSet();
 

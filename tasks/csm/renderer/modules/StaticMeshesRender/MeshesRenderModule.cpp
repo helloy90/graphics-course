@@ -43,6 +43,8 @@ void MeshesRenderModule::loadShaders()
     "static_mesh_shadow", {STATIC_MESHES_MODULE_SHADERS_ROOT "static_mesh_shadow.vert.spv"});
 
   etna::create_program("culling_meshes", {STATIC_MESHES_MODULE_SHADERS_ROOT "culling.comp.spv"});
+  etna::create_program(
+    "culling_shadow", {STATIC_MESHES_MODULE_SHADERS_ROOT "culling_shadow.comp.spv"});
 }
 
 void MeshesRenderModule::loadScene(std::filesystem::path path)
@@ -69,7 +71,8 @@ void MeshesRenderModule::loadScene(std::filesystem::path path)
   paramsBuffer.unmap();
 }
 
-void MeshesRenderModule::setupPipelines(bool wireframe_enabled, vk::Format render_target_format)
+void MeshesRenderModule::setupPipelines(
+  bool wireframe_enabled, vk::Format render_target_format, vk::Format shadow_target_format)
 {
   etna::VertexShaderInputDescription sceneVertexInputDesc{
     .bindings = {etna::VertexShaderInputDescription::Binding{
@@ -132,11 +135,12 @@ void MeshesRenderModule::setupPipelines(bool wireframe_enabled, vk::Format rende
         },
       .fragmentShaderOutput =
         {
-          .depthAttachmentFormat = vk::Format::eD32Sfloat,
+          .depthAttachmentFormat = shadow_target_format,
         },
     });
 
   cullingPipeline = pipelineManager.createComputePipeline("culling_meshes", {});
+  cullingShadowPipeline = pipelineManager.createComputePipeline("culling_shadow", {});
 }
 
 void MeshesRenderModule::executeRender(
@@ -164,9 +168,12 @@ void MeshesRenderModule::executeRender(
 void MeshesRenderModule::executeShadowMapping(
   vk::CommandBuffer cmd_buf,
   vk::Extent2D extent,
-  const etna::Buffer& light_info,
+  etna::Binding light_info_binding,
   etna::RenderTargetState::AttachmentParams shadow_mapping_attachment_params)
 {
+  cmd_buf.bindPipeline(vk::PipelineBindPoint::eCompute, cullingShadowPipeline.getVkPipeline());
+  cullMeshes(cmd_buf, cullingShadowPipeline.getVkPipelineLayout(), light_info_binding);
+
   {
     ETNA_PROFILE_GPU(cmd_buf, shadowMapScene);
     etna::RenderTargetState renderTargets(
@@ -185,7 +192,7 @@ void MeshesRenderModule::executeShadowMapping(
       cmd_buf,
       {etna::Binding{0, sceneMgr->getInstanceMatricesBuffer().genBinding()},
        etna::Binding{1, sceneMgr->getDrawInstanceIndicesBuffer().genBinding()},
-       etna::Binding{2, light_info.genBinding()}});
+       light_info_binding});
 
     cmd_buf.bindDescriptorSets(
       vk::PipelineBindPoint::eGraphics,
@@ -253,6 +260,84 @@ void MeshesRenderModule::cullMeshes(
 
   cmd_buf.pushConstants<glm::mat4x4>(
     pipeline_layout, vk::ShaderStageFlagBits::eCompute, 0, {proj_view});
+
+  cmd_buf.dispatch((static_cast<uint32_t>(sceneMgr->getInstanceMeshes().size()) + 127) / 128, 1, 1);
+
+  {
+    std::array bufferBarriers = {
+      vk::BufferMemoryBarrier2{
+        .srcStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+        .srcAccessMask = vk::AccessFlagBits2::eShaderWrite,
+        .dstStageMask = vk::PipelineStageFlagBits2::eVertexShader,
+        .dstAccessMask = vk::AccessFlagBits2::eShaderRead,
+        .buffer = sceneMgr->getDrawInstanceIndicesBuffer().get(),
+        .size = vk::WholeSize},
+      vk::BufferMemoryBarrier2{
+        .srcStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+        .srcAccessMask = vk::AccessFlagBits2::eShaderWrite,
+        .dstStageMask = vk::PipelineStageFlagBits2::eDrawIndirect,
+        .dstAccessMask = vk::AccessFlagBits2::eIndirectCommandRead,
+        .buffer = sceneMgr->getDrawCommandsBuffer().get(),
+        .size = vk::WholeSize}};
+
+    vk::DependencyInfo dependencyInfo = {
+      .dependencyFlags = vk::DependencyFlagBits::eByRegion,
+      .bufferMemoryBarrierCount = static_cast<uint32_t>(bufferBarriers.size()),
+      .pBufferMemoryBarriers = bufferBarriers.data()};
+
+    cmd_buf.pipelineBarrier2(dependencyInfo);
+  }
+}
+
+void MeshesRenderModule::cullMeshes(
+  vk::CommandBuffer cmd_buf,
+  vk::PipelineLayout pipeline_layout,
+  const etna::Binding& proj_view_binding)
+{
+  ZoneScoped;
+  {
+    std::array bufferBarriers = {
+      vk::BufferMemoryBarrier2{
+        .srcStageMask = vk::PipelineStageFlagBits2::eVertexShader,
+        .srcAccessMask = vk::AccessFlagBits2::eShaderRead,
+        .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+        .dstAccessMask = vk::AccessFlagBits2::eShaderWrite,
+        .buffer = sceneMgr->getDrawInstanceIndicesBuffer().get(),
+        .size = vk::WholeSize},
+      vk::BufferMemoryBarrier2{
+        .srcStageMask = vk::PipelineStageFlagBits2::eDrawIndirect,
+        .srcAccessMask = vk::AccessFlagBits2::eIndirectCommandRead,
+        .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+        .dstAccessMask = vk::AccessFlagBits2::eShaderWrite,
+        .buffer = sceneMgr->getDrawCommandsBuffer().get(),
+        .size = vk::WholeSize}};
+
+    vk::DependencyInfo dependencyInfo = {
+      .dependencyFlags = vk::DependencyFlagBits::eByRegion,
+      .bufferMemoryBarrierCount = static_cast<uint32_t>(bufferBarriers.size()),
+      .pBufferMemoryBarriers = bufferBarriers.data()};
+
+    cmd_buf.pipelineBarrier2(dependencyInfo);
+  }
+
+  auto shaderInfo = etna::get_shader_program("culling_shadow");
+  auto set = etna::create_descriptor_set(
+    shaderInfo.getDescriptorLayoutId(0),
+    cmd_buf,
+    {etna::Binding{0, sceneMgr->getRelemsBuffer().genBinding()},
+     etna::Binding{1, sceneMgr->getBoundsBuffer().genBinding()},
+     etna::Binding{2, sceneMgr->getMeshesBuffer().genBinding()},
+     etna::Binding{3, sceneMgr->getInstanceMeshesBuffer().genBinding()},
+     etna::Binding{4, sceneMgr->getInstanceMatricesBuffer().genBinding()},
+     etna::Binding{5, sceneMgr->getRelemInstanceOffsetsBuffer().genBinding()},
+     etna::Binding{6, sceneMgr->getDrawInstanceIndicesBuffer().genBinding()},
+     etna::Binding{7, sceneMgr->getDrawCommandsBuffer().genBinding()},
+     etna::Binding{8, paramsBuffer.genBinding()},
+     proj_view_binding});
+  auto vkSet = set.getVkSet();
+
+  cmd_buf.bindDescriptorSets(
+    vk::PipelineBindPoint::eCompute, pipeline_layout, 0, 1, &vkSet, 0, nullptr);
 
   cmd_buf.dispatch((static_cast<uint32_t>(sceneMgr->getInstanceMeshes().size()) + 127) / 128, 1, 1);
 

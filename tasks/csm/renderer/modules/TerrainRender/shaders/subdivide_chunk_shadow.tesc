@@ -22,7 +22,6 @@ layout(set = 1, binding = 0) uniform params_t
 layout(set = 1, binding = 1) readonly buffer light_info_t
 {
   mat4 lightProjView;
-  float _[];
 };
 
 layout(push_constant) uniform push_constant_t
@@ -77,7 +76,7 @@ bool within(float left, float value, float right)
 bool isInsideViewFrustum(vec3 pos)
 {
   float height = texture(heightMap, getPositionInHeightMap(pos)).x;
-  vec4 clipSpaceCoord = projView * vec4(pos.x, height, pos.z, 1.0);
+  vec4 clipSpaceCoord = lightProjView * vec4(pos.x, height, pos.z, 1.0);
   return within(-clipSpaceCoord.w, clipSpaceCoord.x, clipSpaceCoord.w) ||
     within(-clipSpaceCoord.w, clipSpaceCoord.y, clipSpaceCoord.w) ||
     within(0.0, clipSpaceCoord.z, clipSpaceCoord.w);
@@ -99,7 +98,7 @@ void main()
   vec3 rightLower = getPosition(2);
   vec3 rightUpper = getPosition(3);
 
-  if (false)
+  if (!isVisible(leftLower, leftUpper, rightLower, rightUpper))
   {
     gl_TessLevelOuter[0] = 0;
     gl_TessLevelOuter[1] = 0;

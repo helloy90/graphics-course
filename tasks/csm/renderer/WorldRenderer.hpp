@@ -32,14 +32,24 @@
 class WorldRenderer
 {
 public:
-  WorldRenderer();
+  struct InitInfo
+  {
+    vk::Format renderTargetFormat;
+    uint32_t shadowCascadesAmount;
 
+    bool wireframeEnabled;
+    bool tonemappingEnabled;
+    bool timeStopped;
+  };
+
+public:
+  explicit WorldRenderer(const InitInfo& info);
 
   void allocateResources(glm::uvec2 swapchain_resolution);
   void loadShaders();
   void setupRenderPipelines();
   void rebuildRenderPipelines();
-  void loadScene(std::filesystem::path path);
+  void loadScene(std::filesystem::path path, float near_plane, float far_plane);
   void loadInfo();
 
   void loadCubemap();
@@ -50,6 +60,8 @@ public:
   void renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_image);
 
 private:
+  std::vector<float> getPlanesForShadowCascades(float near_plane, float far_plane);
+
   void deferredShading(
     vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout);
 
@@ -65,7 +77,7 @@ private:
   vk::Format renderTargetFormat;
 
   etna::Image cubemapTexture;
-  
+
   etna::Image renderTarget;
 
   std::optional<GBuffer> gBuffer;
@@ -85,4 +97,6 @@ private:
   std::unique_ptr<etna::BlockingTransferHelper> transferHelper;
 
   glm::uvec2 resolution;
+
+  uint32_t shadowCascadesAmount;
 };

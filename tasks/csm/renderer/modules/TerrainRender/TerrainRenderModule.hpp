@@ -21,7 +21,7 @@ public:
 
   void allocateResources();
   void loadShaders();
-  void setupPipelines(bool wireframe_enabled, vk::Format render_target_format);
+  void setupPipelines(bool wireframe_enabled, vk::Format render_target_format, vk::Format shadow_target_format);
 
   void loadMaps(const std::vector<etna::Binding>& terrain_bindings);
 
@@ -35,7 +35,7 @@ public:
     vk::CommandBuffer cmd_buf,
     const RenderPacket& packet,
     vk::Extent2D extent,
-    const etna::Buffer& light_info,
+    etna::Binding light_info_binding,
     etna::RenderTargetState::AttachmentParams shadow_mapping_attachment_params);
 
   void drawGui();

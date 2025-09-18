@@ -1,5 +1,6 @@
 #include "WorldRenderer.hpp"
 
+#include <cstdint>
 #include <imgui.h>
 #include <tracy/Tracy.hpp>
 #include <stb_image.h>
@@ -9,10 +10,11 @@
 #include <etna/Profiling.hpp>
 #include <etna/RenderTargetStates.hpp>
 
+#include "etna/Assert.hpp"
 #include "render_utils/Utilities.hpp"
 
 
-WorldRenderer::WorldRenderer()
+WorldRenderer::WorldRenderer(const InitInfo& info)
   : lightModule()
   , staticMeshesRenderModule()
   , terrainGeneratorModule()
@@ -20,11 +22,13 @@ WorldRenderer::WorldRenderer()
   , tonemappingModule()
   , waterGeneratorModule()
   , waterRenderModule()
-  , renderTargetFormat(vk::Format::eB10G11R11UfloatPack32)
-  , wireframeEnabled(false)
-  , tonemappingEnabled(false)
-  , timeStopped(false)
+  , renderTargetFormat(info.renderTargetFormat)
+  , wireframeEnabled(info.wireframeEnabled)
+  , tonemappingEnabled(info.tonemappingEnabled)
+  , timeStopped(info.timeStopped)
+  , shadowCascadesAmount(info.shadowCascadesAmount)
 {
+  ETNA_VERIFYF(shadowCascadesAmount > 0, "Shadow cascades amount should be greater than 0");
 }
 
 void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
@@ -42,7 +46,14 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
         vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eTransferSrc,
     });
 
-  gBuffer.emplace(resolution, renderTargetFormat);
+  gBuffer.emplace(
+    GBuffer::CreateInfo{
+      .resolution = swapchain_resolution,
+      .shadowMapsResolution = glm::uvec2(1024, 1024),
+      .renderTargetFormat = renderTargetFormat,
+      .normalsFormat = vk::Format::eR16G16B16A16Snorm,
+      .shadowsFormat = vk::Format::eD16Unorm,
+      .shadowCascadesAmount = shadowCascadesAmount});
 
   constantsBuffer.emplace(ctx.getMainWorkCount(), [&ctx](std::size_t i) {
     return ctx.createBuffer(
@@ -70,16 +81,9 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
 }
 
 // call only after loadShaders(...)
-void WorldRenderer::loadScene(std::filesystem::path path)
+void WorldRenderer::loadScene(std::filesystem::path path, float near_plane, float far_plane)
 {
   staticMeshesRenderModule.loadScene(path);
-
-  loadInfo();
-}
-
-void WorldRenderer::loadInfo()
-{
-  terrainGeneratorModule.execute();
 
   lightModule.loadLights(
     // {Light{.pos = {0, 1, 0}, .radius = 0,  .color = {1, 1, 1}, .intensity = 15},
@@ -101,16 +105,28 @@ void WorldRenderer::loadInfo()
     //   0.32}}},
     {},
     {},
-    {ShadowCastingDirectionalLight(
+    ShadowCastingDirectionalLight(
       ShadowCastingDirectionalLight::CreateInfo{
         .light =
           DirectionalLight{
-            .direction = glm::vec3{1, -0.35, -3},
+            .direction = glm::vec3{1, -0.6, -3},
             .intensity = 1.0f,
             .color = glm::vec3{1, 0.694, 0.32}},
-        .position = glm::vec3{1, -0.35, -3} * glm::vec3(-500.0f),
-        .radius = 500.0f,
-        .distance = 10000.0f})});
+        .planes = getPlanesForShadowCascades(near_plane, far_plane),
+        .planesOffset = 15.0f}));
+
+  auto planes = getPlanesForShadowCascades(near_plane, far_plane);
+  for (uint32_t i = 0; i < shadowCascadesAmount + 1; i++)
+  {
+    spdlog::info("plane {} - {}", i, planes[i]);
+  }
+
+  loadInfo();
+}
+
+void WorldRenderer::loadInfo()
+{
+  terrainGeneratorModule.execute();
 
   lightModule.loadMaps(terrainGeneratorModule.getBindings(vk::ImageLayout::eGeneral));
 
@@ -119,7 +135,7 @@ void WorldRenderer::loadInfo()
   terrainRenderModule.loadMaps(
     terrainGeneratorModule.getBindings(vk::ImageLayout::eShaderReadOnlyOptimal));
 
-  waterGeneratorModule.executeStart();
+  // waterGeneratorModule.executeStart();w
 }
 
 void WorldRenderer::loadShaders()
@@ -141,9 +157,11 @@ void WorldRenderer::loadShaders()
 void WorldRenderer::setupRenderPipelines()
 {
   lightModule.setupPipelines();
-  staticMeshesRenderModule.setupPipelines(wireframeEnabled, renderTargetFormat);
+  staticMeshesRenderModule.setupPipelines(
+    wireframeEnabled, renderTargetFormat, gBuffer->getShadowTextureFormat());
   terrainGeneratorModule.setupPipelines();
-  terrainRenderModule.setupPipelines(wireframeEnabled, renderTargetFormat);
+  terrainRenderModule.setupPipelines(
+    wireframeEnabled, renderTargetFormat, gBuffer->getShadowTextureFormat());
   tonemappingModule.setupPipelines();
   waterGeneratorModule.setupPipelines();
   waterRenderModule.setupPipelines(wireframeEnabled, renderTargetFormat);
@@ -278,6 +296,11 @@ void WorldRenderer::update(const FramePacket& packet)
       .cameraWorldPosition = params.cameraWorldPosition,
       .time = packet.currentTime,
       .resolution = resolution};
+
+    if (!timeStopped)
+    {
+      lightModule.update(packet.mainCam, aspect);
+    }
   }
 }
 
@@ -325,14 +348,23 @@ void WorldRenderer::deferredShading(
   ZoneScoped;
 
   auto shaderInfo = etna::get_shader_program("deferred_shading");
-  auto gSet = etna::create_descriptor_set(
-    shaderInfo.getDescriptorLayoutId(0),
-    cmd_buf,
-    {gBuffer->genAlbedoBinding(0),
-     gBuffer->genNormalBinding(1),
-     gBuffer->genMaterialBinding(2),
-     gBuffer->genDepthBinding(3),
-     gBuffer->genShadowBinding(4)});
+
+  std::vector<etna::Binding> bindings;
+  bindings.reserve(4 + shadowCascadesAmount);
+
+  bindings.emplace_back(gBuffer->genAlbedoBinding(0));
+  bindings.emplace_back(gBuffer->genNormalBinding(1));
+  bindings.emplace_back(gBuffer->genMaterialBinding(2));
+  bindings.emplace_back(gBuffer->genDepthBinding(3));
+
+  std::vector<etna::Binding> shadowBindings = gBuffer->genShadowBindings(4);
+
+  for (std::size_t i = 0; i < shadowBindings.size(); i++)
+  {
+    bindings.emplace_back(std::move(shadowBindings[i]));
+  }
+
+  auto gSet = etna::create_descriptor_set(shaderInfo.getDescriptorLayoutId(0), cmd_buf, bindings);
 
   auto set = etna::create_descriptor_set(
     shaderInfo.getDescriptorLayoutId(1),
@@ -371,10 +403,10 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
     std::memcpy(currentConstants.data(), &params, sizeof(UniformParams));
     currentConstants.unmap();
 
-    if (!timeStopped)
-    {
-      waterGeneratorModule.executeProgress(cmd_buf, renderPacket.time);
-    }
+    // if (!timeStopped)
+    // {
+    //   waterGeneratorModule.executeProgress(cmd_buf, renderPacket.time);
+    // }
 
     // etna::set_state(
     //   cmd_buf,
@@ -406,18 +438,21 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
 
     etna::flush_barriers(cmd_buf);
 
-    staticMeshesRenderModule.executeShadowMapping(
-      cmd_buf,
-      gBuffer->getShadowTextureExtent(),
-      lightModule.getShadowCastingDirLightInfoBuffer(),
-      gBuffer->genShadowMappingAttachmentParams());
+    for (uint32_t i = 0; i < shadowCascadesAmount; i++)
+    {
+      staticMeshesRenderModule.executeShadowMapping(
+        cmd_buf,
+        gBuffer->getShadowTextureExtent(),
+        lightModule.getShadowCastingDirLightMatrixBinding(9, i),
+        gBuffer->genShadowMappingAttachmentParams(i));
 
-    terrainRenderModule.executeShadowMapping(
-      cmd_buf,
-      renderPacket,
-      gBuffer->getShadowTextureExtent(),
-      lightModule.getShadowCastingDirLightInfoBuffer(),
-      gBuffer->genShadowMappingAttachmentParams(vk::AttachmentLoadOp::eLoad));
+      terrainRenderModule.executeShadowMapping(
+        cmd_buf,
+        renderPacket,
+        gBuffer->getShadowTextureExtent(),
+        lightModule.getShadowCastingDirLightMatrixBinding(1, i),
+        gBuffer->genShadowMappingAttachmentParams(i, vk::AttachmentLoadOp::eLoad));
+    }
 
     terrainRenderModule.executeRender(
       cmd_buf,
@@ -460,19 +495,19 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
 
     etna::flush_barriers(cmd_buf);
 
-    waterRenderModule.executeRender(
-      cmd_buf,
-      renderPacket,
-      {{.image = renderTarget.get(),
-        .view = renderTarget.getView({}),
-        .loadOp = vk::AttachmentLoadOp::eLoad}},
-      gBuffer->genDepthAttachmentParams(vk::AttachmentLoadOp::eLoad),
-      waterGeneratorModule.getHeightMap(),
-      waterGeneratorModule.getNormalMap(),
-      gBuffer->genShadowBinding(4), // change later
-      waterGeneratorModule.getSampler(),
-      lightModule.getShadowCastingDirLightInfoBuffer(),
-      cubemapTexture);
+    // waterRenderModule.executeRender(
+    //   cmd_buf,
+    //   renderPacket,
+    //   {{.image = renderTarget.get(),
+    //     .view = renderTarget.getView({}),
+    //     .loadOp = vk::AttachmentLoadOp::eLoad}},
+    //   gBuffer->genDepthAttachmentParams(vk::AttachmentLoadOp::eLoad),
+    //   waterGeneratorModule.getHeightMap(),
+    //   waterGeneratorModule.getNormalMap(),
+    //   gBuffer->genShadowBindings(4), // change later
+    //   waterGeneratorModule.getSampler(),
+    //   lightModule.getShadowCastingDirLightInfoBuffer(),
+    //   cubemapTexture);
 
     if (tonemappingEnabled)
     {
@@ -503,4 +538,26 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
       target_image,
       vk::Offset3D{static_cast<int32_t>(resolution.x), static_cast<int32_t>(resolution.y), 1});
   }
+}
+
+std::vector<float> WorldRenderer::getPlanesForShadowCascades(float near_plane, float far_plane)
+{
+  std::vector<float> planes;
+  planes.reserve(shadowCascadesAmount + 1);
+
+  planes.emplace_back(near_plane);
+  for (uint32_t i = 1; i < shadowCascadesAmount; i++)
+  {
+    float interpolation = static_cast<float>(i) / static_cast<float>(shadowCascadesAmount);
+
+    float logPart = near_plane * glm::pow(far_plane / near_plane, interpolation);
+    float uniformPart = (far_plane - near_plane) * interpolation;
+
+    float plane = (logPart + uniformPart) / 2;
+
+    planes.emplace_back(plane);
+  }
+  planes.emplace_back(far_plane);
+
+  return planes;
 }
