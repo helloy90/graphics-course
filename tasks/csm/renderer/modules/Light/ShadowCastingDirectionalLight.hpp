@@ -24,7 +24,7 @@ public:
     DirectionalLight light;
     uint32_t cascadesAmount;
     float planesOffset;
-    float _padding[3] = {};
+    float _padding[7] = {};
   };
 
 public:

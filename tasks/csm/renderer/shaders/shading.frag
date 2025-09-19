@@ -41,7 +41,7 @@ layout(set = 1, binding = 3) readonly buffer shadow_casting_dir_lights_t
   vec3 shadowCastingDirLightColor;
   uint cascadesAmount;
   float planesOffset;
-  float _padding[3]; // should not be here
+  float _padding[7]; // should not be here
   mat4 lightProjViews[SHADOW_CASCADES];
   float planes[SHADOW_CASCADES + 1];
 };
@@ -260,7 +260,7 @@ float computeShadow(vec4 worldPosition, uint currentCascade, vec3 normal, Direct
   }
 
   float bias = 0.005 * tan(acos(clampedDot(normal, light.direction)));
-  bias = clamp(bias, 0, 0.01);
+  bias = clamp(bias, 0.001, 0.01);
 
 
   // float bias = max(0.05 * (1.0 - dot(normal, -light.direction)), 0.005);

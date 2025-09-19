@@ -117,7 +117,7 @@ void ShadowCastingDirectionalLight::update(const Camera& main_camera, float aspe
 
     // spdlog::info("projection matrix {} - {},", i,
     // glm::to_string(shaderInfo.projViewMatrices[i]));
-    glm::mat4x4 lightProj = glm::orthoLH_ZO(minX, maxX, minY, maxY, minZ - 350.0f, maxZ);
+    glm::mat4x4 lightProj = glm::orthoLH_ZO(minX, maxX, minY, maxY, minZ - 500.0f, maxZ);
 
     projViewMatrices[i] = lightProj * lightView;
   }
