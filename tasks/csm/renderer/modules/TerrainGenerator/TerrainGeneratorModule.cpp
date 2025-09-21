@@ -1,6 +1,4 @@
 #include "TerrainGeneratorModule.hpp"
-#include "cpp_glsl_compat.h"
-#include "etna/DescriptorSet.hpp"
 
 #include <imgui.h>
 

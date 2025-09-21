@@ -4,7 +4,6 @@
 #include <etna/RenderTargetStates.hpp>
 #include <etna/Buffer.hpp>
 #include <etna/Sampler.hpp>
-#include <glm/fwd.hpp>
 
 #include "shaders/WaterParams.h"
 #include "shaders/WaterRenderParams.h"

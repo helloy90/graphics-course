@@ -16,6 +16,7 @@ public:
     DirectionalLight light;
     std::vector<float> planes; // including camera near and far planes
     float planesOffset;
+    float shadowMapSize;
   };
 
   // repack this struct later
@@ -46,7 +47,7 @@ private:
   ShaderInfo shaderInfo;
   std::vector<glm::mat4x4> projViewMatrices;
   std::vector<float> planes;
-
+  float shadowMapSize;
   etna::Buffer infoBuffer;
 
   Camera shadowCamera;

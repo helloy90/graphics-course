@@ -112,7 +112,7 @@ void TerrainRenderModule::setupPipelines(
       .rasterizationConfig =
         vk::PipelineRasterizationStateCreateInfo{
           .polygonMode = vk::PolygonMode::eFill,
-          .cullMode = vk::CullModeFlagBits::eBack,
+          .cullMode = vk::CullModeFlagBits::eFront, // ???
           .frontFace = vk::FrontFace::eCounterClockwise,
           .lineWidth = 1.f,
         },

@@ -3,10 +3,10 @@
 #extension GL_GOOGLE_include_directive : require
 
 #include "UniformParams.h"
-#include "../modules/Light/Light.h"
-#include "../modules/Light/DirectionalLight.h"
+#include "Light.h"
+#include "DirectionalLight.h"
 
-// for now
+// for now set in shader
 #define SHADOW_CASCADES 3
 
 
@@ -33,7 +33,7 @@ layout(set = 1, binding = 2) readonly buffer directional_lights_t
   DirectionalLight directionalLightsBuffer[];
 };
 
-// fighting alignment rules
+// fighting alignment rules here
 layout(set = 1, binding = 3) readonly buffer shadow_casting_dir_lights_t
 {
   vec3 shadowCastingDirLightDirection;
@@ -41,7 +41,7 @@ layout(set = 1, binding = 3) readonly buffer shadow_casting_dir_lights_t
   vec3 shadowCastingDirLightColor;
   uint cascadesAmount;
   float planesOffset;
-  float _padding[7]; // should not be here
+  float _padding[7];
   mat4 lightProjViews[SHADOW_CASCADES];
   float planes[SHADOW_CASCADES + 1];
 };
@@ -245,49 +245,40 @@ uint getShadowCascade(float depth)
   return cascade;
 }
 
-float computeShadow(vec4 worldPosition, uint currentCascade, vec3 normal, DirectionalLight light)
+float getShadowFromTexture(
+  vec2 shadowTexCoord, vec2 offset, float depth, float bias, uint currentCascade)
 {
-  const vec4 lightSpacePos = lightProjViews[currentCascade] * worldPosition;
-  vec3 lightSpaceNDCPos = lightSpacePos.xyz / lightSpacePos.w;
+  const vec2 currentTexCoord = shadowTexCoord + offset;
+  const float lightDepth = texture(gShadow[currentCascade], currentTexCoord).x;
+  float shadow = (depth < lightDepth + bias) ? 0.0 : 1.0;
 
-  // lightSpaceNDCPos = lightSpaceNDCPos * 0.5 + vec3(0.5);
+  return shadow;
+}
 
-  const vec2 shadowTexCoord = lightSpaceNDCPos.xy * 0.5 + vec2(0.5);
-
-  if (lightSpaceNDCPos.z > 1.0)
+float computeShadow(vec2 shadowTexCoord, float depth, float bias, uint currentCascade)
+{
+  if (depth > 1.0)
   {
     return 0.0;
   }
 
-  float bias = 0.005 * tan(acos(clampedDot(normal, light.direction)));
-  bias = clamp(bias, 0.001, 0.01);
-
-
-  // float bias = max(0.05 * (1.0 - dot(normal, -light.direction)), 0.005);
-  // float biasModifier = 0.5;
-
-  // bias /= (planes[currentCascade] * 0.5);
-
   float shadow = 0.0;
   vec2 texelSize = 1.0 / vec2(textureSize(gShadow[0], 0));
 
-  for (int x = -1; x <= 1; x++)
-  {
-    for (int y = -1; y <= 1; y++)
-    {
-      const vec2 currentTexCoord = shadowTexCoord + vec2(x, y) * texelSize;
-      const bool outOfView =
-        (currentTexCoord.x < 0.00001 || currentTexCoord.x > 0.99999 ||
-         currentTexCoord.y < 0.00001 || currentTexCoord.y > 0.99999);
+  int range = 1;
+  int count = 0;
 
-      const float lightDepth = texture(gShadow[currentCascade], currentTexCoord).x;
-      shadow += ((lightSpaceNDCPos.z < lightDepth + bias) || outOfView) ? 0.0 : 1.0;
+  for (int x = -range; x <= range; x++)
+  {
+    for (int y = -range; y <= range; y++)
+    {
+      shadow +=
+        getShadowFromTexture(shadowTexCoord, vec2(x, y) * texelSize, depth, bias, currentCascade);
+      count++;
     }
   }
 
-  shadow /= 9.0;
-
-  // const float shadow = ((lightSpaceNDCPos.z < lightDepth + bias) || outOfView) ? 0.0 : 1.0;
+  shadow /= float(count);
 
   return shadow;
 }
@@ -330,29 +321,42 @@ void main()
   uint currentCascade = getShadowCascade(viewSpacePosition.z);
 
   vec3 shadowColor = vec3(0, 0, 0);
-  switch (currentCascade)
+  if (params.colorShadows)
   {
-  case 0:
-    shadowColor.rgb = vec3(1.0f, 0.25f, 0.25f);
-    break;
-  case 1:
-    shadowColor.rgb = vec3(0.25f, 1.0f, 0.25f);
-    break;
-  case 2:
-    shadowColor.rgb = vec3(0.25f, 0.25f, 1.0f);
-    break;
-  case 3:
-    shadowColor.rgb = vec3(1.0f, 0.25f, 1.0f);
-    break;
+    switch (currentCascade)
+    {
+    case 0:
+      shadowColor.rgb = vec3(1.0f, 0.25f, 0.25f);
+      break;
+    case 1:
+      shadowColor.rgb = vec3(0.25f, 1.0f, 0.25f);
+      break;
+    case 2:
+      shadowColor.rgb = vec3(0.25f, 0.25f, 1.0f);
+      break;
+    case 3:
+      shadowColor.rgb = vec3(1.0f, 0.25f, 1.0f);
+      break;
+    }
   }
 
-  const float shadow =
-    computeShadow(worldSpacePosition, currentCascade, normal, shadowCastingDirLight);
+  float shadowBias = 0.005 * tan(acos(clampedDot(normal, shadowCastingDirLight.direction)));
+  shadowBias = clamp(shadowBias, 0.001, 0.01);
+
+  const vec4 lightSpacePos = (lightProjViews[currentCascade]) * worldSpacePosition;
+  vec3 lightSpaceNDCPos = lightSpacePos.xyz / lightSpacePos.w;
+
+  const vec2 shadowTexCoord = lightSpaceNDCPos.xy * 0.5 + vec2(0.5);
+
+  const float shadow = (params.usePCF)
+    ? computeShadow(shadowTexCoord, lightSpaceNDCPos.z, shadowBias, currentCascade)
+    : getShadowFromTexture(
+        shadowTexCoord, vec2(0, 0), lightSpaceNDCPos.z, shadowBias, currentCascade);
 
   vec3 pbrColor = computeLightPBR(
     albedo, worldSpacePosition.xyz, shadowCastingDirLight, normal, reflection, material);
   skyboxColor += point;
-  color += pbrColor * (1.0 - shadow); // shadowColor * shadow;
+  color += pbrColor * (1.0 - shadow) + shadowColor * shadow;
 
   for (uint i = 0; i < directionalLightsAmount; i++)
   {

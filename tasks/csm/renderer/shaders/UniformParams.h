@@ -15,6 +15,8 @@ struct UniformParams
   shader_vec3 cameraWorldPosition;
 
   shader_uint _padding;
+  shader_bool colorShadows;
+  shader_bool usePCF;
 };
 
 

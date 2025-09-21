@@ -1,27 +1,27 @@
 #include "ShadowCastingDirectionalLight.hpp"
 
-#define GLM_ENABLE_EXPERIMENTAL
+// #define GLM_ENABLE_EXPERIMENTAL
 
-#include "glm/gtx/string_cast.hpp"
-#include "spdlog/spdlog.h"
+// #include "glm/gtx/string_cast.hpp"
+// #include "spdlog/spdlog.h"
 
 #include <etna/GlobalContext.hpp>
 
 
 ShadowCastingDirectionalLight::ShadowCastingDirectionalLight(const CreateInfo& info)
   : shaderInfo(
-      {.light = info.light, .cascadesAmount = static_cast<uint32_t>(info.planes.size() - 1), .planesOffset = info.planesOffset})
+      {.light = info.light,
+       .cascadesAmount = static_cast<uint32_t>(info.planes.size() - 1),
+       .planesOffset = info.planesOffset})
   , projViewMatrices({})
   , planes(info.planes)
+  , shadowMapSize(info.shadowMapSize)
 {
   projViewMatrices.resize(shaderInfo.cascadesAmount);
 
   infoBuffer = etna::get_context().createBuffer(
     etna::Buffer::CreateInfo{
       .size = sizeof(ShadowCastingDirectionalLight::ShaderInfo) +
-        // sizeof(ShadowCastingDirectionalLight::ShaderInfo::light) +
-        //   sizeof(ShadowCastingDirectionalLight::ShaderInfo::cascadesAmount) +
-        // sizeof(ShadowCastingDirectionalLight::ShaderInfo::_padding) +
         shaderInfo.cascadesAmount * sizeof(glm::mat4x4) + planes.size() * sizeof(float),
       .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer,
       .memoryUsage = VMA_MEMORY_USAGE_AUTO,
@@ -37,7 +37,8 @@ void ShadowCastingDirectionalLight::update(const Camera& main_camera, float aspe
   for (std::size_t i = 0; i < shaderInfo.cascadesAmount; i++)
   {
     frustumCamera.zNear = planes[i] - (i == 0 ? 0.0f : shaderInfo.planesOffset);
-    frustumCamera.zFar = planes[i + 1] + (i == shaderInfo.cascadesAmount - 1 ? 0.0f : shaderInfo.planesOffset);
+    frustumCamera.zFar =
+      planes[i + 1] + (i == shaderInfo.cascadesAmount - 1 ? 0.0f : shaderInfo.planesOffset);
 
     glm::mat4x4 proj = frustumCamera.projTm(aspect_ratio);
 
@@ -45,79 +46,65 @@ void ShadowCastingDirectionalLight::update(const Camera& main_camera, float aspe
 
     glm::vec3 center = getFrustumCenter(corners);
 
-    // float radius = 0.0f;
-
-    // for (const auto& corner : corners)
-    // {
-    //   float distance = glm::length(corner - center);
-    //   radius = glm::max(radius, distance);
-    // }
-
-    // radius = std::ceil(radius * 16.0f) / 16.0f;
-
-    // glm::vec3 maxExtents = glm::vec3(radius);
-    // // spdlog::info("cascade {}, radius - {}", i, radius);
-
-    // glm::vec3 minExtents = -maxExtents;
-
-
-    // glm::mat4x4 lightProj = glm::orthoLH_ZO(
-    //   minExtents.x, maxExtents.x, minExtents.y, maxExtents.y, 0.0f, maxExtents.z);
-
-    // spdlog::info(
-    //   "cascade {}, bounding box - x:{}, -x:{}, y:{}, -y:{}, z:{}, -z:{}",
-    //   i,
-    //   minExtents.x,
-    //   maxExtents.x,
-    //   minExtents.y,
-    //   maxExtents.y,
-    //   0.0f,
-    //   maxExtents.z - minExtents.z);
-
-    // projViewMatrices[i] = lightProj * lightView;
-
     glm::mat4x4 lightView = glm::lookAtLH(center - shaderInfo.light.direction, center, {0, 1, 0});
 
-    float minX = std::numeric_limits<float>::max();
-    float maxX = std::numeric_limits<float>::min();
-    float minY = std::numeric_limits<float>::max();
-    float maxY = std::numeric_limits<float>::min();
-    float minZ = std::numeric_limits<float>::max();
-    float maxZ = std::numeric_limits<float>::min();
+    float radius = 0.0f;
 
     for (const auto& corner : corners)
     {
-      auto lightSpaceCorner = lightView * glm::vec4(corner, 1.0f);
-
-      minX = std::min(minX, lightSpaceCorner.x);
-      maxX = std::max(maxX, lightSpaceCorner.x);
-      minY = std::min(minY, lightSpaceCorner.y);
-      maxY = std::max(maxY, lightSpaceCorner.y);
-      minZ = std::min(minZ, lightSpaceCorner.z);
-      maxZ = std::max(maxZ, lightSpaceCorner.z);
+      float distance = glm::length(corner - center);
+      radius = glm::max(radius, distance);
     }
 
-    // float zMult = 10.0f;
-    // if (minZ < 0.25)
+    radius = std::ceil(radius);
+
+    glm::vec3 maxOrtho = center + glm::vec3(radius);
+    glm::vec3 minOrtho = center - glm::vec3(radius);
+
+    maxOrtho = glm::vec3(lightView * glm::vec4(maxOrtho, 1.0f));
+    minOrtho = glm::vec3(lightView * glm::vec4(minOrtho, 1.0f));
+
+    // glm::mat4x4 lightView = glm::lookAtLH(center,center - shaderInfo.light.direction,  {0, 1,
+    // 0});
+
+    // float minX = std::numeric_limits<float>::max();
+    // float maxX = std::numeric_limits<float>::min();
+    // float minY = std::numeric_limits<float>::max();
+    // float maxY = std::numeric_limits<float>::min();
+    // float minZ = std::numeric_limits<float>::max();
+    // float maxZ = std::numeric_limits<float>::min();
+
+    // for (const auto& corner : corners)
     // {
-    //   minZ *= zMult;
-    // }
-    // else
-    // {
-    //   minZ /= zMult;
-    // }
-    // if (maxZ < 0.25)
-    // {
-    //   maxZ /= zMult;
-    // }
-    // else
-    // {
-    //   maxZ *= zMult;
+    //   auto lightSpaceCorner = lightView * glm::vec4(corner, 1.0f);
+
+    //   minX = std::min(minX, lightSpaceCorner.x);
+    //   maxX = std::max(maxX, lightSpaceCorner.x);
+    //   minY = std::min(minY, lightSpaceCorner.y);
+    //   maxY = std::max(maxY, lightSpaceCorner.y);
+    //   minZ = std::min(minZ, lightSpaceCorner.z);
+    //   maxZ = std::max(maxZ, lightSpaceCorner.z);
     // }
 
-    // spdlog::info("projection matrix {} - {},", i,
-    // glm::to_string(shaderInfo.projViewMatrices[i]));
-    glm::mat4x4 lightProj = glm::orthoLH_ZO(minX, maxX, minY, maxY, minZ - 500.0f, maxZ);
+    // glm::mat4x4 lightProj = glm::orthoLH_ZO( maxX, minX, maxY, minY,  maxZ - 500.0f, minZ);
+
+    // projViewMatrices[i] = lightProj * lightView;
+
+    // ?????
+    glm::mat4x4 lightProj = glm::orthoLH_ZO(
+      maxOrtho.x, minOrtho.x, maxOrtho.y, minOrtho.y, maxOrtho.z - 500.0f, minOrtho.z + 250.0f);
+
+    glm::mat4x4 shadowProjView = lightProj * lightView;
+
+    glm::vec4 shadowOrigin = glm::vec4(0, 0, 0, 1);
+    shadowOrigin = shadowProjView * shadowOrigin;
+    glm::vec2 texCoord = glm::vec2(shadowOrigin.x, shadowOrigin.y) * shadowMapSize * 0.5f;
+
+    glm::vec2 roundedTexCoord = glm::round(texCoord);
+    glm::vec2 roundOffset = roundedTexCoord - texCoord;
+    roundOffset /= shadowMapSize * 0.5f;
+
+    lightProj[3] += glm::vec4(roundOffset, 0.0, 0.0);
 
     projViewMatrices[i] = lightProj * lightView;
   }
@@ -125,24 +112,11 @@ void ShadowCastingDirectionalLight::update(const Camera& main_camera, float aspe
   infoBuffer.map();
 
   uint32_t offset = 0;
-  // sizeof(ShadowCastingDirectionalLight::ShaderInfo::light) +
-  //   sizeof(ShadowCastingDirectionalLight::ShaderInfo::cascadesAmount) +
-  //   sizeof(ShadowCastingDirectionalLight::ShaderInfo::_padding);
 
   std::memcpy(
     infoBuffer.data() + offset, &shaderInfo, sizeof(ShadowCastingDirectionalLight::ShaderInfo));
-  // sizeof(ShadowCastingDirectionalLight::ShaderInfo::_padding));
 
   offset += sizeof(ShadowCastingDirectionalLight::ShaderInfo);
-
-  // std::memcpy(
-  //   infoBuffer.data() + offset,
-  //   &shaderInfo.cascadesAmount,
-  //   sizeof(ShadowCastingDirectionalLight::ShaderInfo::cascadesAmount));
-
-  // offset += sizeof(ShadowCastingDirectionalLight::ShaderInfo::cascadesAmount);
-
-  // std::memcpy(infoBuffer.data() + offset, &shaderInfo.light, offset);
   std::memcpy(
     infoBuffer.data() + offset,
     projViewMatrices.data(),
@@ -154,21 +128,6 @@ void ShadowCastingDirectionalLight::update(const Camera& main_camera, float aspe
 
   infoBuffer.unmap();
 }
-
-// std::vector<std::byte> ShadowCastingDirectionalLight::getInfoBuffer() const
-// {
-//   const uint32_t matricesOffset = sizeof(ShadowCastingDirectionalLight::ShaderInfo::light) +
-//     sizeof(ShadowCastingDirectionalLight::ShaderInfo::cascadesAmount);
-
-//   std::memcpy(infoBuffer.data(), &shaderInfo, matricesOffset);
-
-//   std::memcpy(
-//     infoBuffer.data() + matricesOffset,
-//     shaderInfo.projViewMatrices.data(),
-//     sizeof(glm::mat4x4) * shaderInfo.projViewMatrices.size());
-
-//   return infoBuffer;
-// }
 
 std::array<glm::vec3, 8> ShadowCastingDirectionalLight::getWorldSpaceFrustumCorners(
   const glm::mat4x4& proj_view)

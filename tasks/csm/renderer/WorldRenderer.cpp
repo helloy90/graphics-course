@@ -1,6 +1,5 @@
 #include "WorldRenderer.hpp"
 
-#include <cstdint>
 #include <imgui.h>
 #include <tracy/Tracy.hpp>
 #include <stb_image.h>
@@ -34,6 +33,9 @@ WorldRenderer::WorldRenderer(const InitInfo& info)
 void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
 {
   resolution = swapchain_resolution;
+  params = {};
+  params.colorShadows = 0;
+  params.usePCF = 1;
 
   auto& ctx = etna::get_context();
 
@@ -52,7 +54,7 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
       .shadowMapsResolution = glm::uvec2(1024, 1024),
       .renderTargetFormat = renderTargetFormat,
       .normalsFormat = vk::Format::eR16G16B16A16Snorm,
-      .shadowsFormat = vk::Format::eD16Unorm,
+      .shadowsFormat = vk::Format::eD32Sfloat,
       .shadowCascadesAmount = shadowCascadesAmount});
 
   constantsBuffer.emplace(ctx.getMainWorkCount(), [&ctx](std::size_t i) {
@@ -109,11 +111,12 @@ void WorldRenderer::loadScene(std::filesystem::path path, float near_plane, floa
       ShadowCastingDirectionalLight::CreateInfo{
         .light =
           DirectionalLight{
-            .direction = glm::vec3{1, -0.6, -3},
+            .direction = glm::normalize(glm::vec3{1, -0.6, -3}),
             .intensity = 1.0f,
             .color = glm::vec3{1, 0.694, 0.32}},
         .planes = getPlanesForShadowCascades(near_plane, far_plane),
-        .planesOffset = 15.0f}));
+        .planesOffset = 0.0f,
+        .shadowMapSize = static_cast<float>(gBuffer->getShadowTextureExtent().width)}));
 
   auto planes = getPlanesForShadowCascades(near_plane, far_plane);
   for (uint32_t i = 0; i < shadowCascadesAmount + 1; i++)
@@ -306,6 +309,9 @@ void WorldRenderer::update(const FramePacket& packet)
 
 void WorldRenderer::drawGui()
 {
+  static bool colorShadow = false;
+  static bool usePCF = true;
+
   ImGui::Begin("Application Settings");
 
   ImGui::Text(
@@ -327,6 +333,17 @@ void WorldRenderer::drawGui()
   terrainRenderModule.drawGui();
   waterGeneratorModule.drawGui();
   waterRenderModule.drawGui();
+
+  ImGui::SeparatorText("Shadow Settings");
+
+  if (ImGui::Checkbox("Enable colored shadows", &colorShadow))
+  {
+    params.colorShadows = static_cast<shader_bool>(colorShadow);
+  }
+  if (ImGui::Checkbox("Use PCF for shadows", &usePCF))
+  {
+    params.usePCF = static_cast<shader_bool>(usePCF);
+  }
 
   ImGui::SeparatorText("General Settings");
 

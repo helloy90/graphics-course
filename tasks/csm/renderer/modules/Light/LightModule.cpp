@@ -1,11 +1,5 @@
 #include "LightModule.hpp"
-#include "DirectionalLight.h"
-#include "ShadowCastingDirectionalLight.hpp"
-#include "etna/Etna.hpp"
 
-#include <cstddef>
-#include <cstring>
-#include <glm/fwd.hpp>
 #include <imgui.h>
 
 #include <etna/PipelineManager.hpp>
@@ -95,10 +89,6 @@ void LightModule::loadLights(
   vk::DeviceSize directionalLightsSize = sizeof(DirectionalLight) * directionalLights.size();
   vk::DeviceSize lightsSize = sizeof(Light) * lights.size();
 
-  // std::vector<std::byte> infoBuffer = new_shadow_casting_dir_light.getInfoBuffer();
-
-  // spdlog::info("{} - size of info buffer", infoBuffer.size());
-
   lightsBuffer = ctx.createBuffer(
     etna::Buffer::CreateInfo{
       .size = lightsSize,
@@ -117,9 +107,6 @@ void LightModule::loadLights(
   transferHelper->uploadBuffer(
     *oneShotCommands, directionalLightsBuffer, 0, std::as_bytes(std::span(directionalLights)));
   transferHelper->uploadBuffer(*oneShotCommands, lightsBuffer, 0, std::as_bytes(std::span(lights)));
-  
-  // transferHelper->uploadBuffer(
-  //   *oneShotCommands, shadowCastingDirLightInfosBuffer, 0, std::as_bytes(std::span(infoBuffer)));
 
   paramsBuffer.map();
   std::memcpy(paramsBuffer.data(), &params, sizeof(LightParams));
