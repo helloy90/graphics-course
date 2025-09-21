@@ -111,12 +111,12 @@ void ShadowCastingDirectionalLight::update(const Camera& main_camera, float aspe
 
   infoBuffer.map();
 
-  uint32_t offset = 0;
+  std::size_t offset = 0;
 
   std::memcpy(
     infoBuffer.data() + offset, &shaderInfo, sizeof(ShadowCastingDirectionalLight::ShaderInfo));
 
-  offset += sizeof(ShadowCastingDirectionalLight::ShaderInfo);
+  offset += sizeof(ShadowCastingDirectionalLight::ShaderInfo); 
   std::memcpy(
     infoBuffer.data() + offset,
     projViewMatrices.data(),
