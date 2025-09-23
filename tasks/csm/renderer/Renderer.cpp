@@ -46,7 +46,7 @@ void Renderer::initVulkan(std::span<const char*> instance_extensions)
           .runtimeDescriptorArray = vk::True,
         },
       .physicalDeviceIndexOverride = {},
-      .numFramesInFlight = 2,
+      .numFramesInFlight = 1,
     });
 }
 
@@ -99,7 +99,6 @@ void Renderer::recreateSwapchain(glm::uvec2 res)
   spdlog::info("recreating swapchain");
 
   ETNA_CHECK_VK_RESULT(ctx.getDevice().waitIdle());
-  ETNA_CHECK_VK_RESULT(ctx.getQueue().waitIdle());
 
   auto [w, h] = window->recreateSwapchain(
     etna::Window::DesiredProperties{
@@ -109,7 +108,7 @@ void Renderer::recreateSwapchain(glm::uvec2 res)
   resolution = {w, h};
 
   worldRenderer->allocateResources(resolution);
-  worldRenderer->rebuildRenderPipelines();
+  worldRenderer->setupRenderPipelines();
   worldRenderer->loadInfo();
 }
 
@@ -217,8 +216,13 @@ void Renderer::drawFrame()
     }
   }
 
-  if (!nextSwapchainImage && resolutionProvider() != glm::uvec2{0, 0})
+  if (!nextSwapchainImage)
   {
+    auto res = resolutionProvider();
+    if (res.x != 0 && res.y != 0)
+    {
+      recreateSwapchain(resolution);
+    }
   }
 
   etna::end_frame();

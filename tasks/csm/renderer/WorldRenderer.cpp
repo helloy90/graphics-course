@@ -87,6 +87,25 @@ void WorldRenderer::loadScene(std::filesystem::path path, float near_plane, floa
 {
   staticMeshesRenderModule.loadScene(path);
 
+  planes = getPlanesForShadowCascades(near_plane, far_plane);
+
+  // auto planes = getPlanesForShadowCascades(near_plane, far_plane);
+  // for (uint32_t i = 0; i < shadowCascadesAmount + 1; i++)
+  // {
+  //   spdlog::info("plane {} - {}", i, planes[i]);
+  // }
+
+  loadInfo();
+}
+
+void WorldRenderer::loadInfo()
+{
+  terrainGeneratorModule.execute();
+
+  staticMeshesRenderModule.loadSet();
+
+  lightModule.loadMaps(terrainGeneratorModule.getBindings(vk::ImageLayout::eGeneral));
+
   lightModule.loadLights(
     // {Light{.pos = {0, 1, 0}, .radius = 0,  .color = {1, 1, 1}, .intensity = 15},
     //  Light{.pos = {0, 0, 5}, .radius = 0,  .color = {1, 0, 1}, .intensity = 15},
@@ -107,31 +126,15 @@ void WorldRenderer::loadScene(std::filesystem::path path, float near_plane, floa
     //   0.32}}},
     {},
     {},
-    ShadowCastingDirectionalLight(
-      ShadowCastingDirectionalLight::CreateInfo{
-        .light =
-          DirectionalLight{
-            .direction = glm::normalize(glm::vec3{1, -0.6, -3}),
-            .intensity = 1.0f,
-            .color = glm::vec3{1, 0.694, 0.32}},
-        .planes = getPlanesForShadowCascades(near_plane, far_plane),
-        .planesOffset = 0.0f,
-        .shadowMapSize = static_cast<float>(gBuffer->getShadowTextureExtent().width)}));
-
-  auto planes = getPlanesForShadowCascades(near_plane, far_plane);
-  for (uint32_t i = 0; i < shadowCascadesAmount + 1; i++)
-  {
-    spdlog::info("plane {} - {}", i, planes[i]);
-  }
-
-  loadInfo();
-}
-
-void WorldRenderer::loadInfo()
-{
-  terrainGeneratorModule.execute();
-
-  lightModule.loadMaps(terrainGeneratorModule.getBindings(vk::ImageLayout::eGeneral));
+    ShadowCastingDirectionalLight::CreateInfo{
+      .light =
+        DirectionalLight{
+          .direction = glm::normalize(glm::vec3{1, -0.6, -3}),
+          .intensity = 1.0f,
+          .color = glm::vec3{1, 0.694, 0.32}},
+      .planes = planes,
+      .planesOffset = 0.0f,
+      .shadowMapSize = static_cast<float>(gBuffer->getShadowTextureExtent().width)});
 
   lightModule.displaceLights();
 

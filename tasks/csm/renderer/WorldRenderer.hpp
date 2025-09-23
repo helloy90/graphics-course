@@ -74,6 +74,8 @@ private:
   WaterGeneratorModule waterGeneratorModule;
   WaterRenderModule waterRenderModule;
 
+  std::vector<float> planes;
+
   vk::Format renderTargetFormat;
 
   etna::Image cubemapTexture;

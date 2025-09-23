@@ -8,7 +8,7 @@
 #include "DirectionalLight.h"
 #include "Light.h"
 #include "ShadowCastingDirectionalLight.hpp"
-#include "etna/DescriptorSet.hpp"
+
 #include "shaders/LightParams.h"
 
 
@@ -24,7 +24,7 @@ public:
   void loadLights(
     const std::vector<Light>& new_lights,
     const std::vector<DirectionalLight>& new_directional_lights,
-    ShadowCastingDirectionalLight new_shadow_casting_dir_light);
+    ShadowCastingDirectionalLight::CreateInfo shadow_casting_dir_light_create_info);
   void displaceLights();
 
   void update(const Camera& main_camera, float aspect_ratio);
@@ -38,7 +38,7 @@ public:
   const etna::Buffer& getDirectionalLightsBuffer() const { return directionalLightsBuffer; }
   const etna::Buffer& getShadowCastingDirLightInfoBuffer() const
   {
-    return shadowCastingDirLights.getInfoBuffer();
+    return shadowCastingDirLights->getInfoBuffer();
   }
 
   etna::Binding getShadowCastingDirLightMatrixBinding(uint32_t index, uint32_t cascade_index) const
@@ -46,11 +46,7 @@ public:
     return etna::Binding{
       index,
       getShadowCastingDirLightInfoBuffer().genBinding(
-        sizeof(ShadowCastingDirectionalLight::ShaderInfo) +
-        // sizeof(ShadowCastingDirectionalLight::ShaderInfo::light) +
-        //   sizeof(ShadowCastingDirectionalLight::ShaderInfo::cascadesAmount) +
-          // sizeof(ShadowCastingDirectionalLight::ShaderInfo::_padding) +
-          sizeof(glm::mat4x4) * cascade_index,
+        sizeof(ShadowCastingDirectionalLight::ShaderInfo) + sizeof(glm::mat4x4) * cascade_index,
         sizeof(glm::mat4x4))};
   }
 
@@ -62,7 +58,7 @@ private:
   std::vector<DirectionalLight> directionalLights;
 
   // For now only one shadow casting light
-  ShadowCastingDirectionalLight shadowCastingDirLights;
+  std::optional<ShadowCastingDirectionalLight> shadowCastingDirLights;
 
   etna::Buffer lightsBuffer;
   etna::Buffer directionalLightsBuffer;

@@ -50,7 +50,7 @@ void LightModule::setupPipelines()
 void LightModule::loadLights(
   const std::vector<Light>& new_lights,
   const std::vector<DirectionalLight>& new_directional_lights,
-  ShadowCastingDirectionalLight new_shadow_casting_dir_light)
+  ShadowCastingDirectionalLight::CreateInfo shadow_casting_dir_light_create_info)
 {
   auto& ctx = etna::get_context();
 
@@ -69,7 +69,7 @@ void LightModule::loadLights(
 
   directionalLights = new_directional_lights;
 
-  shadowCastingDirLights = std::move(new_shadow_casting_dir_light);
+  shadowCastingDirLights.emplace(shadow_casting_dir_light_create_info);
 
   params.directionalLightsAmount = static_cast<uint32_t>(directionalLights.size());
   params.lightsAmount = static_cast<uint32_t>(lights.size());
@@ -77,11 +77,13 @@ void LightModule::loadLights(
 
   if (lights.empty())
   {
+    lights.clear();
     lights.emplace_back(
       Light{.pos = {0, 0, 0}, .radius = 0.0f, .color = {0, 0, 0}, .intensity = 0.0f});
   }
   if (directionalLights.empty())
   {
+    directionalLights.clear();
     directionalLights.emplace_back(
       DirectionalLight{.direction = {0, 0, 0}, .intensity = 0.0f, .color = {0, 0, 0}});
   }
@@ -158,7 +160,7 @@ void LightModule::displaceLights()
       commandBuffer.bindPipeline(
         vk::PipelineBindPoint::eCompute, lightDisplacementPipeline.getVkPipeline());
 
-      commandBuffer.dispatch((static_cast<uint32_t>(lights.size()) + 127) / 128, 1, 1);
+      commandBuffer.dispatch((static_cast<uint32_t>(lights.size()) + 31) / 32, 1, 1);
     }
 
     {
@@ -185,7 +187,7 @@ void LightModule::displaceLights()
 
 void LightModule::update(const Camera& main_camera, float aspect_ratio)
 {
-  shadowCastingDirLights.update(main_camera, aspect_ratio);
+  shadowCastingDirLights->update(main_camera, aspect_ratio);
 }
 
 void LightModule::drawGui()

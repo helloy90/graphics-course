@@ -1,8 +1,10 @@
 #pragma once
 
 #include <vector>
+#include <optional>
 
 #include <etna/Buffer.hpp>
+#include <etna/GpuSharedResource.hpp>
 
 #include "scene/Camera.hpp"
 #include "DirectionalLight.h"
@@ -36,7 +38,7 @@ public:
   void update(const Camera& main_camera, float aspect_ratio);
 
   const ShaderInfo& getInfo() const { return shaderInfo; }
-  const etna::Buffer& getInfoBuffer() const { return infoBuffer; }
+  const etna::Buffer& getInfoBuffer() const { return infoBuffer->get(); }
 
 private:
   std::array<glm::vec3, 8> getWorldSpaceFrustumCorners(const glm::mat4x4& proj_view);
@@ -48,7 +50,7 @@ private:
   std::vector<glm::mat4x4> projViewMatrices;
   std::vector<float> planes;
   float shadowMapSize;
-  etna::Buffer infoBuffer;
+  std::optional<etna::GpuSharedResource<etna::Buffer>> infoBuffer;
 
   Camera shadowCamera;
 };

@@ -71,7 +71,7 @@ GBuffer::GBuffer(const CreateInfo& info)
   }
 
   sampler = etna::Sampler(
-    etna::Sampler::CreateInfo{.filter = vk::Filter::eNearest, .name = "gBuffer_sampler"});
+    etna::Sampler::CreateInfo{.filter = vk::Filter::eLinear, .name = "gBuffer_sampler"});
 }
 
 void GBuffer::prepareForRender(vk::CommandBuffer cmd_buf)

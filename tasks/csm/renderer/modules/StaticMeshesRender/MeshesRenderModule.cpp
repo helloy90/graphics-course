@@ -50,25 +50,6 @@ void MeshesRenderModule::loadShaders()
 void MeshesRenderModule::loadScene(std::filesystem::path path)
 {
   sceneMgr->selectBakedScene(path);
-
-  auto shaderInfo = etna::get_shader_program("static_mesh_material");
-  meshesDescriptorSet = etna::create_persistent_descriptor_set(
-    shaderInfo.getDescriptorLayoutId(0), sceneMgr->getBindlessBindings(), true);
-
-  auto commandBuffer = oneShotCommands->start();
-  ETNA_CHECK_VK_RESULT(commandBuffer.begin(vk::CommandBufferBeginInfo{}));
-  {
-    meshesDescriptorSet->processBarriers(commandBuffer);
-  }
-  ETNA_CHECK_VK_RESULT(commandBuffer.end());
-  oneShotCommands->submitAndWait(commandBuffer);
-
-  params.instancesCount = static_cast<shader_uint>(sceneMgr->getInstanceMeshes().size());
-  params.relemsCount = static_cast<shader_uint>(sceneMgr->getRenderElements().size());
-
-  paramsBuffer.map();
-  std::memcpy(paramsBuffer.data(), &params, sizeof(MeshesParams));
-  paramsBuffer.unmap();
 }
 
 void MeshesRenderModule::setupPipelines(
@@ -141,6 +122,28 @@ void MeshesRenderModule::setupPipelines(
 
   cullingPipeline = pipelineManager.createComputePipeline("culling_meshes", {});
   cullingShadowPipeline = pipelineManager.createComputePipeline("culling_shadow", {});
+}
+
+void MeshesRenderModule::loadSet()
+{
+  auto shaderInfo = etna::get_shader_program("static_mesh_material");
+  meshesDescriptorSet = etna::create_persistent_descriptor_set(
+    shaderInfo.getDescriptorLayoutId(0), sceneMgr->getBindlessBindings(), true);
+
+  auto commandBuffer = oneShotCommands->start();
+  ETNA_CHECK_VK_RESULT(commandBuffer.begin(vk::CommandBufferBeginInfo{}));
+  {
+    meshesDescriptorSet->processBarriers(commandBuffer);
+  }
+  ETNA_CHECK_VK_RESULT(commandBuffer.end());
+  oneShotCommands->submitAndWait(commandBuffer);
+
+  params.instancesCount = static_cast<shader_uint>(sceneMgr->getInstanceMeshes().size());
+  params.relemsCount = static_cast<shader_uint>(sceneMgr->getRenderElements().size());
+
+  paramsBuffer.map();
+  std::memcpy(paramsBuffer.data(), &params, sizeof(MeshesParams));
+  paramsBuffer.unmap();
 }
 
 void MeshesRenderModule::executeRender(

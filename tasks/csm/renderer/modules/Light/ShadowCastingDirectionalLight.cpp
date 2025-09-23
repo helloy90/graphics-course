@@ -19,15 +19,21 @@ ShadowCastingDirectionalLight::ShadowCastingDirectionalLight(const CreateInfo& i
 {
   projViewMatrices.resize(shaderInfo.cascadesAmount);
 
-  infoBuffer = etna::get_context().createBuffer(
-    etna::Buffer::CreateInfo{
-      .size = sizeof(ShadowCastingDirectionalLight::ShaderInfo) +
-        shaderInfo.cascadesAmount * sizeof(glm::mat4x4) + planes.size() * sizeof(float),
-      .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer,
-      .memoryUsage = VMA_MEMORY_USAGE_AUTO,
-      .allocationCreate =
-        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
-      .name = fmt::format("ShadowCastingDirLightInfo")});
+  vk::DeviceSize infoBufferSize = sizeof(ShadowCastingDirectionalLight::ShaderInfo) +
+    shaderInfo.cascadesAmount * sizeof(glm::mat4x4) + planes.size() * sizeof(float);
+
+  auto& ctx = etna::get_context();
+
+  infoBuffer.emplace(ctx.getMainWorkCount(), [infoBufferSize, &ctx](std::size_t i) {
+    return ctx.createBuffer(
+      etna::Buffer::CreateInfo{
+        .size = infoBufferSize,
+        .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer,
+        .memoryUsage = VMA_MEMORY_USAGE_AUTO,
+        .allocationCreate =
+          VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+        .name = fmt::format("ShadowCastingDirLightInfo_{}", i)});
+  });
 }
 
 void ShadowCastingDirectionalLight::update(const Camera& main_camera, float aspect_ratio)
@@ -104,29 +110,33 @@ void ShadowCastingDirectionalLight::update(const Camera& main_camera, float aspe
     glm::vec2 roundOffset = roundedTexCoord - texCoord;
     roundOffset /= shadowMapSize * 0.5f;
 
-    lightProj[3] += glm::vec4(roundOffset, 0.0, 0.0);
+    // lightProj[3] += glm::vec4(roundOffset, 0.0, 0.0);
 
     projViewMatrices[i] = lightProj * lightView;
   }
 
-  infoBuffer.map();
+  auto& currentInfoBuffer = infoBuffer->get();
+
+  currentInfoBuffer.map();
 
   std::size_t offset = 0;
 
   std::memcpy(
-    infoBuffer.data() + offset, &shaderInfo, sizeof(ShadowCastingDirectionalLight::ShaderInfo));
+    currentInfoBuffer.data() + offset,
+    &shaderInfo,
+    sizeof(ShadowCastingDirectionalLight::ShaderInfo));
 
-  offset += sizeof(ShadowCastingDirectionalLight::ShaderInfo); 
+  offset += sizeof(ShadowCastingDirectionalLight::ShaderInfo);
   std::memcpy(
-    infoBuffer.data() + offset,
+    currentInfoBuffer.data() + offset,
     projViewMatrices.data(),
     sizeof(glm::mat4x4) * projViewMatrices.size());
 
   offset += sizeof(glm::mat4x4) * projViewMatrices.size();
 
-  std::memcpy(infoBuffer.data() + offset, planes.data(), sizeof(float) * planes.size());
+  std::memcpy(currentInfoBuffer.data() + offset, planes.data(), sizeof(float) * planes.size());
 
-  infoBuffer.unmap();
+  currentInfoBuffer.unmap();
 }
 
 std::array<glm::vec3, 8> ShadowCastingDirectionalLight::getWorldSpaceFrustumCorners(
