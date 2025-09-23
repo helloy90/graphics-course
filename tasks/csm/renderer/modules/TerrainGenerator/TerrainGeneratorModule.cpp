@@ -47,7 +47,7 @@ void TerrainGeneratorModule::allocateResources(vk::Format map_format, vk::Extent
     etna::Image::CreateInfo{
       .extent = extent,
       .name = "terrain_normal_map",
-      .format = vk::Format::eR32G32B32A32Sfloat,
+      .format = vk::Format::eR16G16B16A16Snorm,
       .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage});
 
   paramsBuffer = ctx.createBuffer(

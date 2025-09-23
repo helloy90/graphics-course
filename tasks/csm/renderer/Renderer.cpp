@@ -39,7 +39,12 @@ void Renderer::initVulkan(std::span<const char*> instance_extensions)
             .fillModeNonSolid = vk::True /*debug*/,
             .fragmentStoresAndAtomics = vk::True}},
       .descriptorIndexingFeatures =
-        {.shaderSampledImageArrayNonUniformIndexing = vk::True, .runtimeDescriptorArray = vk::True},
+        {
+          .shaderSampledImageArrayNonUniformIndexing = vk::True,
+          .descriptorBindingPartiallyBound = vk::True,
+          .descriptorBindingVariableDescriptorCount = vk::True,
+          .runtimeDescriptorArray = vk::True,
+        },
       .physicalDeviceIndexOverride = {},
       .numFramesInFlight = 2,
     });

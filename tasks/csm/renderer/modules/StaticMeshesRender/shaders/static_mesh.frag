@@ -27,11 +27,12 @@ layout(location = 0) out vec4 gAlbedo;
 layout(location = 1) out vec3 gNormal;
 layout(location = 2) out vec4 gMaterial;
 
-layout(set = 0, binding = 0) uniform sampler2D textures[32];
-layout(set = 0, binding = 1) readonly buffer materials_t
+layout(set = 0, binding = 0) readonly buffer materials_t
 {
   Material materials[];
 };
+
+layout(set = 0, binding = 1) uniform sampler2D textures[];
 
 layout(set = 1, binding = 0) readonly buffer relems_t
 {
