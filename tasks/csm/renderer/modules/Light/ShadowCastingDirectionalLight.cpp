@@ -110,7 +110,7 @@ void ShadowCastingDirectionalLight::update(const Camera& main_camera, float aspe
     glm::vec2 roundOffset = roundedTexCoord - texCoord;
     roundOffset /= shadowMapSize * 0.5f;
 
-    // lightProj[3] += glm::vec4(roundOffset, 0.0, 0.0);
+    lightProj[3] += glm::vec4(roundOffset, 0.0, 0.0);
 
     projViewMatrices[i] = lightProj * lightView;
   }

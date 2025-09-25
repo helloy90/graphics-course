@@ -46,7 +46,7 @@ void Renderer::initVulkan(std::span<const char*> instance_extensions)
           .runtimeDescriptorArray = vk::True,
         },
       .physicalDeviceIndexOverride = {},
-      .numFramesInFlight = 1,
+      .numFramesInFlight = 2,
     });
 }
 
