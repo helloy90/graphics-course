@@ -7,14 +7,14 @@
 #include "DirectionalLight.h"
 
 // for now set in shader
-#define SHADOW_CASCADES 3
+#define SHADOW_CASCADES 4
 
 
 layout(location = 0) out vec4 fragColor;
 
-layout(set = 0, binding = 0) uniform sampler2D gAlbedo;
-layout(set = 0, binding = 1) uniform sampler2D gNormal;
-layout(set = 0, binding = 2) uniform sampler2D gMaterial;
+layout(set = 0, binding = 0, r11f_g11f_b10f) uniform image2D gAlbedo;
+layout(set = 0, binding = 1, rgba16_snorm) uniform image2D gNormal;
+layout(set = 0, binding = 2, rgba8) uniform image2D gMaterial;
 layout(set = 0, binding = 3) uniform sampler2D gDepth;
 layout(set = 0, binding = 4) uniform sampler2D gShadow[SHADOW_CASCADES];
 
@@ -285,17 +285,23 @@ float computeShadow(vec2 shadowTexCoord, float depth, float bias, uint currentCa
 
 void main()
 {
-  const vec2 texCoord = gl_FragCoord.xy / resolution;
+  // const vec2 texCoord = gl_FragCoord.xy / resolution;
+  const ivec2 texCoord = ivec2(gl_FragCoord.xy);
 
-  const vec3 albedo = texture(gAlbedo, texCoord).rgb;
+  const vec2 uvTexCoord = vec2(texCoord) / resolution;
 
-  const vec3 normal = normalize(texture(gNormal, texCoord).xyz);
+  // const vec3 albedo = texture(gAlbedo, texCoord).rgb;
+  const vec3 albedo = imageLoad(gAlbedo, texCoord).rgb;
+
+  // const vec3 normal = normalize(texture(gNormal, texCoord).xyz);
+  const vec3 normal = normalize(imageLoad(gNormal, texCoord).xyz);
   const vec3 viewSpaceNormal = normalize((transpose(params.invView) * vec4(normal, 0.0)).xyz);
 
-  const vec4 material = texture(gMaterial, texCoord);
-  const float depth = texture(gDepth, texCoord).x;
+  const vec4 material = imageLoad(gMaterial, texCoord);
+  // const vec4 material = texture(gMaterial, texCoord);
+  const float depth = texture(gDepth, uvTexCoord).x;
 
-  const vec4 screenSpacePosition = vec4(texCoord * 2.0 - 1.0, depth, 1.0);
+  const vec4 screenSpacePosition = vec4(uvTexCoord * 2.0 - 1.0, depth, 1.0);
 
   vec4 viewSpacePosition = params.invProj * screenSpacePosition;
   viewSpacePosition /= viewSpacePosition.w;

@@ -54,7 +54,7 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
       .shadowMapsResolution = glm::uvec2(1024, 1024),
       .renderTargetFormat = renderTargetFormat,
       .normalsFormat = vk::Format::eR16G16B16A16Snorm,
-      .shadowsFormat = vk::Format::eD32Sfloat,
+      .shadowsFormat = vk::Format::eD16Unorm,
       .shadowCascadesAmount = shadowCascadesAmount});
 
   constantsBuffer.emplace(ctx.getMainWorkCount(), [&ctx](std::size_t i) {
@@ -87,13 +87,12 @@ void WorldRenderer::loadScene(std::filesystem::path path, float near_plane, floa
 {
   staticMeshesRenderModule.loadScene(path);
 
-  planes = getPlanesForShadowCascades(near_plane, far_plane);
+  planes = getPlanesForShadowCascades(near_plane, far_plane, 0.9f);
 
-  // auto planes = getPlanesForShadowCascades(near_plane, far_plane);
-  // for (uint32_t i = 0; i < shadowCascadesAmount + 1; i++)
-  // {
-  //   spdlog::info("plane {} - {}", i, planes[i]);
-  // }
+  for (uint32_t i = 0; i < shadowCascadesAmount + 1; i++)
+  {
+    spdlog::info("plane {} - {}", i, planes[i]);
+  }
 
   loadInfo();
 }
@@ -458,20 +457,23 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
 
     etna::flush_barriers(cmd_buf);
 
-    for (uint32_t i = 0; i < shadowCascadesAmount; i++)
+    if (!timeStopped)
     {
-      staticMeshesRenderModule.executeShadowMapping(
-        cmd_buf,
-        gBuffer->getShadowTextureExtent(),
-        lightModule.getShadowCastingDirLightMatrixBinding(9, i),
-        gBuffer->genShadowMappingAttachmentParams(i));
+      for (uint32_t i = 0; i < shadowCascadesAmount; i++)
+      {
+        staticMeshesRenderModule.executeShadowMapping(
+          cmd_buf,
+          gBuffer->getShadowTextureExtent(),
+          lightModule.getShadowCastingDirLightMatrixBinding(9, i),
+          gBuffer->genShadowMappingAttachmentParams(i));
 
-      terrainRenderModule.executeShadowMapping(
-        cmd_buf,
-        renderPacket,
-        gBuffer->getShadowTextureExtent(),
-        lightModule.getShadowCastingDirLightMatrixBinding(1, i),
-        gBuffer->genShadowMappingAttachmentParams(i, vk::AttachmentLoadOp::eLoad));
+        terrainRenderModule.executeShadowMapping(
+          cmd_buf,
+          renderPacket,
+          gBuffer->getShadowTextureExtent(),
+          lightModule.getShadowCastingDirLightMatrixBinding(1, i),
+          gBuffer->genShadowMappingAttachmentParams(i, vk::AttachmentLoadOp::eLoad));
+      }
     }
 
     terrainRenderModule.executeRender(
@@ -560,7 +562,8 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
   }
 }
 
-std::vector<float> WorldRenderer::getPlanesForShadowCascades(float near_plane, float far_plane)
+std::vector<float> WorldRenderer::getPlanesForShadowCascades(
+  float near_plane, float far_plane, float weight)
 {
   std::vector<float> planes;
   planes.reserve(shadowCascadesAmount + 1);
@@ -573,7 +576,7 @@ std::vector<float> WorldRenderer::getPlanesForShadowCascades(float near_plane, f
     float logPart = near_plane * glm::pow(far_plane / near_plane, interpolation);
     float uniformPart = (far_plane - near_plane) * interpolation;
 
-    float plane = (logPart + uniformPart) / 2;
+    float plane = logPart * weight + (1.0f - weight) * uniformPart;
 
     planes.emplace_back(plane);
   }

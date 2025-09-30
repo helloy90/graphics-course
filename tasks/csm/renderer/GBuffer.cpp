@@ -5,6 +5,7 @@
 #include <etna/Etna.hpp>
 #include <etna/GlobalContext.hpp>
 #include <vector>
+#include <vulkan/vulkan_enums.hpp>
 
 
 GBuffer::GBuffer(const CreateInfo& info)
@@ -138,22 +139,22 @@ void GBuffer::prepareForRead(vk::CommandBuffer cmd_buf)
     cmd_buf,
     albedo.get(),
     vk::PipelineStageFlagBits2::eFragmentShader,
-    vk::AccessFlagBits2::eShaderSampledRead,
-    vk::ImageLayout::eReadOnlyOptimal,
+    vk::AccessFlagBits2::eShaderStorageRead,
+    vk::ImageLayout::eGeneral,
     vk::ImageAspectFlagBits::eColor);
   etna::set_state(
     cmd_buf,
     normal.get(),
     vk::PipelineStageFlagBits2::eFragmentShader,
-    vk::AccessFlagBits2::eShaderSampledRead,
-    vk::ImageLayout::eReadOnlyOptimal,
+    vk::AccessFlagBits2::eShaderStorageRead,
+    vk::ImageLayout::eGeneral,
     vk::ImageAspectFlagBits::eColor);
   etna::set_state(
     cmd_buf,
     material.get(),
     vk::PipelineStageFlagBits2::eFragmentShader,
-    vk::AccessFlagBits2::eShaderSampledRead,
-    vk::ImageLayout::eReadOnlyOptimal,
+    vk::AccessFlagBits2::eShaderStorageRead,
+    vk::ImageLayout::eGeneral,
     vk::ImageAspectFlagBits::eColor);
   etna::set_state(
     cmd_buf,
@@ -204,19 +205,19 @@ etna::RenderTargetState::AttachmentParams GBuffer::genShadowMappingAttachmentPar
 etna::Binding GBuffer::genAlbedoBinding(uint32_t index)
 {
   return etna::Binding{
-    index, albedo.genBinding(sampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)};
+    index, albedo.genBinding({}, vk::ImageLayout::eGeneral)};
 }
 
 etna::Binding GBuffer::genNormalBinding(uint32_t index)
 {
   return etna::Binding{
-    index, normal.genBinding(sampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)};
+    index, normal.genBinding({}, vk::ImageLayout::eGeneral)};
 }
 
 etna::Binding GBuffer::genMaterialBinding(uint32_t index)
 {
   return etna::Binding{
-    index, material.genBinding(sampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)};
+    index, material.genBinding({}, vk::ImageLayout::eGeneral)};
 }
 
 etna::Binding GBuffer::genDepthBinding(uint32_t index)

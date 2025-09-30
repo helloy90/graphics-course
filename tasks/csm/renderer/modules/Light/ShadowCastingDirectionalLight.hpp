@@ -1,5 +1,6 @@
 #pragma once
 
+#include <glm/fwd.hpp>
 #include <vector>
 #include <optional>
 
@@ -42,8 +43,10 @@ public:
 
 private:
   std::array<glm::vec3, 8> getWorldSpaceFrustumCorners(const glm::mat4x4& proj_view);
-
   glm::vec3 getFrustumCenter(const std::array<glm::vec3, 8>& corners);
+  glm::vec3 getShadowAnchor(const Camera& main_camera, std::size_t cascade_index);
+  glm::mat4x4 getLightViewMatrix(const glm::vec3& camera_pos, bool world_space);
+  glm::mat4x4 getLightProjMatrix(float left, float right, float bottom, float top, float z_near, float z_far);
 
 private:
   ShaderInfo shaderInfo;

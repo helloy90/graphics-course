@@ -6,6 +6,7 @@
 // #include "spdlog/spdlog.h"
 
 #include <etna/GlobalContext.hpp>
+#include <glm/ext/matrix_clip_space.hpp>
 
 
 ShadowCastingDirectionalLight::ShadowCastingDirectionalLight(const CreateInfo& info)
@@ -40,35 +41,102 @@ void ShadowCastingDirectionalLight::update(const Camera& main_camera, float aspe
 {
   Camera frustumCamera = main_camera;
 
-  for (std::size_t i = 0; i < shaderInfo.cascadesAmount; i++)
+  for (std::size_t cascade = 0; cascade < shaderInfo.cascadesAmount; cascade++)
   {
-    frustumCamera.zNear = planes[i] - (i == 0 ? 0.0f : shaderInfo.planesOffset);
-    frustumCamera.zFar =
-      planes[i + 1] + (i == shaderInfo.cascadesAmount - 1 ? 0.0f : shaderInfo.planesOffset);
+    frustumCamera.zNear = planes[cascade];    // - (cascade == 0 ? 0.0f : shaderInfo.planesOffset);
+    frustumCamera.zFar = planes[cascade + 1]; // + (cascade == shaderInfo.cascadesAmount - 1 ? 0.0f
+                                              // : shaderInfo.planesOffset);
+
+    // float zFarExpansion = glm::max(
+    //   200.0f,
+    //   (glm::abs(shaderInfo.light.direction.y) < 0.000001f) ? 0.0f
+    //                                                        : 100.0f / shaderInfo.light.direction.y);
+
+    // float zNearExpansion = zFarExpansion;
 
     glm::mat4x4 proj = frustumCamera.projTm(aspect_ratio);
 
     std::array corners = getWorldSpaceFrustumCorners(proj * frustumCamera.viewTm());
+    // glm::vec3 center = getFrustumCenter(corners);
 
-    glm::vec3 center = getFrustumCenter(corners);
+    // glm::mat4x4 lightView = glm::lookAtLH(center - shaderInfo.light.direction, center, {0, 1,
+    // 0});
+    glm::mat4x4 lightView = getLightViewMatrix(frustumCamera.position, false);
+    glm::mat3x3 lightView3 = glm::mat3x3(lightView);
 
-    glm::mat4x4 lightView = glm::lookAtLH(center - shaderInfo.light.direction, center, {0, 1, 0});
-
-    float radius = 0.0f;
-
-    for (const auto& corner : corners)
+    std::array cornersInLS = corners;
+    for (auto& corner : cornersInLS)
     {
-      float distance = glm::length(corner - center);
-      radius = glm::max(radius, distance);
+      corner = lightView3 * corner;
     }
 
-    radius = std::ceil(radius);
+    glm::vec3 bbMin = cornersInLS[0];
+    glm::vec3 bbMax = cornersInLS[0];
+    for (uint32_t i = 1; i < 8; i++)
+    {
+      bbMin = glm::min(bbMin, cornersInLS[i]);
+      bbMax = glm::max(bbMax, cornersInLS[i]);
+    }
 
-    glm::vec3 maxOrtho = center + glm::vec3(radius);
-    glm::vec3 minOrtho = center - glm::vec3(radius);
+    glm::vec3 bbWidth = bbMax - bbMin;
 
-    maxOrtho = glm::vec3(lightView * glm::vec4(maxOrtho, 1.0f));
-    minOrtho = glm::vec3(lightView * glm::vec4(minOrtho, 1.0f));
+    const int borderPixels = 4;
+    float texelWidth = bbWidth.x / shadowMapSize;
+    float texelHeight = bbWidth.y / shadowMapSize;
+
+    bbMin.x -= borderPixels * texelWidth;
+    bbMin.y -= borderPixels * texelHeight;
+
+    bbMax.x += borderPixels * texelWidth;
+    bbMax.y += borderPixels * texelHeight;
+
+    float step = 0.1f * frustumCamera.zFar;
+
+    bbMin.x = step * glm::floor(bbMin.x / step);
+    bbMin.y = step * glm::floor(bbMin.y / step);
+
+    bbMax.x = step * glm::ceil(bbMax.x / step);
+    bbMax.y = step * glm::ceil(bbMax.y / step);
+
+    glm::vec3 anchorPoint = lightView3 * getShadowAnchor(frustumCamera, cascade);
+
+    bbWidth = bbMax - bbMin;
+
+    texelWidth = bbWidth.x / shadowMapSize;
+    texelHeight = bbWidth.y / shadowMapSize;
+
+    bbMin.x = anchorPoint.x + glm::floor((bbMin.x - anchorPoint.x) / texelWidth) * texelWidth;
+    bbMin.y = anchorPoint.y + glm::floor((bbMin.y - anchorPoint.y) / texelHeight) * texelHeight;
+
+    bbMax.x = anchorPoint.x + glm::ceil((bbMax.x - anchorPoint.x) / texelWidth) * texelWidth;
+    bbMax.y = anchorPoint.y + glm::ceil((bbMax.y - anchorPoint.y) / texelHeight) * texelHeight;
+
+    // bbMin.z -= zNearExpansion + 500.0f;
+    // bbMax.z += zFarExpansion + 200.0f; // maybe do no expansion
+
+    // glm::mat4x4 lightProj = glm::orthoLH_ZO(
+    //   bbMin.x, bbMax.x, bbMin.y, bbMax.y, bbMin.z - 500.0f, bbMax.z + 500.0f);
+    glm::mat4x4 lightProj =
+      getLightProjMatrix(bbMax.x, bbMin.x, bbMax.y, bbMin.y, bbMin.z - 1000.0f, bbMax.z + 1000.0f);
+
+    // float radius = 0.0f;
+
+    // for (const auto& corner : corners)
+    // {
+    //   float distance = glm::length(corner - center);
+    //   radius = glm::max(radius, distance);
+    // }
+
+    // radius = std::ceil(radius);
+
+    // glm::vec3 maxOrtho = center + glm::vec3(radius);
+    // glm::vec3 minOrtho = center - glm::vec3(radius);
+
+    // maxOrtho = glm::vec3(lightView * glm::vec4(maxOrtho, 1.0f));
+    // minOrtho = glm::vec3(lightView * glm::vec4(minOrtho, 1.0f));
+
+    // maxOrtho = lightView3 * maxOrtho;
+    // minOrtho = lightView3 *minOrtho;
 
     // glm::mat4x4 lightView = glm::lookAtLH(center,center - shaderInfo.light.direction,  {0, 1,
     // 0});
@@ -97,22 +165,23 @@ void ShadowCastingDirectionalLight::update(const Camera& main_camera, float aspe
     // projViewMatrices[i] = lightProj * lightView;
 
     // ?????
-    glm::mat4x4 lightProj = glm::orthoLH_ZO(
-      maxOrtho.x, minOrtho.x, maxOrtho.y, minOrtho.y, maxOrtho.z - 500.0f, minOrtho.z + 250.0f);
+    // glm::mat4x4 lightProj = glm::orthoLH_ZO(
+    //   maxOrtho.x, minOrtho.x, maxOrtho.y, minOrtho.y, maxOrtho.z - 1000.0f, minOrtho.z +
+    //   1000.0f);
 
-    glm::mat4x4 shadowProjView = lightProj * lightView;
+    // glm::mat4x4 shadowProjView = lightProj * lightView;
 
-    glm::vec4 shadowOrigin = glm::vec4(0, 0, 0, 1);
-    shadowOrigin = shadowProjView * shadowOrigin;
-    glm::vec2 texCoord = glm::vec2(shadowOrigin.x, shadowOrigin.y) * shadowMapSize * 0.5f;
+    // glm::vec4 shadowOrigin = glm::vec4(0, 0, 0, 1);
+    // shadowOrigin = shadowProjView * shadowOrigin;
+    // glm::vec2 texCoord = glm::vec2(shadowOrigin.x, shadowOrigin.y) * shadowMapSize * 0.5f;
 
-    glm::vec2 roundedTexCoord = glm::round(texCoord);
-    glm::vec2 roundOffset = roundedTexCoord - texCoord;
-    roundOffset /= shadowMapSize * 0.5f;
+    // glm::vec2 roundedTexCoord = glm::round(texCoord);
+    // glm::vec2 roundOffset = roundedTexCoord - texCoord;
+    // roundOffset /= shadowMapSize * 0.5f;
 
-    lightProj[3] += glm::vec4(roundOffset, 0.0, 0.0);
+    // lightProj[3] += glm::vec4(roundOffset, 0.0, 0.0);
 
-    projViewMatrices[i] = lightProj * lightView;
+    projViewMatrices[cascade] = lightProj * lightView;
   }
 
   auto& currentInfoBuffer = infoBuffer->get();
@@ -175,4 +244,53 @@ glm::vec3 ShadowCastingDirectionalLight::getFrustumCenter(const std::array<glm::
   center /= 8.0f;
 
   return center;
+}
+
+glm::vec3 ShadowCastingDirectionalLight::getShadowAnchor(
+  const Camera& main_camera, [[maybe_unused]] std::size_t cascade_index)
+{
+  // if (cascade_index == 0)
+  // {
+  //   return {0, 0, 0};
+  // }
+  return -main_camera.position;
+}
+
+glm::mat4x4 ShadowCastingDirectionalLight::getLightViewMatrix(
+  const glm::vec3& camera_pos, bool world_space)
+{
+  glm::mat4x4 lightView = glm::lookAtLH({0, 0, 0}, shaderInfo.light.direction, {0, 1, 0});
+
+  if (world_space)
+  {
+    glm::mat4x4 worldToCam = glm::identity<glm::mat4x4>();
+    worldToCam[3] = glm::vec4(-camera_pos, 1.0f);
+
+    lightView = worldToCam * lightView;
+  }
+
+  return lightView;
+}
+
+glm::mat4x4 ShadowCastingDirectionalLight::getLightProjMatrix(
+  float left, float right, float bottom, float top, float z_near, float z_far)
+{
+  glm::mat4x4 proj = {
+    2.0f / (right - left),
+    0.0f,
+    0.0f,
+    0.0f,
+    0.0f,
+    2.0 / (top - bottom),
+    0.0f,
+    0.0f,
+    0.0f,
+    0.0f,
+    (glm::abs(z_far - z_near) < 0.00000001f) ? 0.0f : 1.0f / (z_far - z_near),
+    0.0f,
+    -(right + left) / (right - left),
+    -(top + bottom) / (top - bottom),
+    (glm::abs(z_far - z_near) < 0.00000001f) ? 0.0f : z_near / (z_near - z_far),
+    1.0f};
+  return proj;
 }
