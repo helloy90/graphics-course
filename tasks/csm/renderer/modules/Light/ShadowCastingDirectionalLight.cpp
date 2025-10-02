@@ -184,6 +184,10 @@ void ShadowCastingDirectionalLight::update(const Camera& main_camera, float aspe
     projViewMatrices[cascade] = lightProj * lightView;
   }
 
+}
+
+void ShadowCastingDirectionalLight::prepareForDraw()
+{
   auto& currentInfoBuffer = infoBuffer->get();
 
   currentInfoBuffer.map();

@@ -422,6 +422,8 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
     std::memcpy(currentConstants.data(), &params, sizeof(UniformParams));
     currentConstants.unmap();
 
+    lightModule.prepareForDraw();
+
     // if (!timeStopped)
     // {
     //   waterGeneratorModule.executeProgress(cmd_buf, renderPacket.time);

@@ -29,6 +29,8 @@ public:
 
   void update(const Camera& main_camera, float aspect_ratio);
 
+  void prepareForDraw();
+
   void drawGui();
 
   void loadMaps(const std::vector<etna::Binding>& terrain_bindings);

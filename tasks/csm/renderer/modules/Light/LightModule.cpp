@@ -190,6 +190,13 @@ void LightModule::update(const Camera& main_camera, float aspect_ratio)
   shadowCastingDirLights->update(main_camera, aspect_ratio);
 }
 
+void LightModule::prepareForDraw()
+{
+  shadowCastingDirLights->prepareForDraw();
+}
+
+
+
 void LightModule::drawGui()
 {
   ImGui::Begin("Application Settings");

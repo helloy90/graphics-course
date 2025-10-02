@@ -38,6 +38,8 @@ public:
 
   void update(const Camera& main_camera, float aspect_ratio);
 
+  void prepareForDraw();
+
   const ShaderInfo& getInfo() const { return shaderInfo; }
   const etna::Buffer& getInfoBuffer() const { return infoBuffer->get(); }
 
