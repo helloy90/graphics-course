@@ -17,6 +17,7 @@ struct UniformParams
   shader_uint _padding;
   shader_bool colorShadows;
   shader_bool usePCF;
+  int pcfRange;
 };
 
 

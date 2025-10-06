@@ -1,9 +1,5 @@
 #include "ShadowCastingDirectionalLight.hpp"
 
-// #define GLM_ENABLE_EXPERIMENTAL
-
-// #include "glm/gtx/string_cast.hpp"
-// #include "spdlog/spdlog.h"
 #include <imgui.h>
 
 #include <etna/GlobalContext.hpp>
@@ -13,14 +9,14 @@ ShadowCastingDirectionalLight::ShadowCastingDirectionalLight(const CreateInfo& i
   : shaderInfo(
       {.light = info.light,
        .cascadesAmount = static_cast<uint32_t>(info.planes.size() - 1),
-       .planesOffset = 0.0f})
+       .nearPlanesBackwardOffset = 12.0f})
   , settings(
       {.zExpansion = 100.0f,
        .zNearOffset = 0.0f,
        .zFarOffset = 0.0f,
-       .rotationMargin = 0.1f,
+       .rotationMargin = 0.5f,
        .zFarExpandMul = 1.0f,
-       .planesOffset = 0.0f})
+       .nearPlanesBackwardOffset = 12.0f})
   , projViewMatrices({})
   , planes(info.planes)
   , shadowMapSize(info.shadowMapSize)
@@ -50,9 +46,12 @@ void ShadowCastingDirectionalLight::update(const Camera& main_camera, float aspe
 
   for (std::size_t cascade = 0; cascade < shaderInfo.cascadesAmount; cascade++)
   {
-    frustumCamera.zNear = planes[cascade]; // - (cascade == 0 ? 0.0f : shaderInfo.planesOffset);
-    frustumCamera.zFar = planes[cascade + 1] +
-      (cascade == shaderInfo.cascadesAmount - 1 ? 0.0f : settings.planesOffset);
+    frustumCamera.zNear = planes[cascade] -
+      (cascade == 0
+         ? 0.0f
+         : glm::min(
+             settings.nearPlanesBackwardOffset, (planes[cascade] - planes[cascade - 1]) * 0.75f));
+    frustumCamera.zFar = planes[cascade + 1];
 
     float zFarExpansion = glm::max(
       2.0f * settings.zExpansion,
@@ -66,10 +65,7 @@ void ShadowCastingDirectionalLight::update(const Camera& main_camera, float aspe
     glm::mat4x4 proj = frustumCamera.projTm(aspect_ratio);
 
     std::array corners = getWorldSpaceFrustumCorners(proj * frustumCamera.viewTm());
-    // glm::vec3 center = getFrustumCenter(corners);
 
-    // glm::mat4x4 lightView = glm::lookAtLH(center - shaderInfo.light.direction, center, {0, 1,
-    // 0});
     glm::mat4x4 lightView = getLightViewMatrix(frustumCamera.position, false);
     glm::mat3x3 lightView3 = glm::mat3x3(lightView);
 
@@ -122,75 +118,10 @@ void ShadowCastingDirectionalLight::update(const Camera& main_camera, float aspe
 
     bbMin.z -= zNearExpansion;
     bbMax.z += settings.zFarExpandMul * zFarExpansion;
-    // spdlog::info("near plane expansion - {}, far plane expansiom - {}", zNearExpansion,
-    // zFarExpansion);
 
-    // glm::mat4x4 lightProj = glm::orthoLH_ZO(
-    //   bbMin.x, bbMax.x, bbMin.y, bbMax.y, bbMin.z - 500.0f, bbMax.z + 500.0f);
     glm::mat4x4 lightProj =
       getLightProjMatrix(bbMax.x, bbMin.x, bbMax.y, bbMin.y, bbMin.z, bbMax.z);
 
-    // float radius = 0.0f;
-
-    // for (const auto& corner : corners)
-    // {
-    //   float distance = glm::length(corner - center);
-    //   radius = glm::max(radius, distance);
-    // }
-
-    // radius = std::ceil(radius);
-
-    // glm::vec3 maxOrtho = center + glm::vec3(radius);
-    // glm::vec3 minOrtho = center - glm::vec3(radius);
-
-    // maxOrtho = glm::vec3(lightView * glm::vec4(maxOrtho, 1.0f));
-    // minOrtho = glm::vec3(lightView * glm::vec4(minOrtho, 1.0f));
-
-    // maxOrtho = lightView3 * maxOrtho;
-    // minOrtho = lightView3 *minOrtho;
-
-    // glm::mat4x4 lightView = glm::lookAtLH(center,center - shaderInfo.light.direction,  {0, 1,
-    // 0});
-
-    // float minX = std::numeric_limits<float>::max();
-    // float maxX = std::numeric_limits<float>::min();
-    // float minY = std::numeric_limits<float>::max();
-    // float maxY = std::numeric_limits<float>::min();
-    // float minZ = std::numeric_limits<float>::max();
-    // float maxZ = std::numeric_limits<float>::min();
-
-    // for (const auto& corner : corners)
-    // {
-    //   auto lightSpaceCorner = lightView * glm::vec4(corner, 1.0f);
-
-    //   minX = std::min(minX, lightSpaceCorner.x);
-    //   maxX = std::max(maxX, lightSpaceCorner.x);
-    //   minY = std::min(minY, lightSpaceCorner.y);
-    //   maxY = std::max(maxY, lightSpaceCorner.y);
-    //   minZ = std::min(minZ, lightSpaceCorner.z);
-    //   maxZ = std::max(maxZ, lightSpaceCorner.z);
-    // }
-
-    // glm::mat4x4 lightProj = glm::orthoLH_ZO( maxX, minX, maxY, minY,  maxZ - 500.0f, minZ);
-
-    // projViewMatrices[i] = lightProj * lightView;
-
-    // ?????
-    // glm::mat4x4 lightProj = glm::orthoLH_ZO(
-    //   maxOrtho.x, minOrtho.x, maxOrtho.y, minOrtho.y, maxOrtho.z - 1000.0f, minOrtho.z +
-    //   1000.0f);
-
-    // glm::mat4x4 shadowProjView = lightProj * lightView;
-
-    // glm::vec4 shadowOrigin = glm::vec4(0, 0, 0, 1);
-    // shadowOrigin = shadowProjView * shadowOrigin;
-    // glm::vec2 texCoord = glm::vec2(shadowOrigin.x, shadowOrigin.y) * shadowMapSize * 0.5f;
-
-    // glm::vec2 roundedTexCoord = glm::round(texCoord);
-    // glm::vec2 roundOffset = roundedTexCoord - texCoord;
-    // roundOffset /= shadowMapSize * 0.5f;
-
-    // lightProj[3] += glm::vec4(roundOffset, 0.0, 0.0);
 
     projViewMatrices[cascade] = lightProj * lightView;
   }
@@ -209,9 +140,10 @@ void ShadowCastingDirectionalLight::drawGui()
   ImGui::DragFloat("Cascade Rotation Margin", &settings.rotationMargin, 0.001f, 0.0f, 1.0f);
   ImGui::DragFloat("Far Plane Expansion Multiplier", &settings.zFarExpandMul, 0.01f, 0.0f, 5.0f);
 
-  if (ImGui::DragFloat("Planes Offset", &settings.planesOffset, 0.01f, 0.0f, 50.0f))
+  if (ImGui::DragFloat(
+        "Near Planes Backward Offset", &settings.nearPlanesBackwardOffset, 0.01f, 0.0f, 50.0f))
   {
-    shaderInfo.planesOffset = settings.planesOffset;
+    shaderInfo.nearPlanesBackwardOffset = settings.nearPlanesBackwardOffset;
   }
   ImGui::End();
 }

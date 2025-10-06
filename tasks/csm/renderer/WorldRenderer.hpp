@@ -60,7 +60,7 @@ public:
   void renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_image);
 
 private:
-  std::vector<float> getPlanesForShadowCascades(float near_plane, float far_plane, float weight);
+  void getPlanesForShadowCascades(float near_plane, float far_plane, float weight);
 
   void deferredShading(
     vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout);

@@ -36,6 +36,7 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
   params = {};
   params.colorShadows = 0;
   params.usePCF = 1;
+  params.pcfRange = 1;
 
   auto& ctx = etna::get_context();
 
@@ -87,7 +88,7 @@ void WorldRenderer::loadScene(std::filesystem::path path, float near_plane, floa
 {
   staticMeshesRenderModule.loadScene(path);
 
-  planes = getPlanesForShadowCascades(near_plane, far_plane, 0.9f);
+  getPlanesForShadowCascades(near_plane, far_plane, 0.9f);
 
   for (uint32_t i = 0; i < shadowCascadesAmount + 1; i++)
   {
@@ -139,7 +140,7 @@ void WorldRenderer::loadInfo()
   terrainRenderModule.loadMaps(
     terrainGeneratorModule.getBindings(vk::ImageLayout::eShaderReadOnlyOptimal));
 
-  // waterGeneratorModule.executeStart();w
+  // waterGeneratorModule.executeStart();
 }
 
 void WorldRenderer::loadShaders()
@@ -345,6 +346,9 @@ void WorldRenderer::drawGui()
   {
     params.usePCF = static_cast<shader_bool>(usePCF);
   }
+  int pcfRange = params.pcfRange;
+  ImGui::SliderInt("PCF Radius", &pcfRange, 0, 4);
+  params.pcfRange = pcfRange;
 
   ImGui::SeparatorText("General Settings");
 
@@ -427,14 +431,6 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
     // {
     //   waterGeneratorModule.executeProgress(cmd_buf, renderPacket.time);
     // }
-
-    // etna::set_state(
-    //   cmd_buf,
-    //   terrainGeneratorModule.getMap().get(),
-    //   vk::PipelineStageFlagBits2::eTessellationEvaluationShader,
-    //   vk::AccessFlagBits2::eShaderSampledRead,
-    //   vk::ImageLayout::eShaderReadOnlyOptimal,
-    //   vk::ImageAspectFlagBits::eColor);
 
     etna::set_state(
       cmd_buf,
@@ -563,10 +559,8 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
   }
 }
 
-std::vector<float> WorldRenderer::getPlanesForShadowCascades(
-  float near_plane, float far_plane, float weight)
+void WorldRenderer::getPlanesForShadowCascades(float near_plane, float far_plane, float weight)
 {
-  std::vector<float> planes;
   planes.reserve(shadowCascadesAmount + 1);
 
   planes.emplace_back(near_plane);
@@ -582,6 +576,4 @@ std::vector<float> WorldRenderer::getPlanesForShadowCascades(
     planes.emplace_back(plane);
   }
   planes.emplace_back(far_plane);
-
-  return planes;
 }

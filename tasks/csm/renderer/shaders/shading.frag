@@ -40,7 +40,7 @@ layout(set = 1, binding = 3) readonly buffer shadow_casting_dir_lights_t
   float shadowCastingDirLightIntensity;
   vec3 shadowCastingDirLightColor;
   uint cascadesAmount;
-  float planesOffset;
+  float nearPlanesBackwardOffset;
   float _padding[7];
   mat4 lightProjViews[SHADOW_CASCADES];
   float planes[SHADOW_CASCADES + 1];
@@ -231,18 +231,61 @@ vec3 computeLightPBR(
 }
 // -----------------------------------------------
 
-uint getShadowCascade(float depth)
+vec3 debugGetShadowCascadeColor(uint cascade)
+{
+  vec3 shadowColor = vec3(0);
+  if (!params.colorShadows)
+  {
+    return vec3(0);
+  }
+
+  switch (cascade)
+  {
+  case 0:
+    shadowColor.rgb = vec3(1.0f, 0.25f, 0.25f);
+    break;
+  case 1:
+    shadowColor.rgb = vec3(0.25f, 1.0f, 0.25f);
+    break;
+  case 2:
+    shadowColor.rgb = vec3(0.25f, 0.25f, 1.0f);
+    break;
+  case 3:
+    shadowColor.rgb = vec3(1.0f, 0.25f, 1.0f);
+    break;
+  }
+  return shadowColor;
+}
+
+uint getShadowCascade(float depth, float offset)
 {
   uint cascade = 0;
   for (; cascade < cascadesAmount; cascade++)
   {
-    if (depth < planes[cascade + 1])
+    if (depth < planes[cascade + 1] - offset)
     {
       break;
     }
   }
 
   return cascade;
+}
+
+float getCurrentCascadeInterpolator(float depth, uint currentCascade)
+{
+  return clamp(
+    (depth - planes[currentCascade + 1] + nearPlanesBackwardOffset) / nearPlanesBackwardOffset,
+    0.0,
+    1.0);
+}
+
+vec3 getShadowCoordsAndDepth(uint cascade, vec4 position)
+{
+  const vec4 lightSpacePos = (lightProjViews[cascade]) * position;
+  const vec3 lightSpaceNDCPos = lightSpacePos.xyz / lightSpacePos.w;
+
+  const vec2 shadowTexCoord = lightSpaceNDCPos.xy * 0.5 + vec2(0.5);
+  return vec3(shadowTexCoord, lightSpaceNDCPos.z);
 }
 
 float getShadowFromTexture(
@@ -265,12 +308,11 @@ float computeShadow(vec2 shadowTexCoord, float depth, float bias, uint currentCa
   float shadow = 0.0;
   vec2 texelSize = 1.0 / vec2(textureSize(gShadow[0], 0));
 
-  int range = 1;
   int count = 0;
 
-  for (int x = -range; x <= range; x++)
+  for (int x = -params.pcfRange; x <= params.pcfRange; x++)
   {
-    for (int y = -range; y <= range; y++)
+    for (int y = -params.pcfRange; y <= params.pcfRange; y++)
     {
       shadow +=
         getShadowFromTexture(shadowTexCoord, vec2(x, y) * texelSize, depth, bias, currentCascade);
@@ -324,44 +366,54 @@ void main()
   vec3 point = shadowCastingDirLight.color *
     pow(clampedDot(normalize(-viewDirection), normalize(shadowCastingDirLight.direction)), 3500.0);
 
-  uint currentCascade = getShadowCascade(viewSpacePosition.z);
+  uint currentCascade = getShadowCascade(viewSpacePosition.z, 0.0);
+  uint overlappingCascade = getShadowCascade(viewSpacePosition.z, nearPlanesBackwardOffset);
 
-  vec3 shadowColor = vec3(0, 0, 0);
-  if (params.colorShadows)
-  {
-    switch (currentCascade)
-    {
-    case 0:
-      shadowColor.rgb = vec3(1.0f, 0.25f, 0.25f);
-      break;
-    case 1:
-      shadowColor.rgb = vec3(0.25f, 1.0f, 0.25f);
-      break;
-    case 2:
-      shadowColor.rgb = vec3(0.25f, 0.25f, 1.0f);
-      break;
-    case 3:
-      shadowColor.rgb = vec3(1.0f, 0.25f, 1.0f);
-      break;
-    }
-  }
+  float interpolator = (overlappingCascade == currentCascade) ? 0.0
+    : getCurrentCascadeInterpolator(viewSpacePosition.z, currentCascade);
+
+  vec3 shadowColor = debugGetShadowCascadeColor(currentCascade);
+  vec3 nextShadowColor = debugGetShadowCascadeColor(overlappingCascade);
 
   float shadowBias = 0.005;
 
-  const vec4 lightSpacePos = (lightProjViews[currentCascade]) * worldSpacePosition;
-  vec3 lightSpaceNDCPos = lightSpacePos.xyz / lightSpacePos.w;
+  vec3 currentShadowTexCoordAndDepth = getShadowCoordsAndDepth(currentCascade, worldSpacePosition);
+  vec3 nextShadowTexCoordAndDepth = getShadowCoordsAndDepth(overlappingCascade, worldSpacePosition);
 
-  const vec2 shadowTexCoord = lightSpaceNDCPos.xy * 0.5 + vec2(0.5);
+  const float shadow = (params.usePCF) ? computeShadow(
+                                           currentShadowTexCoordAndDepth.xy,
+                                           currentShadowTexCoordAndDepth.z,
+                                           shadowBias,
+                                           currentCascade)
+                                       : getShadowFromTexture(
+                                           currentShadowTexCoordAndDepth.xy,
+                                           vec2(0, 0),
+                                           currentShadowTexCoordAndDepth.z,
+                                           shadowBias,
+                                           currentCascade);
 
-  const float shadow = (params.usePCF)
-    ? computeShadow(shadowTexCoord, lightSpaceNDCPos.z, shadowBias, currentCascade)
-    : getShadowFromTexture(
-        shadowTexCoord, vec2(0, 0), lightSpaceNDCPos.z, shadowBias, currentCascade);
+  const float nextShadow = (interpolator < 0.00001)
+    ? 0.0
+    : ((params.usePCF) ? computeShadow(
+                           nextShadowTexCoordAndDepth.xy,
+                           nextShadowTexCoordAndDepth.z,
+                           shadowBias,
+                           overlappingCascade)
+                       : getShadowFromTexture(
+                           nextShadowTexCoordAndDepth.xy,
+                           vec2(0, 0),
+                           nextShadowTexCoordAndDepth.z,
+                           shadowBias,
+                           overlappingCascade));
+
+  const float finalShadow = mix(shadow, nextShadow, interpolator);
+
+  const vec3 finalShadowColor = mix(shadowColor, nextShadowColor, interpolator);
 
   vec3 pbrColor = computeLightPBR(
     albedo, worldSpacePosition.xyz, shadowCastingDirLight, normal, reflection, material);
   skyboxColor += point;
-  color += pbrColor * (1.0 - shadow) + shadowColor * shadow;
+  color += pbrColor * (1.0 - finalShadow) + finalShadowColor * finalShadow;
 
   for (uint i = 0; i < directionalLightsAmount; i++)
   {
