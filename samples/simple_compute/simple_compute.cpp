@@ -16,23 +16,29 @@ void SimpleCompute::setup()
 
   // Buffer creation
 
-  bufA = context->createBuffer(etna::Buffer::CreateInfo{
-    .size = sizeof(float) * length,
-    .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
-    .name = "A",
-  });
+  bufA = context->createBuffer(
+    etna::Buffer::CreateInfo{
+      .size = sizeof(float) * length,
+      .bufferUsage =
+        vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
+      .name = "A",
+    });
 
-  bufB = context->createBuffer(etna::Buffer::CreateInfo{
-    .size = sizeof(float) * length,
-    .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
-    .name = "B",
-  });
+  bufB = context->createBuffer(
+    etna::Buffer::CreateInfo{
+      .size = sizeof(float) * length,
+      .bufferUsage =
+        vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
+      .name = "B",
+    });
 
-  bufResult = context->createBuffer(etna::Buffer::CreateInfo{
-    .size = sizeof(float) * length,
-    .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc,
-    .name = "m_sum",
-  });
+  bufResult = context->createBuffer(
+    etna::Buffer::CreateInfo{
+      .size = sizeof(float) * length,
+      .bufferUsage =
+        vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferSrc,
+      .name = "m_sum",
+    });
 
   // Filling the buffers
 

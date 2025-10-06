@@ -28,21 +28,23 @@ App::App()
 
     // Etna does all of the Vulkan initialization heavy lifting.
     // You can skip figuring out how it works for now.
-    etna::initialize(etna::InitParams{
-      .applicationName = "Local Shadertoy",
-      .applicationVersion = VK_MAKE_VERSION(0, 1, 0),
-      .instanceExtensions = instanceExtensions,
-      .deviceExtensions = deviceExtensions,
-      // Replace with an index if etna detects your preferred GPU incorrectly
-      .physicalDeviceIndexOverride = {},
-      .numFramesInFlight = 1,
-    });
+    etna::initialize(
+      etna::InitParams{
+        .applicationName = "Local Shadertoy",
+        .applicationVersion = VK_MAKE_VERSION(0, 1, 0),
+        .instanceExtensions = instanceExtensions,
+        .deviceExtensions = deviceExtensions,
+        // Replace with an index if etna detects your preferred GPU incorrectly
+        .physicalDeviceIndexOverride = {},
+        .numFramesInFlight = 1,
+      });
   }
 
   // Now we can create an OS window
-  osWindow = windowing.createWindow(OsWindow::CreateInfo{
-    .resolution = resolution,
-  });
+  osWindow = windowing.createWindow(
+    OsWindow::CreateInfo{
+      .resolution = resolution,
+    });
 
   // But we also need to hook the OS window up to Vulkan manually!
   {
@@ -51,17 +53,19 @@ App::App()
     auto surface = osWindow->createVkSurface(etna::get_context().getInstance());
 
     // Then we pass it to Etna to do the complicated work for us
-    vkWindow = etna::get_context().createWindow(etna::Window::CreateInfo{
-      .surface = std::move(surface),
-    });
+    vkWindow = etna::get_context().createWindow(
+      etna::Window::CreateInfo{
+        .surface = std::move(surface),
+      });
 
     // And finally ask Etna to create the actual swapchain so that we can
     // get (different) images each frame to render stuff into.
     // Here, we do not support window resizing, so we only need to call this once.
-    auto [w, h] = vkWindow->recreateSwapchain(etna::Window::DesiredProperties{
-      .resolution = {resolution.x, resolution.y},
-      .vsync = useVsync,
-    });
+    auto [w, h] = vkWindow->recreateSwapchain(
+      etna::Window::DesiredProperties{
+        .resolution = {resolution.x, resolution.y},
+        .vsync = useVsync,
+      });
 
     // Technically, Vulkan might fail to initialize a swapchain with the requested
     // resolution and pick a different one. This, however, does not occur on platforms
@@ -111,7 +115,8 @@ void App::drawFrame()
   // because it kills the swapchain, so we skip frames in this case.
   if (nextSwapchainImage)
   {
-    auto [backbuffer, backbufferView, backbufferAvailableSem, backbufferReadyForPresentSem] = *nextSwapchainImage;
+    auto [backbuffer, backbufferView, backbufferAvailableSem, backbufferReadyForPresentSem] =
+      *nextSwapchainImage;
 
     ETNA_CHECK_VK_RESULT(currentCmdBuf.begin(vk::CommandBufferBeginInfo{}));
     {
@@ -164,7 +169,7 @@ void App::drawFrame()
       std::move(currentCmdBuf),
       std::move(backbufferAvailableSem),
       std::move(backbufferReadyForPresentSem));
-      
+
     // Finally, present the backbuffer the screen, but only after the GPU tells the OS
     // that it is done executing the command buffer via the renderingDone semaphore.
     const bool presented = vkWindow->present(std::move(renderingDone), backbufferView);
@@ -178,10 +183,11 @@ void App::drawFrame()
   // After a window us un-minimized, we need to restore the swapchain to continue rendering.
   if (!nextSwapchainImage && osWindow->getResolution() != glm::uvec2{0, 0})
   {
-    auto [w, h] = vkWindow->recreateSwapchain(etna::Window::DesiredProperties{
-      .resolution = {resolution.x, resolution.y},
-      .vsync = useVsync,
-    });
+    auto [w, h] = vkWindow->recreateSwapchain(
+      etna::Window::DesiredProperties{
+        .resolution = {resolution.x, resolution.y},
+        .vsync = useVsync,
+      });
     ETNA_VERIFY((resolution == glm::uvec2{w, h}));
   }
 }
