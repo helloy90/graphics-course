@@ -23,15 +23,16 @@ void Renderer::initVulkan(std::span<const char*> instance_extensions)
 
   deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 
-  etna::initialize(etna::InitParams{
-    .applicationName = "model_bakery_renderer",
-    .applicationVersion = VK_MAKE_VERSION(0, 1, 0),
-    .instanceExtensions = instanceExtensions,
-    .deviceExtensions = deviceExtensions,
-    .features = vk::PhysicalDeviceFeatures2{.features = {}},
-    .physicalDeviceIndexOverride = {},
-    .numFramesInFlight = 2,
-  });
+  etna::initialize(
+    etna::InitParams{
+      .applicationName = "model_bakery_renderer",
+      .applicationVersion = VK_MAKE_VERSION(0, 1, 0),
+      .instanceExtensions = instanceExtensions,
+      .deviceExtensions = deviceExtensions,
+      .features = vk::PhysicalDeviceFeatures2{.features = {}},
+      .physicalDeviceIndexOverride = {},
+      .numFramesInFlight = 2,
+    });
 }
 
 void Renderer::initFrameDelivery(vk::UniqueSurfaceKHR a_surface, ResolutionProvider res_provider)
@@ -42,14 +43,16 @@ void Renderer::initFrameDelivery(vk::UniqueSurfaceKHR a_surface, ResolutionProvi
 
   commandManager = ctx.createPerFrameCmdMgr();
 
-  window = ctx.createWindow(etna::Window::CreateInfo{
-    .surface = std::move(a_surface),
-  });
+  window = ctx.createWindow(
+    etna::Window::CreateInfo{
+      .surface = std::move(a_surface),
+    });
 
-  auto [w, h] = window->recreateSwapchain(etna::Window::DesiredProperties{
-    .resolution = {resolution.x, resolution.y},
-    .vsync = useVsync,
-  });
+  auto [w, h] = window->recreateSwapchain(
+    etna::Window::DesiredProperties{
+      .resolution = {resolution.x, resolution.y},
+      .vsync = useVsync,
+    });
 
   resolution = {w, h};
 
@@ -71,8 +74,9 @@ void Renderer::debugInput(const Keyboard& kb)
 
   if (kb[KeyboardKey::kB] == ButtonState::Falling)
   {
-    const int retval = std::system("cd " GRAPHICS_COURSE_ROOT "/build"
-                                   " && cmake --build . --target model_bakery_renderer_shaders");
+    const int retval = std::system(
+      "cd " GRAPHICS_COURSE_ROOT "/build"
+      " && cmake --build . --target model_bakery_renderer_shaders");
     if (retval != 0)
       spdlog::warn("Shader recompilation returned a non-zero return code!");
     else
@@ -101,7 +105,7 @@ void Renderer::drawFrame()
 
   if (nextSwapchainImage)
   {
-    auto [image, view, availableSem] = *nextSwapchainImage;
+    auto [image, view, availableSem, readyForPresentSem] = *nextSwapchainImage;
 
     ETNA_CHECK_VK_RESULT(currentCmdBuf.begin(vk::CommandBufferBeginInfo{}));
     {
@@ -123,7 +127,8 @@ void Renderer::drawFrame()
     }
     ETNA_CHECK_VK_RESULT(currentCmdBuf.end());
 
-    auto renderingDone = commandManager->submit(std::move(currentCmdBuf), std::move(availableSem));
+    auto renderingDone = commandManager->submit(
+      std::move(currentCmdBuf), std::move(availableSem), std::move(readyForPresentSem));
 
     const bool presented = window->present(std::move(renderingDone), view);
 
@@ -133,10 +138,11 @@ void Renderer::drawFrame()
 
   if (!nextSwapchainImage && resolutionProvider() != glm::uvec2{0, 0})
   {
-    auto [w, h] = window->recreateSwapchain(etna::Window::DesiredProperties{
-      .resolution = {resolution.x, resolution.y},
-      .vsync = useVsync,
-    });
+    auto [w, h] = window->recreateSwapchain(
+      etna::Window::DesiredProperties{
+        .resolution = {resolution.x, resolution.y},
+        .vsync = useVsync,
+      });
     ETNA_VERIFY((resolution == glm::uvec2{w, h}));
   }
 
