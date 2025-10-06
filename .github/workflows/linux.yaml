@@ -9,7 +9,7 @@ permissions:
 # https://github.com/fmtlib/fmt
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         cxx: [g++-12, clang++-15]

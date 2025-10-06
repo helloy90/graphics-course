@@ -26,17 +26,18 @@ void Renderer::initVulkan(std::span<const char*> instance_extensions)
 
   deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 
-  etna::initialize(etna::InitParams{
-    .applicationName = "ShadowmapSample",
-    .applicationVersion = VK_MAKE_VERSION(0, 1, 0),
-    .instanceExtensions = instanceExtensions,
-    .deviceExtensions = deviceExtensions,
-    .features = vk::PhysicalDeviceFeatures2{.features = {}},
-    // Replace with an index if etna detects your preferred GPU incorrectly
-    .physicalDeviceIndexOverride = {},
-    // How much frames we buffer on the GPU without waiting for their completion on the CPU
-    .numFramesInFlight = 2,
-  });
+  etna::initialize(
+    etna::InitParams{
+      .applicationName = "ShadowmapSample",
+      .applicationVersion = VK_MAKE_VERSION(0, 1, 0),
+      .instanceExtensions = instanceExtensions,
+      .deviceExtensions = deviceExtensions,
+      .features = vk::PhysicalDeviceFeatures2{.features = {}},
+      // Replace with an index if etna detects your preferred GPU incorrectly
+      .physicalDeviceIndexOverride = {},
+      // How much frames we buffer on the GPU without waiting for their completion on the CPU
+      .numFramesInFlight = 2,
+    });
 }
 
 void Renderer::initFrameDelivery(vk::UniqueSurfaceKHR a_surface, ResolutionProvider res_provider)
@@ -46,14 +47,16 @@ void Renderer::initFrameDelivery(vk::UniqueSurfaceKHR a_surface, ResolutionProvi
   resolutionProvider = std::move(res_provider);
   commandManager = ctx.createPerFrameCmdMgr();
 
-  window = ctx.createWindow(etna::Window::CreateInfo{
-    .surface = std::move(a_surface),
-  });
+  window = ctx.createWindow(
+    etna::Window::CreateInfo{
+      .surface = std::move(a_surface),
+    });
 
-  auto [w, h] = window->recreateSwapchain(etna::Window::DesiredProperties{
-    .resolution = {resolution.x, resolution.y},
-    .vsync = true,
-  });
+  auto [w, h] = window->recreateSwapchain(
+    etna::Window::DesiredProperties{
+      .resolution = {resolution.x, resolution.y},
+      .vsync = true,
+    });
   resolution = {w, h};
 
   worldRenderer = std::make_unique<WorldRenderer>();
@@ -71,10 +74,11 @@ void Renderer::recreateSwapchain(glm::uvec2 res)
 
   ETNA_CHECK_VK_RESULT(ctx.getDevice().waitIdle());
 
-  auto [w, h] = window->recreateSwapchain(etna::Window::DesiredProperties{
-    .resolution = {res.x, res.y},
-    .vsync = true,
-  });
+  auto [w, h] = window->recreateSwapchain(
+    etna::Window::DesiredProperties{
+      .resolution = {res.x, res.y},
+      .vsync = true,
+    });
   resolution = {w, h};
 
   // Most resources depend on the current resolution, so we recreate them.
@@ -95,8 +99,9 @@ void Renderer::debugInput(const Keyboard& kb)
 
   if (kb[KeyboardKey::kB] == ButtonState::Falling)
   {
-    const int retval = std::system("cd " GRAPHICS_COURSE_ROOT "/build"
-                                   " && cmake --build . --target shadowmap_shaders");
+    const int retval = std::system(
+      "cd " GRAPHICS_COURSE_ROOT "/build"
+      " && cmake --build . --target shadowmap_shaders");
     if (retval != 0)
       spdlog::warn("Shader recompilation returned a non-zero return code!");
     else
@@ -167,7 +172,8 @@ void Renderer::drawFrame()
     }
     ETNA_CHECK_VK_RESULT(currentCmdBuf.end());
 
-    auto renderingDone = commandManager->submit(std::move(currentCmdBuf), std::move(availableSem), std::move(readyForPresentSem));
+    auto renderingDone = commandManager->submit(
+      std::move(currentCmdBuf), std::move(availableSem), std::move(readyForPresentSem));
 
     const bool presented = window->present(std::move(renderingDone), view);
 
