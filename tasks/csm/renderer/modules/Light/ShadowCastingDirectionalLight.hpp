@@ -18,7 +18,6 @@ public:
   {
     DirectionalLight light;
     std::vector<float> planes; // including camera near and far planes
-    float planesOffset;
     float shadowMapSize;
   };
 
@@ -31,12 +30,22 @@ public:
     float _padding[7] = {};
   };
 
+  struct Settings {
+    float zExpansion;
+    float zNearOffset;
+    float zFarOffset;
+    float rotationMargin;
+    float zFarExpandMul;
+    float planesOffset;
+  };
+
 public:
   ShadowCastingDirectionalLight() = default;
 
   explicit ShadowCastingDirectionalLight(const CreateInfo& info);
 
   void update(const Camera& main_camera, float aspect_ratio);
+  void drawGui();
 
   void prepareForDraw();
 
@@ -52,6 +61,7 @@ private:
 
 private:
   ShaderInfo shaderInfo;
+  Settings settings;
   std::vector<glm::mat4x4> projViewMatrices;
   std::vector<float> planes;
   float shadowMapSize;

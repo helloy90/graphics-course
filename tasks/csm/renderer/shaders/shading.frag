@@ -346,8 +346,7 @@ void main()
     }
   }
 
-  float shadowBias = 0.005 * tan(acos(clampedDot(normal, shadowCastingDirLight.direction)));
-  shadowBias = clamp(shadowBias, 0.001, 0.01);
+  float shadowBias = 0.005;
 
   const vec4 lightSpacePos = (lightProjViews[currentCascade]) * worldSpacePosition;
   vec3 lightSpaceNDCPos = lightSpacePos.xyz / lightSpacePos.w;

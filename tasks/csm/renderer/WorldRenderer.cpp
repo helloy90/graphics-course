@@ -132,7 +132,6 @@ void WorldRenderer::loadInfo()
           .intensity = 1.0f,
           .color = glm::vec3{1, 0.694, 0.32}},
       .planes = planes,
-      .planesOffset = 0.0f,
       .shadowMapSize = static_cast<float>(gBuffer->getShadowTextureExtent().width)});
 
   lightModule.displaceLights();

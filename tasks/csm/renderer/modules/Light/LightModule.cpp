@@ -262,6 +262,8 @@ void LightModule::drawGui()
       }
     }
 
+    shadowCastingDirLights->drawGui();
+
     if (directionalLightsChanged)
     {
       ETNA_CHECK_VK_RESULT(etna::get_context().getDevice().waitIdle());
