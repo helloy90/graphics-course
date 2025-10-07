@@ -1,4 +1,4 @@
-//NOLINTBEGIN
+// NOLINTBEGIN
 
 /** \file mikktspace/mikktspace.c
  *  \ingroup mikktspace
@@ -2155,4 +2155,4 @@ static void DegenEpilogue(
   }
 }
 
-//NOLINTEND
+// NOLINTEND
