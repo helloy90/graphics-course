@@ -163,8 +163,10 @@ void App::drawFrame()
     ETNA_CHECK_VK_RESULT(currentCmdBuf.end());
 
     // We are done recording GPU commands now and we can send them to be executed by the GPU.
-    // Note that the GPU won't start executing our commands before the semaphore is
-    // signalled, which will happen when the OS says that the next swapchain image is ready.
+    // Note that the GPU won't start executing our commands before the backbufferAvailableSem
+    // semaphore is signalled, which will happen when the OS says that the next swapchain image
+    // is ready, and the result image will be ready for present after backbufferReadyForPresent
+    // is signalled by GPU
     auto renderingDone = commandManager->submit(
       std::move(currentCmdBuf),
       std::move(backbufferAvailableSem),
