@@ -1,3 +1,5 @@
+// NOLINTBEGIN
+
 /** \file mikktspace/mikktspace.h
  *  \ingroup mikktspace
  */
@@ -160,3 +162,5 @@ extern "C"
 #endif
 
 #endif
+
+// NOLINTEND
