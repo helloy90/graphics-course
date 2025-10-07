@@ -6,9 +6,10 @@
 App::App()
 {
   glm::uvec2 initialRes = {1280, 720};
-  mainWindow = windowing.createWindow(OsWindow::CreateInfo{
-    .resolution = initialRes,
-  });
+  mainWindow = windowing.createWindow(
+    OsWindow::CreateInfo{
+      .resolution = initialRes,
+    });
 
   renderer.reset(new Renderer(initialRes));
 
@@ -69,10 +70,11 @@ void App::drawFrame()
 {
   ZoneScoped;
 
-  renderer->update(FramePacket{
-    .mainCam = mainCam,
-    .currentTime = static_cast<float>(windowing.getTime()),
-  });
+  renderer->update(
+    FramePacket{
+      .mainCam = mainCam,
+      .currentTime = static_cast<float>(windowing.getTime()),
+    });
   renderer->drawFrame();
 }
 

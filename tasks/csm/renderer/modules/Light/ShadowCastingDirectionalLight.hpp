@@ -30,7 +30,8 @@ public:
     float _padding[7] = {};
   };
 
-  struct Settings {
+  struct Settings
+  {
     float zExpansion;
     float zNearOffset;
     float zFarOffset;
@@ -57,7 +58,8 @@ private:
   glm::vec3 getFrustumCenter(const std::array<glm::vec3, 8>& corners);
   glm::vec3 getShadowAnchor(const Camera& main_camera, std::size_t cascade_index);
   glm::mat4x4 getLightViewMatrix(const glm::vec3& camera_pos, bool world_space);
-  glm::mat4x4 getLightProjMatrix(float left, float right, float bottom, float top, float z_near, float z_far);
+  glm::mat4x4 getLightProjMatrix(
+    float left, float right, float bottom, float top, float z_near, float z_far);
 
 private:
   ShaderInfo shaderInfo;

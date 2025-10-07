@@ -8,8 +8,8 @@
 #include <etna/PipelineManager.hpp>
 #include <etna/Profiling.hpp>
 #include <etna/RenderTargetStates.hpp>
+#include <etna/Assert.hpp>
 
-#include "etna/Assert.hpp"
 #include "render_utils/Utilities.hpp"
 
 

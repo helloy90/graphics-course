@@ -23,7 +23,8 @@ public:
   void allocateResources();
   void loadShaders();
   void loadScene(std::filesystem::path path);
-  void setupPipelines(bool wireframe_enabled, vk::Format render_target_format, vk::Format shadow_target_format);
+  void setupPipelines(
+    bool wireframe_enabled, vk::Format render_target_format, vk::Format shadow_target_format);
 
   void loadSet();
 
@@ -48,7 +49,9 @@ private:
     vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout, const glm::mat4x4& proj_view);
 
   void cullMeshes(
-    vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout, const etna::Binding& proj_view_binding);
+    vk::CommandBuffer cmd_buf,
+    vk::PipelineLayout pipeline_layout,
+    const etna::Binding& proj_view_binding);
 
   void renderScene(
     vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout, const glm::mat4x4& proj_view);

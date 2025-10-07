@@ -79,79 +79,92 @@ void WaterGeneratorModule::allocateResources(uint32_t textures_extent)
     paramsVector.emplace_back(recalculateParams(displayParamsVector[i]));
   }
 
-  initialSpectrumTexture = ctx.createImage(etna::Image::CreateInfo{
-    .extent = textureExtent,
-    .name = "initial_spectrum_tex",
-    .format = vk::Format::eR32G32B32A32Sfloat,
-    .imageUsage = vk::ImageUsageFlagBits::eStorage});
+  initialSpectrumTexture = ctx.createImage(
+    etna::Image::CreateInfo{
+      .extent = textureExtent,
+      .name = "initial_spectrum_tex",
+      .format = vk::Format::eR32G32B32A32Sfloat,
+      .imageUsage = vk::ImageUsageFlagBits::eStorage});
 
-  updatedSpectrumSlopeTexture = ctx.createImage(etna::Image::CreateInfo{
-    .extent = textureExtent,
-    .name = "updated_spectrum_slope_tex",
-    .format = vk::Format::eR32G32B32A32Sfloat,
-    .imageUsage = vk::ImageUsageFlagBits::eStorage});
-  updatedSpectrumDisplacementTexture = ctx.createImage(etna::Image::CreateInfo{
-    .extent = textureExtent,
-    .name = "updated_spectrum_displacement_tex",
-    .format = vk::Format::eR32G32B32A32Sfloat,
-    .imageUsage = vk::ImageUsageFlagBits::eStorage});
+  updatedSpectrumSlopeTexture = ctx.createImage(
+    etna::Image::CreateInfo{
+      .extent = textureExtent,
+      .name = "updated_spectrum_slope_tex",
+      .format = vk::Format::eR32G32B32A32Sfloat,
+      .imageUsage = vk::ImageUsageFlagBits::eStorage});
+  updatedSpectrumDisplacementTexture = ctx.createImage(
+    etna::Image::CreateInfo{
+      .extent = textureExtent,
+      .name = "updated_spectrum_displacement_tex",
+      .format = vk::Format::eR32G32B32A32Sfloat,
+      .imageUsage = vk::ImageUsageFlagBits::eStorage});
 
-  heightMap = ctx.createImage(etna::Image::CreateInfo{
-    .extent = textureExtent,
-    .name = "water_height_map",
-    .format = vk::Format::eR32G32B32A32Sfloat,
-    .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage});
-  normalMap = ctx.createImage(etna::Image::CreateInfo{
-    .extent = textureExtent,
-    .name = "water_normal_map",
-    .format = vk::Format::eR32G32B32A32Sfloat,
-    .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage});
+  heightMap = ctx.createImage(
+    etna::Image::CreateInfo{
+      .extent = textureExtent,
+      .name = "water_height_map",
+      .format = vk::Format::eR32G32B32A32Sfloat,
+      .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage});
+  normalMap = ctx.createImage(
+    etna::Image::CreateInfo{
+      .extent = textureExtent,
+      .name = "water_normal_map",
+      .format = vk::Format::eR32G32B32A32Sfloat,
+      .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage});
 
-  paramsBuffer = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
-    .size = sizeof(SpectrumGenerationParams) * paramsVector.size(),
-    .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
-    .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-    .name = "spectrumGenerationParams"});
-  patchSizesBuffer = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
-    .size = sizeof(uint32_t) * patchSizes.size(),
-    .bufferUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
-    .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-    .name = "WaterPatchSizes"});
-  generalParamsBuffer = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
-    .size = sizeof(GeneralSpectrumParams),
-    .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
-    .memoryUsage = VMA_MEMORY_USAGE_AUTO,
-    .allocationCreate =
-      VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
-    .name = "GeneralSpectrumParams"});
-  updateParamsBuffer = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
-    .size = sizeof(SpectrumUpdateParams),
-    .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
-    .memoryUsage = VMA_MEMORY_USAGE_AUTO,
-    .allocationCreate =
-      VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
-    .name = "spectrumUpdateParams"});
+  paramsBuffer = etna::get_context().createBuffer(
+    etna::Buffer::CreateInfo{
+      .size = sizeof(SpectrumGenerationParams) * paramsVector.size(),
+      .bufferUsage =
+        vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
+      .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+      .name = "spectrumGenerationParams"});
+  patchSizesBuffer = etna::get_context().createBuffer(
+    etna::Buffer::CreateInfo{
+      .size = sizeof(uint32_t) * patchSizes.size(),
+      .bufferUsage =
+        vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eStorageBuffer,
+      .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+      .name = "WaterPatchSizes"});
+  generalParamsBuffer = etna::get_context().createBuffer(
+    etna::Buffer::CreateInfo{
+      .size = sizeof(GeneralSpectrumParams),
+      .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
+      .memoryUsage = VMA_MEMORY_USAGE_AUTO,
+      .allocationCreate =
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+      .name = "GeneralSpectrumParams"});
+  updateParamsBuffer = etna::get_context().createBuffer(
+    etna::Buffer::CreateInfo{
+      .size = sizeof(SpectrumUpdateParams),
+      .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
+      .memoryUsage = VMA_MEMORY_USAGE_AUTO,
+      .allocationCreate =
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+      .name = "spectrumUpdateParams"});
 
-  infoBuffer = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
-    .size = sizeof(InverseFFTInfo),
-    .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
-    .memoryUsage = VMA_MEMORY_USAGE_AUTO,
-    .allocationCreate =
-      VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
-    .name = "inverseFFTInfo"});
+  infoBuffer = etna::get_context().createBuffer(
+    etna::Buffer::CreateInfo{
+      .size = sizeof(InverseFFTInfo),
+      .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
+      .memoryUsage = VMA_MEMORY_USAGE_AUTO,
+      .allocationCreate =
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+      .name = "inverseFFTInfo"});
 
   oneShotCommands = ctx.createOneShotCmdMgr();
   transferHelper =
     std::make_unique<etna::BlockingTransferHelper>(etna::BlockingTransferHelper::CreateInfo{
       .stagingSize = sizeof(SpectrumGenerationParams) * paramsVector.size()});
 
-  textureSampler = etna::Sampler(etna::Sampler::CreateInfo{
-    .filter = vk::Filter::eLinear,
-    .addressMode = vk::SamplerAddressMode::eRepeat,
-    .name = "spectrum_sampler"});
+  textureSampler = etna::Sampler(
+    etna::Sampler::CreateInfo{
+      .filter = vk::Filter::eLinear,
+      .addressMode = vk::SamplerAddressMode::eRepeat,
+      .name = "spectrum_sampler"});
 
   ETNA_VERIFYF(patchSizes.size() * 2 == paramsVector.size(), "Incorrect amount of patches");
-  
+
   transferHelper->uploadBuffer(
     *oneShotCommands, paramsBuffer, 0, std::as_bytes(std::span(paramsVector)));
   transferHelper->uploadBuffer(
@@ -261,7 +274,7 @@ void WaterGeneratorModule::executeStart()
 void WaterGeneratorModule::executeProgress(vk::CommandBuffer cmd_buf, float time)
 {
   ETNA_PROFILE_GPU(cmd_buf, waterProgress);
-  
+
   etna::set_state(
     cmd_buf,
     updatedSpectrumSlopeTexture.get(),

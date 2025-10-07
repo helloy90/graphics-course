@@ -21,7 +21,7 @@
 struct Bounds
 {
   // w coordinate is padding
-  glm::vec4 minPos; 
+  glm::vec4 minPos;
   glm::vec4 maxPos;
 };
 
@@ -107,7 +107,8 @@ public:
   Material::Id materialPlaceholder;
 
 private:
-  struct RenderElementGLSLCompat {
+  struct RenderElementGLSLCompat
+  {
     std::uint32_t vertexOffset;
     std::uint32_t indexOffset;
     std::uint32_t indexCount;
@@ -116,7 +117,8 @@ private:
   static_assert(sizeof(RenderElementGLSLCompat) % (sizeof(float) * 4) == 0);
 
 
-  struct MaterialGLSLCompat { 
+  struct MaterialGLSLCompat
+  {
     glm::vec4 baseColorFactor;
     float roughnessFactor;
     float metallicFactor;
@@ -200,7 +202,7 @@ private:
 
   etna::Buffer unifiedVbuf;
   etna::Buffer unifiedIbuf;
-    
+
   etna::Buffer unifiedMaterialsbuf;
 
   etna::Buffer unifiedRelemsbuf;

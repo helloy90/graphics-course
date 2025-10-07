@@ -196,7 +196,6 @@ void LightModule::prepareForDraw()
 }
 
 
-
 void LightModule::drawGui()
 {
   ImGui::Begin("Application Settings");

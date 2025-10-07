@@ -26,31 +26,34 @@ void TonemappingModule::allocateResources()
 
   histogramBuffer.emplace(
     ctx.getMainWorkCount(), [&ctx, binsAmount = this->binsAmount](std::size_t i) {
-      return ctx.createBuffer(etna::Buffer::CreateInfo{
-        .size = binsAmount * sizeof(int32_t),
-        .bufferUsage =
-          vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
-        .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-        .name = fmt::format("histogram{}", i)});
+      return ctx.createBuffer(
+        etna::Buffer::CreateInfo{
+          .size = binsAmount * sizeof(int32_t),
+          .bufferUsage =
+            vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
+          .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+          .name = fmt::format("histogram{}", i)});
     });
 
   histogramInfoBuffer.emplace(ctx.getMainWorkCount(), [&ctx](std::size_t i) {
-    return ctx.createBuffer(etna::Buffer::CreateInfo{
-      .size = sizeof(UniformHistogramInfo),
-      .bufferUsage =
-        vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
-      .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-      .name = fmt::format("histogram_info{}", i)});
+    return ctx.createBuffer(
+      etna::Buffer::CreateInfo{
+        .size = sizeof(UniformHistogramInfo),
+        .bufferUsage =
+          vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
+        .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+        .name = fmt::format("histogram_info{}", i)});
   });
 
   distributionBuffer.emplace(
     ctx.getMainWorkCount(), [&ctx, binsAmount = this->binsAmount](std::size_t i) {
-      return ctx.createBuffer(etna::Buffer::CreateInfo{
-        .size = binsAmount * sizeof(float),
-        .bufferUsage =
-          vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
-        .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-        .name = fmt::format("distribution{}", i)});
+      return ctx.createBuffer(
+        etna::Buffer::CreateInfo{
+          .size = binsAmount * sizeof(float),
+          .bufferUsage =
+            vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
+          .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+          .name = fmt::format("distribution{}", i)});
     });
 }
 

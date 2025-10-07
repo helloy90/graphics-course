@@ -41,7 +41,7 @@ private:
   glm::uvec2 resolution;
   bool useVsync = false;
 
-  bool swapchainRecreationNeeded = false; 
+  bool swapchainRecreationNeeded = false;
 
   std::unique_ptr<ImGuiRenderer> guiRenderer;
 

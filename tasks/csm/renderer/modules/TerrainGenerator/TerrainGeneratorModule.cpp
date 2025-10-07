@@ -117,8 +117,7 @@ void TerrainGeneratorModule::execute()
         shaderInfo.getDescriptorLayoutId(0),
         commandBuffer,
         {etna::Binding{0, terrainMap.genBinding({}, vk::ImageLayout::eGeneral)},
-         etna::Binding{
-           1, terrainNormalMap.genBinding({}, vk::ImageLayout::eGeneral)},
+         etna::Binding{1, terrainNormalMap.genBinding({}, vk::ImageLayout::eGeneral)},
          etna::Binding{2, paramsBuffer.genBinding()}});
 
       auto vkSet = set.getVkSet();

@@ -6,11 +6,11 @@
 
 struct UniformHistogramInfo
 {
-    shader_float binStepSize;
-    shader_float minWorldLuminance;    // relative
-    shader_float maxWorldLuminance;    // relative
-    shader_float minWorldBrightness;
-    shader_float maxWorldBrightness;
+  shader_float binStepSize;
+  shader_float minWorldLuminance; // relative
+  shader_float maxWorldLuminance; // relative
+  shader_float minWorldBrightness;
+  shader_float maxWorldBrightness;
 };
 
 

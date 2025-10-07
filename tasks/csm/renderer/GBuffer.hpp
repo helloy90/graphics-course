@@ -1,12 +1,12 @@
 #pragma once
 
-#include "etna/DescriptorSet.hpp"
-#include "etna/RenderTargetStates.hpp"
-#include "etna/Sampler.hpp"
-
-#include <etna/Image.hpp>
 #include <glm/glm.hpp>
-#include <vulkan/vulkan_enums.hpp>
+
+#include <etna/DescriptorSet.hpp>
+#include <etna/RenderTargetStates.hpp>
+#include <etna/Sampler.hpp>
+#include <etna/Image.hpp>
+
 
 class GBuffer
 {

@@ -1,11 +1,10 @@
 #include "GBuffer.hpp"
-#include "etna/Image.hpp"
+
+#include <vector>
 
 #include <etna/DescriptorSet.hpp>
 #include <etna/Etna.hpp>
 #include <etna/GlobalContext.hpp>
-#include <vector>
-#include <vulkan/vulkan_enums.hpp>
 
 
 GBuffer::GBuffer(const CreateInfo& info)
@@ -204,20 +203,17 @@ etna::RenderTargetState::AttachmentParams GBuffer::genShadowMappingAttachmentPar
 
 etna::Binding GBuffer::genAlbedoBinding(uint32_t index)
 {
-  return etna::Binding{
-    index, albedo.genBinding({}, vk::ImageLayout::eGeneral)};
+  return etna::Binding{index, albedo.genBinding({}, vk::ImageLayout::eGeneral)};
 }
 
 etna::Binding GBuffer::genNormalBinding(uint32_t index)
 {
-  return etna::Binding{
-    index, normal.genBinding({}, vk::ImageLayout::eGeneral)};
+  return etna::Binding{index, normal.genBinding({}, vk::ImageLayout::eGeneral)};
 }
 
 etna::Binding GBuffer::genMaterialBinding(uint32_t index)
 {
-  return etna::Binding{
-    index, material.genBinding({}, vk::ImageLayout::eGeneral)};
+  return etna::Binding{index, material.genBinding({}, vk::ImageLayout::eGeneral)};
 }
 
 etna::Binding GBuffer::genDepthBinding(uint32_t index)

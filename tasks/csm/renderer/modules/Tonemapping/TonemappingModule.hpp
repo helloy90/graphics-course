@@ -7,9 +7,6 @@
 
 #include <glm/glm.hpp>
 
-#include "../Module.hpp"
-
-
 class TonemappingModule
 {
 public:

@@ -237,22 +237,24 @@ etna::Image load_texture(
 
   auto filenameString = path.filename().generic_string<char>();
   const vk::DeviceSize textureSize = width * height * 4;
-  etna::Buffer textureBuffer = ctx.createBuffer(etna::Buffer::CreateInfo{
-    .size = textureSize,
-    .bufferUsage = vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eTransferDst,
-    .name = filenameString + "_buffer",
-  });
+  etna::Buffer textureBuffer = ctx.createBuffer(
+    etna::Buffer::CreateInfo{
+      .size = textureSize,
+      .bufferUsage = vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eTransferDst,
+      .name = filenameString + "_buffer",
+    });
 
   auto source = std::span<unsigned char>(textureData, textureSize);
   transfer_helper.uploadBuffer(one_shot_commands, textureBuffer, 0, std::as_bytes(source));
 
-  etna::Image texture = ctx.createImage(etna::Image::CreateInfo{
-    .extent = vk::Extent3D{static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1},
-    .name = filenameString + "_texture",
-    .format = format,
-    .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst |
-      vk::ImageUsageFlagBits::eTransferSrc,
-    .mipLevels = mipLevels});
+  etna::Image texture = ctx.createImage(
+    etna::Image::CreateInfo{
+      .extent = vk::Extent3D{static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1},
+      .name = filenameString + "_texture",
+      .format = format,
+      .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst |
+        vk::ImageUsageFlagBits::eTransferSrc,
+      .mipLevels = mipLevels});
 
   render_utility::local_copy_buffer_to_image(one_shot_commands, textureBuffer, texture, layerCount);
 

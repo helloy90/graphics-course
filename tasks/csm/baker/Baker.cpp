@@ -192,17 +192,19 @@ Baker::Meshes Baker::processMeshes(const tinygltf::Model& model)
 
   for (const auto& mesh : model.meshes)
   {
-    result.meshes.push_back(Mesh{
-      .firstRelem = static_cast<std::uint32_t>(result.relems.size()),
-      .relemCount = static_cast<std::uint32_t>(mesh.primitives.size()),
-    });
+    result.meshes.push_back(
+      Mesh{
+        .firstRelem = static_cast<std::uint32_t>(result.relems.size()),
+        .relemCount = static_cast<std::uint32_t>(mesh.primitives.size()),
+      });
 
     for (const auto& prim : mesh.primitives)
     {
       if (prim.mode != TINYGLTF_MODE_TRIANGLES)
       {
-        spdlog::warn("Encountered a non-triangles primitive, these are not "
-                     "supported for now, skipping it!");
+        spdlog::warn(
+          "Encountered a non-triangles primitive, these are not "
+          "supported for now, skipping it!");
         --result.meshes.back().relemCount;
         continue;
       }
@@ -240,18 +242,19 @@ Baker::Meshes Baker::processMeshes(const tinygltf::Model& model)
 
       const std::size_t vertexCount = accessors[1]->count;
 
-      result.relems.push_back(RenderElement{
-        .vertexOffset = static_cast<std::uint32_t>(result.vertices.size()),
-        .vertexCount = static_cast<std::uint32_t>(vertexCount),
-        .indexOffset = static_cast<std::uint32_t>(result.indices.size()),
-        .indexCount = static_cast<std::uint32_t>(accessors[0]->count),
-        .positionMinMax = std::array{accessors[1]->minValues, accessors[1]->maxValues},
-        .texcoordMinMax =
-          (hasTexcoord
-             ? ((!accessors[4]->minValues.empty() && !accessors[4]->maxValues.empty())
-                  ? std::optional(std::array{accessors[4]->minValues, accessors[4]->maxValues})
-                  : std::nullopt)
-             : std::nullopt)});
+      result.relems.push_back(
+        RenderElement{
+          .vertexOffset = static_cast<std::uint32_t>(result.vertices.size()),
+          .vertexCount = static_cast<std::uint32_t>(vertexCount),
+          .indexOffset = static_cast<std::uint32_t>(result.indices.size()),
+          .indexCount = static_cast<std::uint32_t>(accessors[0]->count),
+          .positionMinMax = std::array{accessors[1]->minValues, accessors[1]->maxValues},
+          .texcoordMinMax =
+            (hasTexcoord
+               ? ((!accessors[4]->minValues.empty() && !accessors[4]->maxValues.empty())
+                    ? std::optional(std::array{accessors[4]->minValues, accessors[4]->maxValues})
+                    : std::nullopt)
+               : std::nullopt)});
 
       std::array ptrs{
         reinterpret_cast<const std::byte*>(model.buffers[bufViews[0]->buffer].data.data()) +
@@ -381,22 +384,24 @@ Baker::BakedMeshes Baker::bakeMeshes(const Meshes& meshes)
 
   for (const auto& mesh : meshes.meshes)
   {
-    result.meshes.push_back(Mesh{
-      .firstRelem = static_cast<std::uint32_t>(result.relems.size()),
-      .relemCount = static_cast<std::uint32_t>(mesh.relemCount),
-    });
+    result.meshes.push_back(
+      Mesh{
+        .firstRelem = static_cast<std::uint32_t>(result.relems.size()),
+        .relemCount = static_cast<std::uint32_t>(mesh.relemCount),
+      });
 
     for (uint32_t i = mesh.firstRelem; i < mesh.firstRelem + mesh.relemCount; i++)
     {
       const auto& currentRelem = meshes.relems[i];
 
-      result.relems.push_back(RenderElement{
-        .vertexOffset = static_cast<std::uint32_t>(result.vertices.size()),
-        .vertexCount = static_cast<std::uint32_t>(currentRelem.vertexCount),
-        .indexOffset = static_cast<std::uint32_t>(result.indices.size()),
-        .indexCount = static_cast<std::uint32_t>(currentRelem.indexCount),
-        .positionMinMax = currentRelem.positionMinMax,
-        .texcoordMinMax = currentRelem.texcoordMinMax});
+      result.relems.push_back(
+        RenderElement{
+          .vertexOffset = static_cast<std::uint32_t>(result.vertices.size()),
+          .vertexCount = static_cast<std::uint32_t>(currentRelem.vertexCount),
+          .indexOffset = static_cast<std::uint32_t>(result.indices.size()),
+          .indexCount = static_cast<std::uint32_t>(currentRelem.indexCount),
+          .positionMinMax = currentRelem.positionMinMax,
+          .texcoordMinMax = currentRelem.texcoordMinMax});
 
       for (uint32_t j = currentRelem.vertexOffset;
            j < currentRelem.vertexCount + currentRelem.vertexOffset;

@@ -4,8 +4,9 @@
 #include "cpp_glsl_compat.h"
 
 
-struct ParticleParams {
-    shader_vec4 position;
+struct ParticleParams
+{
+  shader_vec4 position;
 };
 
 #endif // PARTICLE_PARAMS_H_INCLUDED
