@@ -17,6 +17,7 @@ public:
     glm::uvec2 shadowMapsResolution;
     vk::Format renderTargetFormat;
     vk::Format normalsFormat;
+    vk::Format depthFormat;
     vk::Format shadowsFormat;
     uint32_t shadowCascadesAmount;
   };
@@ -58,6 +59,8 @@ public:
   }
 
   vk::Format getShadowTextureFormat() const { return shadows[0].getFormat(); }
+
+  const etna::Image& getDepthImage() const { return depth; }
 
 private:
   etna::Image albedo;

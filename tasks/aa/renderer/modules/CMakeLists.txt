@@ -1,3 +1,4 @@
+add_subdirectory(Antialiasing)
 add_subdirectory(Light)
 add_subdirectory(Particles)
 add_subdirectory(StaticMeshesRender)

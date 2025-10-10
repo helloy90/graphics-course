@@ -52,9 +52,10 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
   gBuffer.emplace(
     GBuffer::CreateInfo{
       .resolution = swapchain_resolution,
-      .shadowMapsResolution = glm::uvec2(2048, 2048),
+      .shadowMapsResolution = glm::uvec2(1024, 1024),
       .renderTargetFormat = renderTargetFormat,
       .normalsFormat = vk::Format::eR16G16B16A16Snorm,
+      .depthFormat = vk::Format::eD32Sfloat,
       .shadowsFormat = vk::Format::eD16Unorm,
       .shadowCascadesAmount = shadowCascadesAmount});
 

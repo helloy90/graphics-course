@@ -1,10 +1,8 @@
 #include "Utilities.hpp"
-#include "etna/BlockingTransferHelper.hpp"
-#include "etna/OneShotCmdMgr.hpp"
 
 #include <tracy/Tracy.hpp>
 #include <stb_image.h>
-#include <vulkan/vulkan_enums.hpp>
+
 
 namespace render_utility
 {
@@ -184,14 +182,14 @@ void blit_image(
     .aspectMask = vk::ImageAspectFlagBits::eColor,
     .mipLevel = 0,
     .baseArrayLayer = 0,
-    .layerCount = 1};
+    .layerCount = vk::RemainingArrayLayers};
 
   std::array dstOffset = {vk::Offset3D{}, offset_size};
   auto dstImageSubrecourceLayers = vk::ImageSubresourceLayers{
     .aspectMask = vk::ImageAspectFlagBits::eColor,
     .mipLevel = 0,
     .baseArrayLayer = 0,
-    .layerCount = 1};
+    .layerCount = vk::RemainingArrayLayers};
 
   auto imageBlit = vk::ImageBlit2{
     .sType = vk::StructureType::eImageBlit2,

@@ -49,7 +49,7 @@ GBuffer::GBuffer(const CreateInfo& info)
     etna::Image::CreateInfo{
       .extent = renderImagesExtent,
       .name = "depth",
-      .format = vk::Format::eD32Sfloat,
+      .format = info.depthFormat,
       .imageUsage =
         vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled,
       .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
