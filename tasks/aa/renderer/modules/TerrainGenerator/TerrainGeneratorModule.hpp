@@ -20,12 +20,17 @@ public:
     TerrainGenerationParams params;
   };
 
+  struct AllocationInfo
+  {
+    vk::Format mapFormat;
+    vk::Extent3D extent;
+  };
+
 public:
   TerrainGeneratorModule();
   explicit TerrainGeneratorModule(CreateInfo info);
 
-  void allocateResources(
-    vk::Format map_format = vk::Format::eR32Sfloat, vk::Extent3D extent = {4096, 4096, 1});
+  void allocateResources(const AllocationInfo& info);
   void loadShaders();
   void setupPipelines();
   void execute();

@@ -1,6 +1,7 @@
 #include "ShadowCastingDirectionalLight.hpp"
 
 #include <imgui.h>
+#include <tracy/Tracy.hpp>
 
 #include <etna/GlobalContext.hpp>
 
@@ -42,6 +43,8 @@ ShadowCastingDirectionalLight::ShadowCastingDirectionalLight(const CreateInfo& i
 
 void ShadowCastingDirectionalLight::update(const Camera& main_camera, float aspect_ratio)
 {
+  ZoneScoped;
+
   Camera frustumCamera = main_camera;
 
   for (std::size_t cascade = 0; cascade < shaderInfo.cascadesAmount; cascade++)
@@ -131,8 +134,7 @@ void ShadowCastingDirectionalLight::drawGui()
 {
   ImGui::Begin("Application Settings");
 
-
-  ImGui::SeparatorText("Shadow Casting Directional Light Setting");
+  ImGui::SeparatorText("Shadow Casting Directional Light");
 
   ImGui::DragFloat("Plane expansion", &settings.zExpansion, 0.1f, 0.0f, 5000.0f);
   ImGui::DragFloat("Near Plane Offset", &settings.zNearOffset, 0.1f, 0.0f, 5000.0f);

@@ -13,6 +13,7 @@
 
 #include "wsi/Keyboard.hpp"
 
+#include "modules/Antialiasing/AntialiasingModule.hpp"
 #include "modules/Light/LightModule.hpp"
 #include "modules/StaticMeshesRender/MeshesRenderModule.hpp"
 #include "modules/TerrainGenerator/TerrainGeneratorModule.hpp"
@@ -49,6 +50,8 @@ public:
   void loadShaders();
   void setupRenderPipelines();
   void rebuildRenderPipelines();
+  
+  // call only after loadShaders(...)
   void loadScene(std::filesystem::path path, float near_plane, float far_plane);
   void loadInfo();
 
@@ -66,6 +69,7 @@ private:
     vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout);
 
 private:
+  AntialiasingModule antialiasingModule;
   LightModule lightModule;
   MeshesRenderModule staticMeshesRenderModule;
   TerrainGeneratorModule terrainGeneratorModule;

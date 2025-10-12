@@ -33,19 +33,19 @@ TerrainGeneratorModule::TerrainGeneratorModule(TerrainGeneratorModule::CreateInf
 {
 }
 
-void TerrainGeneratorModule::allocateResources(vk::Format map_format, vk::Extent3D extent)
+void TerrainGeneratorModule::allocateResources(const AllocationInfo& info)
 {
   auto& ctx = etna::get_context();
 
   terrainMap = ctx.createImage(
     etna::Image::CreateInfo{
-      .extent = extent,
+      .extent = info.extent,
       .name = "terrain_map",
-      .format = map_format,
+      .format = info.mapFormat,
       .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage});
   terrainNormalMap = ctx.createImage(
     etna::Image::CreateInfo{
-      .extent = extent,
+      .extent = info.extent,
       .name = "terrain_normal_map",
       .format = vk::Format::eR16G16B16A16Snorm,
       .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage});

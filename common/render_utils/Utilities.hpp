@@ -23,10 +23,12 @@ void generate_mipmaps_vk_style(
   uint32_t layer_count);
 
 // assume images have the same resolution
+// and they are 1 layer images
 void blit_image(
   vk::CommandBuffer cmd_buf,
   vk::Image source_image,
   vk::Image target_image,
+  vk::ImageAspectFlagBits aspect_mask,
   vk::Offset3D offset_size);
 
 etna::Image load_texture(

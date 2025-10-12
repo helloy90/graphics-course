@@ -260,7 +260,7 @@ vec3 debugGetShadowCascadeColor(uint cascade)
 uint getShadowCascade(float depth, float offset)
 {
   uint cascade = 0;
-  for (; cascade < cascadesAmount; cascade++)
+  for (; cascade < cascadesAmount - 1; cascade++)
   {
     if (depth < planes[cascade + 1] - offset)
     {

@@ -11,6 +11,5 @@ target_link_libraries(antialiasing_module PUBLIC etna render_utils gui scene)
 
 
 target_add_shaders(antialiasing_module
-    shaders/decoy.vert
-    shaders/taa.frag
+    shaders/taa.comp
 )

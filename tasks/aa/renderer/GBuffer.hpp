@@ -6,6 +6,7 @@
 #include <etna/RenderTargetStates.hpp>
 #include <etna/Sampler.hpp>
 #include <etna/Image.hpp>
+#include <vulkan/vulkan_enums.hpp>
 
 
 class GBuffer
@@ -28,11 +29,18 @@ public:
   // no flush
   void prepareForRender(vk::CommandBuffer cmd_buf);
 
+  // used for transparent depth read/write
   // no flush
-  void continueDepthWrite(vk::CommandBuffer cmd_buf);
+  void prepareForDepthReadWrite(vk::CommandBuffer cmd_buf);
+
+  void prepareForDepthRead(vk::CommandBuffer cmd_buf, vk::PipelineStageFlagBits2 pipeline_stage);
 
   // no flush
   void prepareForRead(vk::CommandBuffer cmd_buf);
+
+  // used to set barrier for depth image for taa copy
+  // no flush
+  void prepareForDepthCopy(vk::CommandBuffer cmd_buf);
 
   std::vector<etna::RenderTargetState::AttachmentParams> genColorAttachmentParams(
     vk::AttachmentLoadOp load_op = vk::AttachmentLoadOp::eClear);
@@ -46,11 +54,11 @@ public:
     vk::AttachmentLoadOp load_op = vk::AttachmentLoadOp::eClear,
     vk::AttachmentStoreOp store_op = vk::AttachmentStoreOp::eStore);
 
-  etna::Binding genAlbedoBinding(uint32_t index);
-  etna::Binding genNormalBinding(uint32_t index);
-  etna::Binding genMaterialBinding(uint32_t index);
-  etna::Binding genDepthBinding(uint32_t index);
-  std::vector<etna::Binding> genShadowBindings(uint32_t index);
+  etna::Binding genAlbedoBinding(uint32_t index, vk::ImageLayout layout);
+  etna::Binding genNormalBinding(uint32_t index, vk::ImageLayout layout);
+  etna::Binding genMaterialBinding(uint32_t index, vk::ImageLayout layout);
+  etna::Binding genDepthBinding(uint32_t index, vk::ImageLayout layout);
+  std::vector<etna::Binding> genShadowBindings(uint32_t index, vk::ImageLayout layout);
 
   vk::Extent2D getShadowTextureExtent() const
   {
