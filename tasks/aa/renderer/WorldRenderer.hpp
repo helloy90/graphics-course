@@ -60,14 +60,15 @@ public:
 
   void debugInput(const Keyboard& kb);
   void update(const FramePacket& packet);
-  void drawGui();
   void renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_image);
+  
+  void drawGui();
 
 private:
-  void getPlanesForShadowCascades(float near_plane, float far_plane, float weight);
-
   void deferredShading(
     vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout);
+    
+  void getPlanesForShadowCascades(float near_plane, float far_plane, float weight);
 
 private:
   AntialiasingModule antialiasingModule;

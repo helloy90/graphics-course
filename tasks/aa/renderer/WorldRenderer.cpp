@@ -332,6 +332,9 @@ void WorldRenderer::update(const FramePacket& packet)
     params.cameraWorldPosition = packet.mainCam.position;
     renderPacket = {
       .projView = params.projView,
+      .previousProjView = antialiasingModule.getPreviousProjView(),
+      .currentJitter = antialiasingModule.getCurrentCameraJitter(),
+      .previousJitter = antialiasingModule.getPreviousCameraJitter(),
       .cameraWorldPosition = params.cameraWorldPosition,
       .time = packet.currentTime,
       .resolution = resolution};
@@ -341,123 +344,6 @@ void WorldRenderer::update(const FramePacket& packet)
       lightModule.update(packet.mainCam, aspect);
     }
   }
-}
-
-void WorldRenderer::drawGui()
-{
-  static bool colorShadow = false;
-  static bool usePCF = true;
-
-  ImGui::Begin("Application Settings");
-
-  ImGui::Text(
-    "Application average %.3f ms/frame (%.1f FPS)",
-    1000.0f / ImGui::GetIO().Framerate,
-    ImGui::GetIO().Framerate);
-
-  ImGui::Text(
-    "Camera World Position - x:%f ,y:%f ,z:%f",
-    params.cameraWorldPosition.x,
-    params.cameraWorldPosition.y,
-    params.cameraWorldPosition.z);
-
-  ImGui::SeparatorText("Specific Settings");
-
-  antialiasingModule.drawGui();
-  lightModule.drawGui();
-  staticMeshesRenderModule.drawGui();
-  terrainGeneratorModule.drawGui();
-  terrainRenderModule.drawGui();
-  waterGeneratorModule.drawGui();
-  waterRenderModule.drawGui();
-
-  ImGui::SeparatorText("Shadow Settings");
-
-  if (ImGui::Checkbox("Enable colored shadows", &colorShadow))
-  {
-    params.colorShadows = static_cast<shader_bool>(colorShadow);
-  }
-  if (ImGui::Checkbox("Use PCF for shadows", &usePCF))
-  {
-    params.usePCF = static_cast<shader_bool>(usePCF);
-  }
-  int pcfRange = params.pcfRange;
-  ImGui::SliderInt("PCF Radius", &pcfRange, 0, 4);
-  params.pcfRange = pcfRange;
-
-  ImGui::SeparatorText("General Settings");
-
-
-  if (ImGui::Checkbox("Enable Wireframe Mode", &wireframeEnabled))
-  {
-    rebuildRenderPipelines();
-  }
-  ImGui::Checkbox("Enable Tonemapping", &tonemappingEnabled);
-  ImGui::Checkbox("Stop Time", &timeStopped);
-  ImGui::Checkbox("Enable TAA", &taaEnabled);
-
-  ImGui::End();
-}
-
-void WorldRenderer::deferredShading(
-  vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout)
-{
-  ZoneScoped;
-
-  auto shaderInfo = etna::get_shader_program("deferred_shading");
-
-  std::vector<etna::Binding> bindings;
-  bindings.reserve(4 + shadowCascadesAmount);
-
-  bindings.emplace_back(
-    etna::Binding{0, gBuffer->getAlbedoTexture().genBinding({}, vk::ImageLayout::eGeneral)});
-  bindings.emplace_back(
-    etna::Binding{1, gBuffer->getNormalTexture().genBinding({}, vk::ImageLayout::eGeneral)});
-  bindings.emplace_back(
-    etna::Binding{2, gBuffer->getMaterialTexture().genBinding({}, vk::ImageLayout::eGeneral)});
-  bindings.emplace_back(
-    etna::Binding{
-      3,
-      gBuffer->getDepthTexture().genBinding(
-        gBuffer->getDepthSampler().get(), vk::ImageLayout::eShaderReadOnlyOptimal)});
-
-  const std::vector<etna::Image>& shadowImages = gBuffer->getShadowTextures();
-
-  for (uint32_t i = 0; i < static_cast<uint32_t>(shadowImages.size()); i++)
-  {
-    bindings.emplace_back(
-      etna::Binding{
-        4,
-        shadowImages[i].genBinding(
-          gBuffer->getDepthSampler().get(), vk::ImageLayout::eShaderReadOnlyOptimal),
-        i});
-  }
-
-  auto gSet =
-    etna::create_descriptor_set(shaderInfo.getDescriptorLayoutId(0), cmd_buf, std::move(bindings));
-
-  auto set = etna::create_descriptor_set(
-    shaderInfo.getDescriptorLayoutId(1),
-    cmd_buf,
-    {etna::Binding{0, constants.genBinding()},
-     etna::Binding{1, lightModule.getPointLightsBuffer().genBinding()},
-     etna::Binding{2, lightModule.getDirectionalLightsBuffer().genBinding()},
-     etna::Binding{3, lightModule.getShadowCastingDirLightInfoBuffer().genBinding()},
-     etna::Binding{4, lightModule.getLightParamsBuffer().genBinding()},
-     etna::Binding{
-       5,
-       cubemapTexture.genBinding(
-         staticMeshesRenderModule.getStaticMeshSampler().get(),
-         vk::ImageLayout::eShaderReadOnlyOptimal,
-         {.type = vk::ImageViewType::eCube})}});
-
-  cmd_buf.bindDescriptorSets(
-    vk::PipelineBindPoint::eGraphics, pipeline_layout, 0, {gSet.getVkSet(), set.getVkSet()}, {});
-
-  cmd_buf.pushConstants(
-    pipeline_layout, vk::ShaderStageFlagBits::eFragment, 0, sizeof(glm::uvec2), &resolution);
-
-  cmd_buf.draw(3, 1, 0, 0);
 }
 
 void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_image)
@@ -641,6 +527,124 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
       vk::Offset3D{static_cast<int32_t>(resolution.x), static_cast<int32_t>(resolution.y), 1});
   }
 }
+
+void WorldRenderer::drawGui()
+{
+  static bool colorShadow = false;
+  static bool usePCF = true;
+
+  ImGui::Begin("Application Settings");
+
+  ImGui::Text(
+    "Application average %.3f ms/frame (%.1f FPS)",
+    1000.0f / ImGui::GetIO().Framerate,
+    ImGui::GetIO().Framerate);
+
+  ImGui::Text(
+    "Camera World Position - x:%f ,y:%f ,z:%f",
+    params.cameraWorldPosition.x,
+    params.cameraWorldPosition.y,
+    params.cameraWorldPosition.z);
+
+  ImGui::SeparatorText("Specific Settings");
+
+  antialiasingModule.drawGui();
+  lightModule.drawGui();
+  staticMeshesRenderModule.drawGui();
+  terrainGeneratorModule.drawGui();
+  terrainRenderModule.drawGui();
+  waterGeneratorModule.drawGui();
+  waterRenderModule.drawGui();
+
+  ImGui::SeparatorText("Shadow Settings");
+
+  if (ImGui::Checkbox("Enable colored shadows", &colorShadow))
+  {
+    params.colorShadows = static_cast<shader_bool>(colorShadow);
+  }
+  if (ImGui::Checkbox("Use PCF for shadows", &usePCF))
+  {
+    params.usePCF = static_cast<shader_bool>(usePCF);
+  }
+  int pcfRange = params.pcfRange;
+  ImGui::SliderInt("PCF Radius", &pcfRange, 0, 4);
+  params.pcfRange = pcfRange;
+
+  ImGui::SeparatorText("General Settings");
+
+
+  if (ImGui::Checkbox("Enable Wireframe Mode", &wireframeEnabled))
+  {
+    rebuildRenderPipelines();
+  }
+  ImGui::Checkbox("Enable Tonemapping", &tonemappingEnabled);
+  ImGui::Checkbox("Stop Time", &timeStopped);
+  ImGui::Checkbox("Enable TAA", &taaEnabled);
+
+  ImGui::End();
+}
+
+void WorldRenderer::deferredShading(
+  vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout)
+{
+  ZoneScoped;
+
+  auto shaderInfo = etna::get_shader_program("deferred_shading");
+
+  std::vector<etna::Binding> bindings;
+  bindings.reserve(4 + shadowCascadesAmount);
+
+  bindings.emplace_back(
+    etna::Binding{0, gBuffer->getAlbedoTexture().genBinding({}, vk::ImageLayout::eGeneral)});
+  bindings.emplace_back(
+    etna::Binding{1, gBuffer->getNormalTexture().genBinding({}, vk::ImageLayout::eGeneral)});
+  bindings.emplace_back(
+    etna::Binding{2, gBuffer->getMaterialTexture().genBinding({}, vk::ImageLayout::eGeneral)});
+  bindings.emplace_back(
+    etna::Binding{
+      3,
+      gBuffer->getDepthTexture().genBinding(
+        gBuffer->getDepthSampler().get(), vk::ImageLayout::eShaderReadOnlyOptimal)});
+
+  const std::vector<etna::Image>& shadowImages = gBuffer->getShadowTextures();
+
+  for (uint32_t i = 0; i < static_cast<uint32_t>(shadowImages.size()); i++)
+  {
+    bindings.emplace_back(
+      etna::Binding{
+        4,
+        shadowImages[i].genBinding(
+          gBuffer->getDepthSampler().get(), vk::ImageLayout::eShaderReadOnlyOptimal),
+        i});
+  }
+
+  auto gSet =
+    etna::create_descriptor_set(shaderInfo.getDescriptorLayoutId(0), cmd_buf, std::move(bindings));
+
+  auto set = etna::create_descriptor_set(
+    shaderInfo.getDescriptorLayoutId(1),
+    cmd_buf,
+    {etna::Binding{0, constants.genBinding()},
+     etna::Binding{1, lightModule.getPointLightsBuffer().genBinding()},
+     etna::Binding{2, lightModule.getDirectionalLightsBuffer().genBinding()},
+     etna::Binding{3, lightModule.getShadowCastingDirLightInfoBuffer().genBinding()},
+     etna::Binding{4, lightModule.getLightParamsBuffer().genBinding()},
+     etna::Binding{
+       5,
+       cubemapTexture.genBinding(
+         staticMeshesRenderModule.getStaticMeshSampler().get(),
+         vk::ImageLayout::eShaderReadOnlyOptimal,
+         {.type = vk::ImageViewType::eCube})}});
+
+  cmd_buf.bindDescriptorSets(
+    vk::PipelineBindPoint::eGraphics, pipeline_layout, 0, {gSet.getVkSet(), set.getVkSet()}, {});
+
+  cmd_buf.pushConstants(
+    pipeline_layout, vk::ShaderStageFlagBits::eFragment, 0, sizeof(glm::uvec2), &resolution);
+
+  cmd_buf.draw(3, 1, 0, 0);
+}
+
 
 void WorldRenderer::getPlanesForShadowCascades(float near_plane, float far_plane, float weight)
 {
