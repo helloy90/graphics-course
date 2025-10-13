@@ -72,7 +72,7 @@ void TerrainRenderModule::setupPipelines(
 
   attachments.reserve(color_attachent_formats.size());
 
-  for (const auto& _ : color_attachent_formats)
+  for (std::size_t i = 0; i < color_attachent_formats.size(); i++)
   {
     attachments.emplace_back(
       vk::PipelineColorBlendAttachmentState{
