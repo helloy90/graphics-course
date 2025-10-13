@@ -365,6 +365,12 @@ void main()
 
   vec3 point = shadowCastingDirLight.color *
     pow(clampedDot(normalize(-viewDirection), normalize(shadowCastingDirLight.direction)), 3500.0);
+  skyboxColor += point;
+
+  if (depth >= 1.0) {
+    fragColor = vec4(skyboxColor, 1.0);
+    return;
+  }
 
   uint currentCascade = getShadowCascade(viewSpacePosition.z, 0.0);
   uint overlappingCascade = getShadowCascade(viewSpacePosition.z, nearPlanesBackwardOffset);
@@ -412,7 +418,7 @@ void main()
 
   vec3 pbrColor = computeLightPBR(
     albedo, worldSpacePosition.xyz, shadowCastingDirLight, normal, reflection, material);
-  skyboxColor += point;
+
   color += pbrColor * (1.0 - finalShadow) + finalShadowColor * finalShadow;
 
   for (uint i = 0; i < directionalLightsAmount; i++)
@@ -444,5 +450,5 @@ void main()
     color += pbrColor;
   }
 
-  fragColor = vec4(depth >= 1.0 ? skyboxColor : color, 1);
+  fragColor = vec4(color, 1);
 }

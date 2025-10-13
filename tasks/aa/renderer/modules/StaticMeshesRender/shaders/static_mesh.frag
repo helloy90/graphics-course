@@ -26,6 +26,7 @@ struct Material
 layout(location = 0) out vec4 gAlbedo;
 layout(location = 1) out vec3 gNormal;
 layout(location = 2) out vec4 gMaterial;
+layout(location = 3) out vec2 gVelocity;
 
 layout(set = 0, binding = 0) readonly buffer materials_t
 {
@@ -66,4 +67,5 @@ void main()
     texture(textures[nonuniformEXT(currentMaterial.metallicRoughnessTexture)], surf.texCoord);
   gMaterial.g *= currentMaterial.roughnessFactor;
   gMaterial.b *= currentMaterial.metallicFactor;
+  gVelocity = vec2(0.0);
 }

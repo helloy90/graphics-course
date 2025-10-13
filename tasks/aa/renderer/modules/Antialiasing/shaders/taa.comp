@@ -16,7 +16,58 @@ layout(binding = 4) readonly uniform params_t
   AntialiasingParams params;
 };
 
+bool within(float left, float value, float right)
+{
+  return (left <= value) && (value <= right);
+}
 
-void main() {
-    
+void main()
+{
+  const ivec2 size = imageSize(previousTarget);
+
+  const ivec2 currentTexCoord = ivec2(gl_GlobalInvocationID.xy);
+  const vec2 currentUVTexCoord = vec2(currentTexCoord) / vec2(size);
+
+  if (currentTexCoord.x >= size.x && currentTexCoord.y >= size.y)
+  {
+    return;
+  }
+
+  const float currentDepth = texture(currentDepthImage, currentUVTexCoord).x;
+
+  const vec4 screenSpacePosition = vec4(currentUVTexCoord * 2.0 - 1.0, currentDepth, 1.0);
+
+  vec4 worldSpacePosition = (params.currentInvProjView * screenSpacePosition);
+  worldSpacePosition /= worldSpacePosition.w;
+
+  vec4 previousProjectedCoords = (params.previousProjView * vec4(worldSpacePosition.xyz, 1.0));
+  previousProjectedCoords /= previousProjectedCoords.w;
+
+  const vec2 previousUVTexCoord = 0.5 * previousProjectedCoords.xy + 0.5;
+
+  const ivec2 previousTexCoord = ivec2(previousUVTexCoord * vec2(size));
+
+  if (!within(0.0, previousUVTexCoord.x, 1.0))
+  {
+    return;
+  }
+
+  if (!within(0.0, previousUVTexCoord.y, 1.0))
+  {
+    return;
+  }
+
+  const float previousDepth = texture(previousDepthImage, previousUVTexCoord).x;
+
+  if (abs(previousDepth - currentDepth) > params.depthCutoff)
+  {
+    return;
+  }
+
+  const vec4 previousFrame = imageLoad(previousTarget, currentTexCoord);
+  const vec4 currentFrame = imageLoad(currentTarget, currentTexCoord);
+
+  const vec4 result = params.previousFrameUsage * previousFrame + (1.0 - params.previousFrameUsage) * currentFrame;
+
+  imageStore(currentTarget, currentTexCoord, result);
 }

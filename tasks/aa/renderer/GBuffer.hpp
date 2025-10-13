@@ -6,7 +6,6 @@
 #include <etna/RenderTargetStates.hpp>
 #include <etna/Sampler.hpp>
 #include <etna/Image.hpp>
-#include <vulkan/vulkan_enums.hpp>
 
 
 class GBuffer
@@ -18,6 +17,7 @@ public:
     glm::uvec2 shadowMapsResolution;
     vk::Format renderTargetFormat;
     vk::Format normalsFormat;
+    vk::Format velocityBufferFormat;
     vk::Format depthFormat;
     vk::Format shadowsFormat;
     uint32_t shadowCascadesAmount;
@@ -54,11 +54,11 @@ public:
     vk::AttachmentLoadOp load_op = vk::AttachmentLoadOp::eClear,
     vk::AttachmentStoreOp store_op = vk::AttachmentStoreOp::eStore);
 
-  etna::Binding genAlbedoBinding(uint32_t index, vk::ImageLayout layout);
-  etna::Binding genNormalBinding(uint32_t index, vk::ImageLayout layout);
-  etna::Binding genMaterialBinding(uint32_t index, vk::ImageLayout layout);
-  etna::Binding genDepthBinding(uint32_t index, vk::ImageLayout layout);
-  std::vector<etna::Binding> genShadowBindings(uint32_t index, vk::ImageLayout layout);
+  // etna::Binding genAlbedoBinding(uint32_t index, vk::ImageLayout layout);
+  // etna::Binding genNormalBinding(uint32_t index, vk::ImageLayout layout);
+  // etna::Binding genMaterialBinding(uint32_t index, vk::ImageLayout layout);
+  // etna::Binding genDepthBinding(uint32_t index, vk::ImageLayout layout);
+  // std::vector<etna::Binding> genShadowBindings(uint32_t index, vk::ImageLayout layout);
 
   vk::Extent2D getShadowTextureExtent() const
   {
@@ -68,14 +68,21 @@ public:
 
   vk::Format getShadowTextureFormat() const { return shadows[0].getFormat(); }
 
-  const etna::Image& getDepthImage() const { return depth; }
+  const etna::Image& getAlbedoTexture() const { return albedo; }
+  const etna::Image& getNormalTexture() const { return normal; }
+  const etna::Image& getMaterialTexture() const { return material; }
+  const etna::Image& getVelocityTexture() const { return velocity; }
+  const etna::Image& getDepthTexture() const { return depth; }
+  const std::vector<etna::Image>& getShadowTextures() const { return shadows; }
+  const etna::Sampler& getDepthSampler() const { return depthSampler; }
 
 private:
   etna::Image albedo;
   etna::Image normal;
   etna::Image material;
+  etna::Image velocity;
   etna::Image depth;
   std::vector<etna::Image> shadows;
 
-  etna::Sampler sampler;
+  etna::Sampler depthSampler;
 };

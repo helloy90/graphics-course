@@ -10,6 +10,7 @@ layout(location = 0) in VS_OUT
 layout(location = 0) out vec4 gAlbedo;
 layout(location = 1) out vec4 gNormal;
 layout(location = 2) out vec4 gMaterial;
+layout(location = 3) out vec2 gVelocity;
 
 layout(set = 0, binding = 1) uniform sampler2D normalMap;
 
@@ -18,4 +19,5 @@ void main()
   gAlbedo = vec4(0.5, 0.5, 0.5, 1);
   gNormal = vec4(normalize(texture(normalMap, texCoord).xyz), 0.0);
   gMaterial = vec4(0, 1, 0.0, 1);
+  gVelocity = vec2(0.0);
 }

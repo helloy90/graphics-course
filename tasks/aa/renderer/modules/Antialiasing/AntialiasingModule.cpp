@@ -1,8 +1,8 @@
 #include "AntialiasingModule.hpp"
-#include "etna/Etna.hpp"
-#include "etna/Sampler.hpp"
 
+#include <glm/ext/matrix_transform.hpp>
 #include <tracy/Tracy.hpp>
+#include <imgui.h>
 
 #include <etna/GlobalContext.hpp>
 #include <etna/PipelineManager.hpp>
@@ -12,7 +12,15 @@
 
 
 AntialiasingModule::AntialiasingModule()
-  : jitterIndex(0)
+  : params(
+      {.currentProjView = glm::identity<glm::mat4>(),
+       .currentInvProjView = glm::identity<glm::mat4>(),
+       .previousProjView = glm::identity<glm::mat4>(),
+       .depthCutoff = 0.1f,
+       .previousFrameUsage = 0.9f})
+  , jitterIndex(0)
+  , currentJitter(0.0f, 0.0f)
+  , previousJitter(0.0f, 0.0f)
 {
 }
 
@@ -69,21 +77,6 @@ void AntialiasingModule::setupPipelines()
   aaPipeline = pipelineManager.createComputePipeline("taa", {});
 }
 
-glm::vec2 AntialiasingModule::getCameraJitter()
-{
-  float haltonX = 2.0f * haltonJitter(jitterIndex + 1, 2) - 1.0f;
-  float haltonY = 2.0f * haltonJitter(jitterIndex + 1, 3) - 1.0f;
-
-  jitterIndex++;
-  jitterIndex = jitterIndex % 8; // maybe change 8 to some parameter
-
-  auto extent = previousTargetImage.getExtent();
-
-  glm::vec2 resolution = glm::vec2(extent.width, extent.height);
-  glm::vec2 jitter = glm::vec2(haltonX, haltonY) / resolution;
-
-  return jitter;
-}
 
 void AntialiasingModule::setBarriersForCopy(vk::CommandBuffer cmd_buf)
 {
@@ -118,8 +111,8 @@ void AntialiasingModule::setBarriersForExecute(vk::CommandBuffer cmd_buf)
     cmd_buf,
     previousDepthImage.get(),
     vk::PipelineStageFlagBits2::eComputeShader,
-    vk::AccessFlagBits2::eShaderStorageRead,
-    vk::ImageLayout::eGeneral,
+    vk::AccessFlagBits2::eShaderSampledRead,
+    vk::ImageLayout::eShaderReadOnlyOptimal,
     vk::ImageAspectFlagBits::eDepth);
 }
 
@@ -204,6 +197,35 @@ void AntialiasingModule::copyPreviousData(
   params.previousProjView = previous_proj_view;
 }
 
+void AntialiasingModule::drawGui()
+{
+
+  ImGui::Begin("Application Settings");
+
+  if (ImGui::CollapsingHeader("Temporal Antialiasing"))
+  {
+    ImGui::DragFloat("Depth delta cutoff", &params.depthCutoff, 0.001f, 0.0f, 1.0f);
+    ImGui::DragFloat("Previous frame usage", &params.previousFrameUsage, 0.001f, 0.0f, 1.0f);
+  }
+
+  ImGui::End();
+}
+
+void AntialiasingModule::updateJitter()
+{
+  previousJitter = currentJitter;
+
+  float haltonX = (2.0f * haltonJitter(jitterIndex + 1, 2) - 1.0f) / 2;
+  float haltonY = (2.0f * haltonJitter(jitterIndex + 1, 3) - 1.0f) / 2;
+
+  jitterIndex++;
+  jitterIndex = jitterIndex % 8; // maybe change 8 to some parameter
+
+  auto extent = previousTargetImage.getExtent();
+
+  glm::vec2 resolution = glm::vec2(extent.width, extent.height);
+  currentJitter = glm::vec2(haltonX, haltonY) / resolution;
+}
 
 float AntialiasingModule::haltonJitter(uint32_t index, uint32_t base)
 {

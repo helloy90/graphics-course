@@ -27,6 +27,7 @@ WorldRenderer::WorldRenderer(const InitInfo& info)
   , wireframeEnabled(info.wireframeEnabled)
   , tonemappingEnabled(info.tonemappingEnabled)
   , timeStopped(info.timeStopped)
+  , taaEnabled(info.taaEnabled)
   , shadowCascadesAmount(info.shadowCascadesAmount)
 {
   ETNA_VERIFYF(shadowCascadesAmount > 0, "Shadow cascades amount should be greater than 0");
@@ -57,6 +58,7 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
       .shadowMapsResolution = glm::uvec2(1024, 1024),
       .renderTargetFormat = renderTargetFormat,
       .normalsFormat = vk::Format::eR16G16B16A16Snorm,
+      .velocityBufferFormat = vk::Format::eR16G16Sfloat,
       .depthFormat = vk::Format::eD32Sfloat,
       .shadowsFormat = vk::Format::eD16Unorm,
       .shadowCascadesAmount = shadowCascadesAmount});
@@ -174,10 +176,22 @@ void WorldRenderer::setupRenderPipelines()
   antialiasingModule.setupPipelines();
   lightModule.setupPipelines();
   staticMeshesRenderModule.setupPipelines(
-    wireframeEnabled, renderTargetFormat, gBuffer->getShadowTextureFormat());
+    wireframeEnabled,
+    {renderTargetFormat,
+     gBuffer->getNormalTexture().getFormat(),
+     gBuffer->getMaterialTexture().getFormat(),
+     gBuffer->getVelocityTexture().getFormat()},
+    gBuffer->getDepthTexture().getFormat(),
+    gBuffer->getShadowTextureFormat());
   terrainGeneratorModule.setupPipelines();
   terrainRenderModule.setupPipelines(
-    wireframeEnabled, renderTargetFormat, gBuffer->getShadowTextureFormat());
+    wireframeEnabled,
+    {renderTargetFormat,
+     gBuffer->getNormalTexture().getFormat(),
+     gBuffer->getMaterialTexture().getFormat(),
+     gBuffer->getVelocityTexture().getFormat()},
+    gBuffer->getDepthTexture().getFormat(),
+    gBuffer->getShadowTextureFormat());
   tonemappingModule.setupPipelines();
   waterGeneratorModule.setupPipelines();
   waterRenderModule.setupPipelines(wireframeEnabled, renderTargetFormat);
@@ -298,11 +312,17 @@ void WorldRenderer::update(const FramePacket& packet)
   ZoneScoped;
 
   {
+    antialiasingModule.updateJitter();
+
     const float aspect = float(resolution.x) / float(resolution.y);
     params.view = packet.mainCam.viewTm();
     params.invView = glm::inverse(params.view);
 
-    params.proj = packet.mainCam.projTm(aspect);
+    glm::mat4 projRegular = packet.mainCam.projTm(aspect);
+    glm::mat4 jitter = glm::translate(
+      glm::identity<glm::mat4>(), glm::vec3(antialiasingModule.getCurrentCameraJitter(), 0));
+
+    params.proj = taaEnabled ? jitter * projRegular : projRegular;
     params.invProj = glm::inverse(params.proj);
 
     params.projView = params.proj * params.view;
@@ -343,6 +363,7 @@ void WorldRenderer::drawGui()
 
   ImGui::SeparatorText("Specific Settings");
 
+  antialiasingModule.drawGui();
   lightModule.drawGui();
   staticMeshesRenderModule.drawGui();
   terrainGeneratorModule.drawGui();
@@ -373,7 +394,7 @@ void WorldRenderer::drawGui()
   }
   ImGui::Checkbox("Enable Tonemapping", &tonemappingEnabled);
   ImGui::Checkbox("Stop Time", &timeStopped);
-
+  ImGui::Checkbox("Enable TAA", &taaEnabled);
 
   ImGui::End();
 }
@@ -388,20 +409,32 @@ void WorldRenderer::deferredShading(
   std::vector<etna::Binding> bindings;
   bindings.reserve(4 + shadowCascadesAmount);
 
-  bindings.emplace_back(gBuffer->genAlbedoBinding(0, vk::ImageLayout::eGeneral));
-  bindings.emplace_back(gBuffer->genNormalBinding(1, vk::ImageLayout::eGeneral));
-  bindings.emplace_back(gBuffer->genMaterialBinding(2, vk::ImageLayout::eGeneral));
-  bindings.emplace_back(gBuffer->genDepthBinding(3, vk::ImageLayout::eShaderReadOnlyOptimal));
+  bindings.emplace_back(
+    etna::Binding{0, gBuffer->getAlbedoTexture().genBinding({}, vk::ImageLayout::eGeneral)});
+  bindings.emplace_back(
+    etna::Binding{1, gBuffer->getNormalTexture().genBinding({}, vk::ImageLayout::eGeneral)});
+  bindings.emplace_back(
+    etna::Binding{2, gBuffer->getMaterialTexture().genBinding({}, vk::ImageLayout::eGeneral)});
+  bindings.emplace_back(
+    etna::Binding{
+      3,
+      gBuffer->getDepthTexture().genBinding(
+        gBuffer->getDepthSampler().get(), vk::ImageLayout::eShaderReadOnlyOptimal)});
 
-  std::vector<etna::Binding> shadowBindings =
-    gBuffer->genShadowBindings(4, vk::ImageLayout::eShaderReadOnlyOptimal);
+  const std::vector<etna::Image>& shadowImages = gBuffer->getShadowTextures();
 
-  for (std::size_t i = 0; i < shadowBindings.size(); i++)
+  for (uint32_t i = 0; i < static_cast<uint32_t>(shadowImages.size()); i++)
   {
-    bindings.emplace_back(std::move(shadowBindings[i]));
+    bindings.emplace_back(
+      etna::Binding{
+        4,
+        shadowImages[i].genBinding(
+          gBuffer->getDepthSampler().get(), vk::ImageLayout::eShaderReadOnlyOptimal),
+        i});
   }
 
-  auto gSet = etna::create_descriptor_set(shaderInfo.getDescriptorLayoutId(0), cmd_buf, bindings);
+  auto gSet =
+    etna::create_descriptor_set(shaderInfo.getDescriptorLayoutId(0), cmd_buf, std::move(bindings));
 
   auto set = etna::create_descriptor_set(
     shaderInfo.getDescriptorLayoutId(1),
@@ -544,22 +577,25 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
     //   lightModule.getShadowCastingDirLightInfoBuffer(),
     //   cubemapTexture);
 
-    etna::set_state(
-      cmd_buf,
-      renderTarget.get(),
-      vk::PipelineStageFlagBits2::eTransfer,
-      vk::AccessFlagBits2::eTransferRead,
-      vk::ImageLayout::eTransferSrcOptimal,
-      vk::ImageAspectFlagBits::eColor);
+    if (taaEnabled)
+    {
+      etna::set_state(
+        cmd_buf,
+        renderTarget.get(),
+        vk::PipelineStageFlagBits2::eComputeShader,
+        vk::AccessFlagBits2::eShaderStorageRead | vk::AccessFlagBits2::eShaderStorageWrite,
+        vk::ImageLayout::eGeneral,
+        vk::ImageAspectFlagBits::eColor);
 
-    gBuffer->prepareForDepthRead(cmd_buf, vk::PipelineStageFlagBits2::eComputeShader);
+      gBuffer->prepareForDepthRead(cmd_buf, vk::PipelineStageFlagBits2::eComputeShader);
 
-    antialiasingModule.setBarriersForExecute(cmd_buf);
+      antialiasingModule.setBarriersForExecute(cmd_buf);
 
-    etna::flush_barriers(cmd_buf);
+      etna::flush_barriers(cmd_buf);
 
-    antialiasingModule.execute(
-      cmd_buf, renderTarget, gBuffer->getDepthImage(), params.projView, params.invProjView);
+      antialiasingModule.execute(
+        cmd_buf, renderTarget, gBuffer->getDepthTexture(), params.projView, params.invProjView);
+    }
 
     if (tonemappingEnabled)
     {
@@ -574,8 +610,6 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
       vk::ImageLayout::eTransferSrcOptimal,
       vk::ImageAspectFlagBits::eColor);
 
-    gBuffer->prepareForDepthCopy(cmd_buf);
-
     etna::set_state(
       cmd_buf,
       target_image,
@@ -584,12 +618,20 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
       vk::ImageLayout::eTransferDstOptimal,
       vk::ImageAspectFlagBits::eColor);
 
-    antialiasingModule.setBarriersForCopy(cmd_buf);
+    if (taaEnabled)
+    {
+      gBuffer->prepareForDepthCopy(cmd_buf);
+
+      antialiasingModule.setBarriersForCopy(cmd_buf);
+    }
 
     etna::flush_barriers(cmd_buf);
 
-    antialiasingModule.copyPreviousData(
-      cmd_buf, renderTarget, gBuffer->getDepthImage(), params.projView);
+    if (taaEnabled)
+    {
+      antialiasingModule.copyPreviousData(
+        cmd_buf, renderTarget, gBuffer->getDepthTexture(), params.projView);
+    }
 
     render_utility::blit_image(
       cmd_buf,

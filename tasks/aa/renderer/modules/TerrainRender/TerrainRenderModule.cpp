@@ -61,9 +61,26 @@ void TerrainRenderModule::loadShaders()
 }
 
 void TerrainRenderModule::setupPipelines(
-  bool wireframe_enabled, vk::Format render_target_format, vk::Format shadow_target_format)
+  bool wireframe_enabled,
+  std::vector<vk::Format> color_attachent_formats,
+  vk::Format depth_attachment_format,
+  vk::Format shadow_attachment_format)
 {
   auto& pipelineManager = etna::get_context().getPipelineManager();
+
+  std::vector<vk::PipelineColorBlendAttachmentState> attachments;
+
+  attachments.reserve(color_attachent_formats.size());
+
+  for (const auto& _ : color_attachent_formats)
+  {
+    attachments.emplace_back(
+      vk::PipelineColorBlendAttachmentState{
+        .blendEnable = vk::False,
+        .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+          vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
+      });
+  }
 
   terrainRenderPipeline = pipelineManager.createGraphicsPipeline(
     "terrain_render",
@@ -78,30 +95,14 @@ void TerrainRenderModule::setupPipelines(
         },
       .blendingConfig =
         {
-          .attachments =
-            {{
-               .blendEnable = vk::False,
-               .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
-                 vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
-             },
-             {
-               .blendEnable = vk::False,
-               .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
-                 vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
-             },
-             {
-               .blendEnable = vk::False,
-               .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
-                 vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
-             }},
+          .attachments = std::move(attachments),
           .logicOpEnable = false,
           .logicOp = {},
         },
       .fragmentShaderOutput =
         {
-          .colorAttachmentFormats =
-            {render_target_format, vk::Format::eR16G16B16A16Snorm, vk::Format::eR8G8B8A8Unorm},
-          .depthAttachmentFormat = vk::Format::eD32Sfloat,
+          .colorAttachmentFormats = color_attachent_formats,
+          .depthAttachmentFormat = depth_attachment_format,
         },
     });
 
@@ -118,7 +119,7 @@ void TerrainRenderModule::setupPipelines(
         },
       .fragmentShaderOutput =
         {
-          .depthAttachmentFormat = shadow_target_format,
+          .depthAttachmentFormat = shadow_attachment_format,
         },
     });
 }

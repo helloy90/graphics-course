@@ -9,6 +9,8 @@ struct AntialiasingParams
     shader_mat4 currentProjView;
     shader_mat4 currentInvProjView;
     shader_mat4 previousProjView;
+    shader_float depthCutoff;
+    shader_float previousFrameUsage;
 };
 
 

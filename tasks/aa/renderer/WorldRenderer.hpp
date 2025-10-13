@@ -41,6 +41,7 @@ public:
     bool wireframeEnabled;
     bool tonemappingEnabled;
     bool timeStopped;
+    bool taaEnabled;
   };
 
 public:
@@ -50,7 +51,7 @@ public:
   void loadShaders();
   void setupRenderPipelines();
   void rebuildRenderPipelines();
-  
+
   // call only after loadShaders(...)
   void loadScene(std::filesystem::path path, float near_plane, float far_plane);
   void loadInfo();
@@ -98,6 +99,7 @@ private:
   bool wireframeEnabled;
   bool tonemappingEnabled;
   bool timeStopped;
+  bool taaEnabled;
 
   std::unique_ptr<etna::OneShotCmdMgr> oneShotCommands;
   std::unique_ptr<etna::BlockingTransferHelper> transferHelper;

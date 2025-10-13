@@ -24,7 +24,10 @@ public:
   void loadShaders();
   void loadScene(std::filesystem::path path);
   void setupPipelines(
-    bool wireframe_enabled, vk::Format render_target_format, vk::Format shadow_target_format);
+        bool wireframe_enabled,
+    std::vector<vk::Format> color_attachent_formats,
+    vk::Format depth_attachment_format,
+    vk::Format shadow_attachment_format);
 
   void loadSet();
 

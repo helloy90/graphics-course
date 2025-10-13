@@ -76,7 +76,8 @@ void Renderer::initFrameDelivery(vk::UniqueSurfaceKHR a_surface, ResolutionProvi
     .shadowCascadesAmount = 4,
     .wireframeEnabled = false,
     .tonemappingEnabled = false,
-    .timeStopped = false});
+    .timeStopped = false,
+    .taaEnabled = false});
 
   guiRenderer = std::make_unique<ImGuiRenderer>(window->getCurrentFormat());
 
