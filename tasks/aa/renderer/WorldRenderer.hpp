@@ -67,7 +67,7 @@ public:
 private:
   void deferredShading(
     vk::CommandBuffer cmd_buf, etna::Buffer& constants, vk::PipelineLayout pipeline_layout);
-    
+
   void getPlanesForShadowCascades(float near_plane, float far_plane, float weight);
 
 private:

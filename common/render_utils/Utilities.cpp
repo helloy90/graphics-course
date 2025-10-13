@@ -185,17 +185,11 @@ void blit_image(
 
   std::array srcOffset = {vk::Offset3D{}, offset_size};
   auto srdImageSubrecourceLayers = vk::ImageSubresourceLayers{
-    .aspectMask = aspect_mask,
-    .mipLevel = 0,
-    .baseArrayLayer = 0,
-    .layerCount = 1};
+    .aspectMask = aspect_mask, .mipLevel = 0, .baseArrayLayer = 0, .layerCount = 1};
 
   std::array dstOffset = {vk::Offset3D{}, offset_size};
   auto dstImageSubrecourceLayers = vk::ImageSubresourceLayers{
-    .aspectMask = aspect_mask,
-    .mipLevel = 0,
-    .baseArrayLayer = 0,
-    .layerCount = 1};
+    .aspectMask = aspect_mask, .mipLevel = 0, .baseArrayLayer = 0, .layerCount = 1};
 
   auto imageBlit = vk::ImageBlit2{
     .sType = vk::StructureType::eImageBlit2,
