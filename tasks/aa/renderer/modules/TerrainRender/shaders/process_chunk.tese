@@ -12,7 +12,8 @@ layout(location = 1) in vec3 worldPosition[];
 
 layout(location = 0) out VS_OUT
 {
-  vec3 pos;
+  vec4 currentPos;
+  vec4 previousPos;
   vec2 texCoord;
 };
 
@@ -23,10 +24,13 @@ layout(set = 1, binding = 0) uniform params_t
   TerrainParams params;
 };
 
-layout(push_constant) uniform push_constant_t
+layout(set = 1, binding = 1) uniform render_params_t
 {
   mat4 projView;
-  vec4 cameraWorldPosition;
+  mat4 previousProjView;
+  vec2 currentJitter;
+  vec2 previousJitter;
+  vec3 cameraWorldPosition;
 };
 
 void main()
@@ -51,8 +55,10 @@ void main()
 
   currentVertex.y = texture(heightMap, currentTexCoord).x;
 
-  pos = currentVertex;
+  currentPos = projView * vec4(currentVertex, 1.0);
+  previousPos = previousProjView * vec4(currentVertex, 1.0);
+  
   texCoord = currentTexCoord;
 
-  gl_Position = projView * vec4(currentVertex, 1.0);
+  gl_Position = currentPos;
 }

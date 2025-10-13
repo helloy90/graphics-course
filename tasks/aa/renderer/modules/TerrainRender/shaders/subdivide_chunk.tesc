@@ -19,10 +19,13 @@ layout(set = 1, binding = 0) uniform params_t
   TerrainParams params;
 };
 
-layout(push_constant) uniform push_constant_t
+layout(set = 1, binding = 1) uniform render_params_t
 {
   mat4 projView;
-  vec4 cameraWorldPosition;
+  mat4 previousProjView;
+  vec2 currentJitter;
+  vec2 previousJitter;
+  vec3 cameraWorldPosition;
 };
 
 const float maxDistance = 256.0;

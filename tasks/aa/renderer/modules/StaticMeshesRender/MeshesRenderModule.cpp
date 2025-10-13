@@ -150,11 +150,12 @@ void MeshesRenderModule::loadSet()
 void MeshesRenderModule::executeRender(
   vk::CommandBuffer cmd_buf,
   const RenderPacket& packet,
+  const etna::Buffer& heavy_packet_info_buffer,
   std::vector<etna::RenderTargetState::AttachmentParams> color_attachment_params,
   etna::RenderTargetState::AttachmentParams depth_attachment_params)
 {
   cmd_buf.bindPipeline(vk::PipelineBindPoint::eCompute, cullingPipeline.getVkPipeline());
-  cullMeshes(cmd_buf, cullingPipeline.getVkPipelineLayout(), packet.projView);
+  cullMeshes(cmd_buf, cullingPipeline.getVkPipelineLayout(), packet.heavyInfo.projView);
 
   {
     ETNA_PROFILE_GPU(cmd_buf, renderScene);
@@ -165,7 +166,7 @@ void MeshesRenderModule::executeRender(
       depth_attachment_params);
 
     cmd_buf.bindPipeline(vk::PipelineBindPoint::eGraphics, staticMeshPipeline.getVkPipeline());
-    renderScene(cmd_buf, staticMeshPipeline.getVkPipelineLayout(), packet.projView);
+    renderScene(cmd_buf, staticMeshPipeline.getVkPipelineLayout(), heavy_packet_info_buffer);
   }
 }
 
@@ -372,7 +373,9 @@ void MeshesRenderModule::cullMeshes(
 }
 
 void MeshesRenderModule::renderScene(
-  vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout, const glm::mat4x4& proj_view)
+  vk::CommandBuffer cmd_buf,
+  vk::PipelineLayout pipeline_layout,
+  const etna::Buffer& heavy_packet_info_buffer)
 {
   ZoneScoped;
   if (!sceneMgr->getVertexBuffer())
@@ -389,7 +392,8 @@ void MeshesRenderModule::renderScene(
     cmd_buf,
     {etna::Binding{0, sceneMgr->getRelemsBuffer().genBinding()},
      etna::Binding{1, sceneMgr->getInstanceMatricesBuffer().genBinding()},
-     etna::Binding{2, sceneMgr->getDrawInstanceIndicesBuffer().genBinding()}});
+     etna::Binding{2, sceneMgr->getDrawInstanceIndicesBuffer().genBinding()},
+     etna::Binding{3, heavy_packet_info_buffer.genBinding()}});
 
   cmd_buf.bindDescriptorSets(
     vk::PipelineBindPoint::eGraphics,
@@ -397,9 +401,6 @@ void MeshesRenderModule::renderScene(
     0,
     {meshesDescriptorSet->getVkSet(), set.getVkSet()},
     {});
-
-  cmd_buf.pushConstants<glm::mat4x4>(
-    pipeline_layout, vk::ShaderStageFlagBits::eVertex, 0, {proj_view});
 
   cmd_buf.drawIndexedIndirect(
     sceneMgr->getDrawCommandsBuffer().get(),

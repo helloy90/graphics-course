@@ -26,7 +26,6 @@ layout(set = 1, binding = 1) readonly buffer light_info_t
 
 layout(push_constant) uniform push_constant_t
 {
-  mat4 projView;
   vec4 cameraWorldPosition;
 };
 

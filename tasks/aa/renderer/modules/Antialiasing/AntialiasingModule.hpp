@@ -43,11 +43,11 @@ public:
   // Should be the last operation before copying to swapchain in render function.
   // No barriers are set inside this function so all appropriate barriers should be set before and
   // after the call
-  void copyPreviousData(
-    vk::CommandBuffer cmd_buf,
-    const etna::Image& prev_target,
-    const etna::Image& prev_depth_image,
-    const glm::mat4& previous_proj_view);
+  void copyPreviousImages(
+    vk::CommandBuffer cmd_buf, const etna::Image& prev_target, const etna::Image& prev_depth_image);
+
+  // Should be the first operation in update, before current projection matrix calculation
+  void copyPreviousProjView(const glm::mat4& previous_proj_view);
 
   void drawGui();
 

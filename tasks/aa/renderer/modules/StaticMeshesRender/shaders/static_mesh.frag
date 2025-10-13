@@ -40,32 +40,43 @@ layout(set = 1, binding = 0) readonly buffer relems_t
   RenderElement relems[];
 };
 
+layout(set = 1, binding = 3) uniform render_params_t
+{
+  mat4 projView;
+  mat4 previousProjView;
+  vec2 currentJitter;
+  vec2 previousJitter;
+  vec3 cameraWorldPosition;
+};
+
 layout(location = 0) in VS_OUT
 {
-  vec3 wPos;
+  vec4 currentPos;
+  vec4 previousPos;
   // vec3 wNorm;
   // vec4 wTangent;
   // vec3 wBitangent;
   vec3 wNormOut;
   vec2 texCoord;
   flat uint relemIdx;
-}
-surf;
+};
 
 
 void main()
 {
-  Material currentMaterial = materials[relems[surf.relemIdx].material];
+  Material currentMaterial = materials[relems[relemIdx].material];
   float currentLod =
-    textureQueryLod(textures[nonuniformEXT(currentMaterial.baseColorTexture)], surf.texCoord).x;
+    textureQueryLod(textures[nonuniformEXT(currentMaterial.baseColorTexture)], texCoord).x;
   gAlbedo =
-    textureLod(
-      textures[nonuniformEXT(currentMaterial.baseColorTexture)], surf.texCoord, currentLod) *
+    textureLod(textures[nonuniformEXT(currentMaterial.baseColorTexture)], texCoord, currentLod) *
     currentMaterial.baseColorFactor;
-  gNormal = surf.wNormOut;
-  gMaterial =
-    texture(textures[nonuniformEXT(currentMaterial.metallicRoughnessTexture)], surf.texCoord);
+  gNormal = wNormOut;
+  gMaterial = texture(textures[nonuniformEXT(currentMaterial.metallicRoughnessTexture)], texCoord);
   gMaterial.g *= currentMaterial.roughnessFactor;
   gMaterial.b *= currentMaterial.metallicFactor;
-  gVelocity = vec2(0.0);
+
+  const vec3 currentPosNDC = currentPos.xyz / currentPos.w;
+  const vec3 previousPosNDC = previousPos.xyz / previousPos.w;
+
+  gVelocity = (currentPosNDC.xy - currentJitter) - (previousPosNDC.xy - previousJitter);
 }

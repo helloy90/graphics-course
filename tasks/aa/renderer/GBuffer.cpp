@@ -52,7 +52,7 @@ GBuffer::GBuffer(const CreateInfo& info)
       .name = "gVelocity",
       .format = info.velocityBufferFormat,
       .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled |
-        vk::ImageUsageFlagBits::eStorage,
+        vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eTransferDst,
       .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
       .allocationCreate = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT});
 
@@ -216,6 +216,31 @@ void GBuffer::prepareForDepthCopy(vk::CommandBuffer cmd_buf)
     vk::ImageAspectFlagBits::eDepth);
 }
 
+void GBuffer::prepareForVelocityReset(vk::CommandBuffer cmd_buf)
+{
+  etna::set_state(
+    cmd_buf,
+    velocity.get(),
+    vk::PipelineStageFlagBits2::eTransfer,
+    vk::AccessFlagBits2::eTransferWrite,
+    vk::ImageLayout::eTransferDstOptimal,
+    vk::ImageAspectFlagBits::eColor);
+}
+
+void GBuffer::resetVelocityTexture(vk::CommandBuffer cmd_buf)
+{
+  cmd_buf.clearColorImage(
+    velocity.get(),
+    vk::ImageLayout::eTransferDstOptimal,
+    {0.0f, 0.0f, 0.0f, 0.0f},
+    vk::ImageSubresourceRange{
+      .aspectMask = vk::ImageAspectFlagBits::eColor,
+      .baseMipLevel = 0,
+      .levelCount = vk::RemainingMipLevels,
+      .baseArrayLayer = 0,
+      .layerCount = vk::RemainingArrayLayers});
+}
+
 std::vector<etna::RenderTargetState::AttachmentParams> GBuffer::genColorAttachmentParams(
   vk::AttachmentLoadOp load_op)
 {
@@ -224,8 +249,7 @@ std::vector<etna::RenderTargetState::AttachmentParams> GBuffer::genColorAttachme
     {.image = albedo.get(), .view = albedo.getView({}), .loadOp = load_op},
     {.image = normal.get(), .view = normal.getView({}), .loadOp = load_op},
     {.image = material.get(), .view = material.getView({}), .loadOp = load_op},
-    {.image = velocity.get(), .view = velocity.getView({}), .loadOp = load_op}
-  };
+    {.image = velocity.get(), .view = velocity.getView({}), .loadOp = load_op}};
 }
 
 etna::RenderTargetState::AttachmentParams GBuffer::genDepthAttachmentParams(

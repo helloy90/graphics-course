@@ -42,6 +42,11 @@ public:
   // no flush
   void prepareForDepthCopy(vk::CommandBuffer cmd_buf);
 
+  // no flush
+  void prepareForVelocityReset(vk::CommandBuffer cmd_buf);
+
+  void resetVelocityTexture(vk::CommandBuffer cmd_buf);
+
   std::vector<etna::RenderTargetState::AttachmentParams> genColorAttachmentParams(
     vk::AttachmentLoadOp load_op = vk::AttachmentLoadOp::eClear);
 

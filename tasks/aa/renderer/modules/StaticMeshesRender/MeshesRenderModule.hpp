@@ -24,7 +24,7 @@ public:
   void loadShaders();
   void loadScene(std::filesystem::path path);
   void setupPipelines(
-        bool wireframe_enabled,
+    bool wireframe_enabled,
     std::vector<vk::Format> color_attachent_formats,
     vk::Format depth_attachment_format,
     vk::Format shadow_attachment_format);
@@ -34,6 +34,7 @@ public:
   void executeRender(
     vk::CommandBuffer cmd_buf,
     const RenderPacket& packet,
+    const etna::Buffer& heavy_packet_info_buffer,
     std::vector<etna::RenderTargetState::AttachmentParams> color_attachment_params,
     etna::RenderTargetState::AttachmentParams depth_attachment_params);
 
@@ -57,7 +58,9 @@ private:
     const etna::Binding& proj_view_binding);
 
   void renderScene(
-    vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout, const glm::mat4x4& proj_view);
+    vk::CommandBuffer cmd_buf,
+    vk::PipelineLayout pipeline_layout,
+    const etna::Buffer& heavy_packet_info_buffer);
 
 private:
   MeshesParams params;

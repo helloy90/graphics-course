@@ -61,7 +61,7 @@ public:
   void debugInput(const Keyboard& kb);
   void update(const FramePacket& packet);
   void renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_image);
-  
+
   void drawGui();
 
 private:
@@ -94,6 +94,7 @@ private:
   RenderPacket renderPacket;
 
   std::optional<etna::GpuSharedResource<etna::Buffer>> constantsBuffer;
+  std::optional<etna::GpuSharedResource<etna::Buffer>> renderPacketHeavyInfoBuffer;
 
   etna::GraphicsPipeline deferredShadingPipeline;
 

@@ -172,11 +172,8 @@ void AntialiasingModule::execute(
   }
 }
 
-void AntialiasingModule::copyPreviousData(
-  vk::CommandBuffer cmd_buf,
-  const etna::Image& prev_target,
-  const etna::Image& prev_depth_image,
-  const glm::mat4& previous_proj_view)
+void AntialiasingModule::copyPreviousImages(
+  vk::CommandBuffer cmd_buf, const etna::Image& prev_target, const etna::Image& prev_depth_image)
 {
   vk::Extent3D extent = prev_target.getExtent();
 
@@ -193,9 +190,13 @@ void AntialiasingModule::copyPreviousData(
     previousDepthImage.get(),
     vk::ImageAspectFlagBits::eDepth,
     {.x = static_cast<int32_t>(extent.width), .y = static_cast<int32_t>(extent.height), .z = 1});
+}
 
+void AntialiasingModule::copyPreviousProjView(const glm::mat4& previous_proj_view)
+{
   params.previousProjView = previous_proj_view;
 }
+
 
 void AntialiasingModule::drawGui()
 {

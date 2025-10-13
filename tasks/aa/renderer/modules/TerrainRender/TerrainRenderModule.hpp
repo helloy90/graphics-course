@@ -32,6 +32,7 @@ public:
   void executeRender(
     vk::CommandBuffer cmd_buf,
     const RenderPacket& packet,
+    const etna::Buffer& heavy_packet_info_buffer,
     std::vector<etna::RenderTargetState::AttachmentParams> color_attachment_params,
     etna::RenderTargetState::AttachmentParams depth_attachment_params);
 
@@ -53,7 +54,9 @@ private:
 
 private:
   void renderTerrain(
-    vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout, const RenderPacket& packet);
+    vk::CommandBuffer cmd_buf,
+    vk::PipelineLayout pipeline_layout,
+    const etna::Buffer& heavy_packet_info_buffer);
 
 private:
   TerrainParams params;

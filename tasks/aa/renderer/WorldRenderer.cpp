@@ -74,6 +74,17 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
         .name = fmt::format("constants{}", i)});
   });
 
+  renderPacketHeavyInfoBuffer.emplace(ctx.getMainWorkCount(), [&ctx](std::size_t i) {
+    return ctx.createBuffer(
+      etna::Buffer::CreateInfo{
+        .size = sizeof(RenderPacket::HeavyInfo),
+        .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
+        .memoryUsage = VMA_MEMORY_USAGE_AUTO,
+        .allocationCreate =
+          VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+        .name = fmt::format("heavyRenderConstants{}", i)});
+  });
+
   oneShotCommands = ctx.createOneShotCmdMgr();
 
   transferHelper = std::make_unique<etna::BlockingTransferHelper>(
@@ -312,7 +323,11 @@ void WorldRenderer::update(const FramePacket& packet)
   ZoneScoped;
 
   {
-    antialiasingModule.updateJitter();
+    if (!timeStopped)
+    {
+      antialiasingModule.updateJitter();
+    }
+    antialiasingModule.copyPreviousProjView(params.projView);
 
     const float aspect = float(resolution.x) / float(resolution.y);
     params.view = packet.mainCam.viewTm();
@@ -331,11 +346,14 @@ void WorldRenderer::update(const FramePacket& packet)
     params.invProjViewMat3 = glm::mat4x4(glm::inverse(glm::mat3x3(params.projView)));
     params.cameraWorldPosition = packet.mainCam.position;
     renderPacket = {
-      .projView = params.projView,
-      .previousProjView = antialiasingModule.getPreviousProjView(),
-      .currentJitter = antialiasingModule.getCurrentCameraJitter(),
-      .previousJitter = antialiasingModule.getPreviousCameraJitter(),
-      .cameraWorldPosition = params.cameraWorldPosition,
+      .heavyInfo =
+        {
+          .projView = params.projView,
+          .previousProjView = antialiasingModule.getPreviousProjView(),
+          .currentJitter = antialiasingModule.getCurrentCameraJitter(),
+          .previousJitter = antialiasingModule.getPreviousCameraJitter(),
+          .cameraWorldPosition = params.cameraWorldPosition,
+        },
       .time = packet.currentTime,
       .resolution = resolution};
 
@@ -358,6 +376,12 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
     currentConstants.map();
     std::memcpy(currentConstants.data(), &params, sizeof(UniformParams));
     currentConstants.unmap();
+
+    auto& currentHeavyRenderInfo = renderPacketHeavyInfoBuffer->get();
+    currentHeavyRenderInfo.map();
+    std::memcpy(
+      currentHeavyRenderInfo.data(), &renderPacket.heavyInfo, sizeof(RenderPacket::HeavyInfo));
+    currentHeavyRenderInfo.unmap();
 
     lightModule.prepareForDraw();
 
@@ -410,12 +434,14 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
     terrainRenderModule.executeRender(
       cmd_buf,
       renderPacket,
+      currentHeavyRenderInfo,
       gBuffer->genColorAttachmentParams(),
       gBuffer->genDepthAttachmentParams());
 
     staticMeshesRenderModule.executeRender(
       cmd_buf,
       renderPacket,
+      currentHeavyRenderInfo,
       gBuffer->genColorAttachmentParams(vk::AttachmentLoadOp::eLoad),
       gBuffer->genDepthAttachmentParams(vk::AttachmentLoadOp::eLoad));
 
@@ -509,14 +535,17 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
       gBuffer->prepareForDepthCopy(cmd_buf);
 
       antialiasingModule.setBarriersForCopy(cmd_buf);
+
+      gBuffer->prepareForVelocityReset(cmd_buf); // NOTE - maybe not needed
     }
 
     etna::flush_barriers(cmd_buf);
 
     if (taaEnabled)
     {
-      antialiasingModule.copyPreviousData(
-        cmd_buf, renderTarget, gBuffer->getDepthTexture(), params.projView);
+      antialiasingModule.copyPreviousImages(cmd_buf, renderTarget, gBuffer->getDepthTexture());
+
+      gBuffer->resetVelocityTexture(cmd_buf); // NOTE - maybe not needed
     }
 
     render_utility::blit_image(

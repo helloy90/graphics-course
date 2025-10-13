@@ -294,7 +294,7 @@ void WaterRenderModule::renderWater(
     vk::ShaderStageFlagBits::eTessellationControl |
       vk::ShaderStageFlagBits::eTessellationEvaluation | vk::ShaderStageFlagBits::eFragment,
     0,
-    {{packet.projView, packet.cameraWorldPosition}});
+    {{packet.heavyInfo.projView, packet.heavyInfo.cameraWorldPosition}});
 
   cmd_buf.draw(
     4,
