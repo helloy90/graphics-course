@@ -1,4 +1,5 @@
 #include "AntialiasingModule.hpp"
+#include "etna/DescriptorSet.hpp"
 
 #include <glm/ext/matrix_transform.hpp>
 #include <tracy/Tracy.hpp>
@@ -120,6 +121,7 @@ void AntialiasingModule::execute(
   vk::CommandBuffer cmd_buf,
   const etna::Image& render_target,
   const etna::Image& depth_image,
+  const etna::Image& velocity_image,
   const glm::mat4& proj_view,
   const glm::mat4& inv_proj_view)
 {
@@ -160,7 +162,8 @@ void AntialiasingModule::execute(
        etna::Binding{2, render_target.genBinding({}, vk::ImageLayout::eGeneral)},
        etna::Binding{
          3, depth_image.genBinding(depthSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
-       etna::Binding{4, currentConstants.genBinding()}});
+       etna::Binding{4, velocity_image.genBinding({}, vk::ImageLayout::eGeneral)},
+       etna::Binding{5, currentConstants.genBinding()}});
 
     cmd_buf.bindDescriptorSets(
       vk::PipelineBindPoint::eCompute, aaPipeline.getVkPipelineLayout(), 0, {set.getVkSet()}, {});

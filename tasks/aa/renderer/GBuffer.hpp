@@ -42,6 +42,8 @@ public:
   // no flush
   void prepareForDepthCopy(vk::CommandBuffer cmd_buf);
 
+  void prepareForTaaExecute(vk::CommandBuffer cmd_buf);
+
   // no flush
   void prepareForVelocityReset(vk::CommandBuffer cmd_buf);
 

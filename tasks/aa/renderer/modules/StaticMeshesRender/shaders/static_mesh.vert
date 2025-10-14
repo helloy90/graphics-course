@@ -87,8 +87,9 @@ void main(void)
 
   const vec4 wNorm = decode_normal(floatBitsToUint(vPosNorm.w));
   vec4 wTang = decode_normal(floatBitsToUint(vTexCoordAndTang.z));
-
-  vec3 worldPos = (currentModelMatrix * vec4(vPosNorm.xyz, 1.0f)).xyz; // NOTE - static objects, so no previous matrix needed
+  
+  // NOTE - static objects, so no previous matrix needed
+  vec3 worldPos = (currentModelMatrix * vec4(vPosNorm.xyz, 1.0f)).xyz;
   vec3 normalSpace = mat3(transpose(inverse(currentModelMatrix))) * wNorm.xyz;
   vec3 tangentSpace = mat3(transpose(inverse(currentModelMatrix))) * wTang.xyz;
   vec3 BitangentSpace = cross(normalSpace, tangentSpace) * wTang.w;

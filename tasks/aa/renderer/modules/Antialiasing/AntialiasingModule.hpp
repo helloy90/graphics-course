@@ -37,6 +37,7 @@ public:
     vk::CommandBuffer cmd_buf,
     const etna::Image& render_target,
     const etna::Image& depth_image,
+    const etna::Image& velocity_image,
     const glm::mat4& proj_view,
     const glm::mat4& inv_proj_view);
 

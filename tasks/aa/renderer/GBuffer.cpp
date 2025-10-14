@@ -216,6 +216,19 @@ void GBuffer::prepareForDepthCopy(vk::CommandBuffer cmd_buf)
     vk::ImageAspectFlagBits::eDepth);
 }
 
+void GBuffer::prepareForTaaExecute(vk::CommandBuffer cmd_buf)
+{
+  prepareForDepthRead(cmd_buf, vk::PipelineStageFlagBits2::eComputeShader);
+
+  etna::set_state(
+    cmd_buf,
+    velocity.get(),
+    vk::PipelineStageFlagBits2::eComputeShader,
+    vk::AccessFlagBits2::eShaderStorageRead,
+    vk::ImageLayout::eGeneral,
+    vk::ImageAspectFlagBits::eColor);
+}
+
 void GBuffer::prepareForVelocityReset(vk::CommandBuffer cmd_buf)
 {
   etna::set_state(

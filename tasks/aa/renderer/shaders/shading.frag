@@ -298,7 +298,8 @@ float getShadowFromTexture(
   return shadow;
 }
 
-float computeShadow(vec2 shadowTexCoord, float depth, float bias, uint currentCascade)
+float computeShadow(
+  vec2 shadowTexCoord, float depth, float bias, uint currentCascade, vec2 texelSize)
 {
   if (depth > 1.0)
   {
@@ -306,7 +307,6 @@ float computeShadow(vec2 shadowTexCoord, float depth, float bias, uint currentCa
   }
 
   float shadow = 0.0;
-  vec2 texelSize = 1.0 / vec2(textureSize(gShadow[0], 0));
 
   int count = 0;
 
@@ -367,7 +367,8 @@ void main()
     pow(clampedDot(normalize(-viewDirection), normalize(shadowCastingDirLight.direction)), 3500.0);
   skyboxColor += point;
 
-  if (depth >= 1.0) {
+  if (depth >= 1.0)
+  {
     fragColor = vec4(skyboxColor, 1.0);
     return;
   }
@@ -375,13 +376,15 @@ void main()
   uint currentCascade = getShadowCascade(viewSpacePosition.z, 0.0);
   uint overlappingCascade = getShadowCascade(viewSpacePosition.z, nearPlanesBackwardOffset);
 
-  float interpolator = (overlappingCascade == currentCascade) ? 0.0
+  float interpolator = (overlappingCascade == currentCascade)
+    ? 0.0
     : getCurrentCascadeInterpolator(viewSpacePosition.z, currentCascade);
 
   vec3 shadowColor = debugGetShadowCascadeColor(currentCascade);
   vec3 nextShadowColor = debugGetShadowCascadeColor(overlappingCascade);
 
   float shadowBias = 0.005;
+  vec2 texelSize = 1.0 / vec2(textureSize(gShadow[0], 0));
 
   vec3 currentShadowTexCoordAndDepth = getShadowCoordsAndDepth(currentCascade, worldSpacePosition);
   vec3 nextShadowTexCoordAndDepth = getShadowCoordsAndDepth(overlappingCascade, worldSpacePosition);
@@ -390,7 +393,8 @@ void main()
                                            currentShadowTexCoordAndDepth.xy,
                                            currentShadowTexCoordAndDepth.z,
                                            shadowBias,
-                                           currentCascade)
+                                           currentCascade,
+                                           texelSize)
                                        : getShadowFromTexture(
                                            currentShadowTexCoordAndDepth.xy,
                                            vec2(0, 0),
@@ -404,7 +408,8 @@ void main()
                            nextShadowTexCoordAndDepth.xy,
                            nextShadowTexCoordAndDepth.z,
                            shadowBias,
-                           overlappingCascade)
+                           overlappingCascade,
+                           texelSize)
                        : getShadowFromTexture(
                            nextShadowTexCoordAndDepth.xy,
                            vec2(0, 0),

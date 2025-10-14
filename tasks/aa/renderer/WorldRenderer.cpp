@@ -499,14 +499,20 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
         vk::ImageLayout::eGeneral,
         vk::ImageAspectFlagBits::eColor);
 
-      gBuffer->prepareForDepthRead(cmd_buf, vk::PipelineStageFlagBits2::eComputeShader);
+      // NOTE - maybe change later
+      gBuffer->prepareForTaaExecute(cmd_buf);
 
       antialiasingModule.setBarriersForExecute(cmd_buf);
 
       etna::flush_barriers(cmd_buf);
 
       antialiasingModule.execute(
-        cmd_buf, renderTarget, gBuffer->getDepthTexture(), params.projView, params.invProjView);
+        cmd_buf,
+        renderTarget,
+        gBuffer->getDepthTexture(),
+        gBuffer->getVelocityTexture(),
+        params.projView,
+        params.invProjView);
     }
 
     if (tonemappingEnabled)
