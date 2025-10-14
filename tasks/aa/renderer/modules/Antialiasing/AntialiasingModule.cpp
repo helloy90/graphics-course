@@ -17,7 +17,7 @@ AntialiasingModule::AntialiasingModule()
       {.currentProjView = glm::identity<glm::mat4>(),
        .currentInvProjView = glm::identity<glm::mat4>(),
        .previousProjView = glm::identity<glm::mat4>(),
-       .depthCutoff = 0.1f,
+       .depthCutoff = 0.0f,
        .previousFrameUsage = 0.9f})
   , jitterIndex(0)
   , currentJitter(0.0f, 0.0f)
@@ -219,8 +219,8 @@ void AntialiasingModule::updateJitter()
 {
   previousJitter = currentJitter;
 
-  float haltonX = (2.0f * haltonJitter(jitterIndex + 1, 2) - 1.0f) / 2;
-  float haltonY = (2.0f * haltonJitter(jitterIndex + 1, 3) - 1.0f) / 2;
+  float haltonX = 2.0f * haltonJitter(jitterIndex + 1, 2) - 1.0f;
+  float haltonY = 2.0f * haltonJitter(jitterIndex + 1, 3) - 1.0f;
 
   jitterIndex++;
   jitterIndex = jitterIndex % 8; // maybe change 8 to some parameter
