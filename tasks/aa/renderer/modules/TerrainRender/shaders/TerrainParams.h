@@ -9,7 +9,7 @@ struct TerrainParams
   shader_uvec2 chunk;
   shader_uvec2 terrainInChunks;
   shader_vec2 terrainOffset;
-  // TODO - add min and max distance, min and max tesselation level here 
+  // TODO - add min and max distance, min and max tesselation level here
 };
 
 
