@@ -185,13 +185,6 @@ void GBuffer::prepareForRead(vk::CommandBuffer cmd_buf)
     vk::AccessFlagBits2::eShaderStorageRead,
     vk::ImageLayout::eGeneral,
     vk::ImageAspectFlagBits::eColor);
-  etna::set_state(
-    cmd_buf,
-    velocity.get(),
-    vk::PipelineStageFlagBits2::eFragmentShader,
-    vk::AccessFlagBits2::eShaderStorageRead,
-    vk::ImageLayout::eGeneral,
-    vk::ImageAspectFlagBits::eColor);
 
   for (const auto& shadowMap : shadows)
   {

@@ -28,7 +28,7 @@ public:
 
 public:
   TerrainGeneratorModule();
-  explicit TerrainGeneratorModule(CreateInfo info);
+  explicit TerrainGeneratorModule(const CreateInfo& info);
 
   void allocateResources(const AllocationInfo& info);
   void loadShaders();

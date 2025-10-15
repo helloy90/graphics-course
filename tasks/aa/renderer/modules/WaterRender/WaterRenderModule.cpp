@@ -1,6 +1,4 @@
 #include "WaterRenderModule.hpp"
-#include "cpp_glsl_compat.h"
-#include "etna/DescriptorSet.hpp"
 
 #include <tracy/Tracy.hpp>
 
@@ -17,8 +15,7 @@ WaterRenderModule::WaterRenderModule()
        .chunk = shader_uvec2(16),
        .waterInChunks = shader_uvec2(128),
        .waterOffset = shader_vec2(-1024),
-       .extrusionInChunks = shader_uvec2(0),
-       .heightOffset = shader_float(0.3)})
+       .heightOffset = shader_float(-19.5)})
   , renderParams(
       {.scatterColor = shader_vec4(0.016, 0.0736, 0.16, 1),
        .bubbleColor = shader_vec4(0, 0.02, 0.016, 1),
@@ -87,7 +84,10 @@ void WaterRenderModule::loadShaders()
      WATER_RENDER_MODULE_SHADERS_ROOT "water.frag.spv"});
 }
 
-void WaterRenderModule::setupPipelines(bool wireframe_enabled, vk::Format render_target_format)
+void WaterRenderModule::setupPipelines(
+  bool wireframe_enabled,
+  std::vector<vk::Format> color_attachent_formats,
+  vk::Format depth_attachment_format)
 {
   auto& pipelineManager = etna::get_context().getPipelineManager();
 
@@ -105,26 +105,29 @@ void WaterRenderModule::setupPipelines(bool wireframe_enabled, vk::Format render
       .blendingConfig =
         {
           .attachments =
-            {
-              {
-                .blendEnable = vk::True,
-                .srcColorBlendFactor = vk::BlendFactor::eSrcAlpha,
-                .dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha,
-                .colorBlendOp = vk::BlendOp::eAdd,
-                .srcAlphaBlendFactor = vk::BlendFactor::eOne,
-                .dstAlphaBlendFactor = vk::BlendFactor::eZero,
-                .alphaBlendOp = vk::BlendOp::eAdd,
-                .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
-                  vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
-              },
-            },
+            {{
+               .blendEnable = vk::True,
+               .srcColorBlendFactor = vk::BlendFactor::eSrcAlpha,
+               .dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha,
+               .colorBlendOp = vk::BlendOp::eAdd,
+               .srcAlphaBlendFactor = vk::BlendFactor::eOne,
+               .dstAlphaBlendFactor = vk::BlendFactor::eZero,
+               .alphaBlendOp = vk::BlendOp::eAdd,
+               .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+                 vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
+             },
+             {
+               .blendEnable = vk::False,
+               .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+                 vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
+             }},
           .logicOpEnable = false,
           .logicOp = {},
         },
       .fragmentShaderOutput =
         {
-          .colorAttachmentFormats = {render_target_format},
-          .depthAttachmentFormat = vk::Format::eD32Sfloat,
+          .colorAttachmentFormats = color_attachent_formats,
+          .depthAttachmentFormat = depth_attachment_format,
         },
     });
 }
@@ -132,13 +135,16 @@ void WaterRenderModule::setupPipelines(bool wireframe_enabled, vk::Format render
 void WaterRenderModule::executeRender(
   vk::CommandBuffer cmd_buf,
   const RenderPacket& packet,
+  const etna::Buffer& heavy_packet_info,
+  const glm::mat4& view_matrix,
   std::vector<etna::RenderTargetState::AttachmentParams> color_attachment_params,
   etna::RenderTargetState::AttachmentParams depth_attachment_params,
   const etna::Image& water_map,
   const etna::Image& water_normal_map,
-  const std::vector<etna::Binding>& shadow,
   const etna::Sampler& water_sampler,
-  const etna::Buffer& directional_lights_buffer,
+  const std::vector<etna::Image>& shadows,
+  const etna::Sampler& shadow_sampler,
+  const etna::Buffer& shadow_casting_lights,
   const etna::Image& cubemap)
 {
   {
@@ -153,12 +159,14 @@ void WaterRenderModule::executeRender(
     renderWater(
       cmd_buf,
       waterRenderPipeline.getVkPipelineLayout(),
-      packet,
+      heavy_packet_info,
+      view_matrix,
       water_map,
       water_normal_map,
-      shadow,
       water_sampler,
-      directional_lights_buffer,
+      shadows,
+      shadow_sampler,
+      shadow_casting_lights,
       cubemap);
   }
 }
@@ -167,10 +175,18 @@ void WaterRenderModule::drawGui()
 {
   ImGui::Begin("Application Settings");
 
+  static bool paramsChanged = false;
   static bool renderParamsChanged = false;
 
   if (ImGui::CollapsingHeader("Water Render"))
   {
+    ImGui::SeparatorText("Water parameters");
+
+    float heightOffset = params.heightOffset;
+    paramsChanged = paramsChanged ||
+      ImGui::DragFloat("Water Height Offset", &heightOffset, 0.1f, -500.0f, 500.0f);
+    params.heightOffset = heightOffset;
+
     ImGui::SeparatorText("Render parameters");
 
     ImGuiColorEditFlags colorFlags =
@@ -230,6 +246,14 @@ void WaterRenderModule::drawGui()
     renderParams.bubbleDensity = bubbleDensity;
   }
 
+  if (paramsChanged)
+  {
+    paramsBuffer.map();
+    std::memcpy(paramsBuffer.data(), &params, sizeof(WaterParams));
+    paramsBuffer.unmap();
+    paramsChanged = false;
+  }
+
   if (renderParamsChanged)
   {
     renderParamsBuffer.map();
@@ -244,12 +268,14 @@ void WaterRenderModule::drawGui()
 void WaterRenderModule::renderWater(
   vk::CommandBuffer cmd_buf,
   vk::PipelineLayout pipeline_layout,
-  const RenderPacket& packet,
+  const etna::Buffer& heavy_packet_info,
+  const glm::mat4& view_matrix,
   const etna::Image& water_map,
   const etna::Image& water_normal_map,
-  const std::vector<etna::Binding>& shadow,
   const etna::Sampler& water_sampler,
-  const etna::Buffer& directional_lights_buffer,
+  const std::vector<etna::Image>& shadows,
+  const etna::Sampler& shadow_sampler,
+  const etna::Buffer& shadow_casting_lights,
   const etna::Image& cubemap)
 {
   ZoneScoped;
@@ -257,7 +283,7 @@ void WaterRenderModule::renderWater(
   auto shaderInfo = etna::get_shader_program("water_render");
 
   std::vector<etna::Binding> bindings;
-  bindings.reserve(6 + shadow.size());
+  bindings.reserve(7 + shadows.size());
 
   bindings.emplace_back(etna::Binding{0, paramsBuffer.genBinding()});
   bindings.emplace_back(etna::Binding{1, renderParamsBuffer.genBinding()});
@@ -268,10 +294,16 @@ void WaterRenderModule::renderWater(
     etna::Binding{
       3,
       water_normal_map.genBinding(water_sampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)});
-  for (std::size_t i = 0; i < shadow.size(); i++)
+
+  for (uint32_t i = 0; i < static_cast<uint32_t>(shadows.size()); i++)
   {
-    bindings.emplace_back(std::move(shadow[i]));
+    bindings.emplace_back(
+      etna::Binding{
+        4,
+        shadows[i].genBinding(shadow_sampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal),
+        i});
   }
+
   bindings.emplace_back(
     etna::Binding{
       5,
@@ -279,27 +311,18 @@ void WaterRenderModule::renderWater(
         water_sampler.get(),
         vk::ImageLayout::eShaderReadOnlyOptimal,
         {.type = vk::ImageViewType::eCube})});
-  bindings.emplace_back(etna::Binding{6, directional_lights_buffer.genBinding()});
+  bindings.emplace_back(etna::Binding{6, shadow_casting_lights.genBinding()});
+  bindings.emplace_back(etna::Binding{7, heavy_packet_info.genBinding()});
 
-
-  auto set = etna::create_descriptor_set(shaderInfo.getDescriptorLayoutId(0), cmd_buf, bindings);
+  auto set =
+    etna::create_descriptor_set(shaderInfo.getDescriptorLayoutId(0), cmd_buf, std::move(bindings));
 
   auto vkSet = set.getVkSet();
 
-  cmd_buf.bindDescriptorSets(
-    vk::PipelineBindPoint::eGraphics, pipeline_layout, 0, 1, &vkSet, 0, nullptr);
+  cmd_buf.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline_layout, 0, {vkSet}, {});
 
-  cmd_buf.pushConstants<PushConstants>(
-    pipeline_layout,
-    vk::ShaderStageFlagBits::eTessellationControl |
-      vk::ShaderStageFlagBits::eTessellationEvaluation | vk::ShaderStageFlagBits::eFragment,
-    0,
-    {{packet.heavyInfo.projView, packet.heavyInfo.cameraWorldPosition}});
+  cmd_buf.pushConstants<glm::mat4>(
+    pipeline_layout, vk::ShaderStageFlagBits::eFragment, 0, {view_matrix});
 
-  cmd_buf.draw(
-    4,
-    params.waterInChunks.x * params.waterInChunks.y -
-      (params.extrusionInChunks.x * params.extrusionInChunks.y),
-    0,
-    0);
+  cmd_buf.draw(4, params.waterInChunks.x * params.waterInChunks.y, 0, 0);
 }

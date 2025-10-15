@@ -74,7 +74,7 @@ void main(void) {
         vec2 dispY = fullWave;
         vec2 dispZ = dFullWave * k.y * lengthKRcp;
 
-        // second dderivatives
+        // second derivatives
         vec2 dispX_dx = -fullWave * k.x * k.x * lengthKRcp;
         vec2 dispY_dx = dFullWave * k.x;
         vec2 dispZ_dx = -fullWave * k.y * k.x * lengthKRcp;

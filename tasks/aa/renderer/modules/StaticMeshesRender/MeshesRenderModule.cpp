@@ -219,7 +219,7 @@ void MeshesRenderModule::drawGui() {}
 void MeshesRenderModule::cullMeshes(
   vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout, const glm::mat4x4& proj_view)
 {
-  ZoneScoped;
+  ETNA_PROFILE_GPU(cmd_buf, cullMeshesRender);
   {
     std::array bufferBarriers = {
       vk::BufferMemoryBarrier2{
@@ -299,7 +299,7 @@ void MeshesRenderModule::cullMeshes(
   vk::PipelineLayout pipeline_layout,
   const etna::Binding& proj_view_binding)
 {
-  ZoneScoped;
+  ETNA_PROFILE_GPU(cmd_buf, cullMeshesShadow);
   {
     std::array bufferBarriers = {
       vk::BufferMemoryBarrier2{

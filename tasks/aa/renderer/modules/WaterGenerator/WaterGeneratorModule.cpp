@@ -1,7 +1,4 @@
 #include "WaterGeneratorModule.hpp"
-#include "etna/Assert.hpp"
-#include "shaders/GeneralSpectrumParams.h"
-#include "shaders/SpectrumGenerationParams.h"
 
 #include <glm/common.hpp>
 #include <glm/ext/scalar_constants.hpp>
@@ -61,15 +58,15 @@ WaterGeneratorModule::WaterGeneratorModule()
 {
 }
 
-void WaterGeneratorModule::allocateResources(uint32_t textures_extent)
+void WaterGeneratorModule::allocateResources(const AllocationInfo& info)
 {
   auto& ctx = etna::get_context();
 
-  vk::Extent3D textureExtent = {textures_extent, textures_extent, 1};
+  vk::Extent3D textureExtent = {info.texturesExtent, info.texturesExtent, 1};
 
-  uint32_t logExtent = static_cast<uint32_t>(glm::log2(textures_extent));
+  uint32_t logExtent = static_cast<uint32_t>(glm::log2(info.texturesExtent));
 
-  info = {.size = textures_extent, .logSize = logExtent, .texturesAmount = 2};
+  inverseFFTInfo = {.size = info.texturesExtent, .logSize = logExtent, .texturesAmount = 2};
 
   paramsVector.clear();
   paramsVector.reserve(displayParamsVector.size());
@@ -223,7 +220,7 @@ void WaterGeneratorModule::executeStart()
     updateParamsBuffer.unmap();
 
     infoBuffer.map();
-    std::memcpy(infoBuffer.data(), &info, sizeof(InverseFFTInfo));
+    std::memcpy(infoBuffer.data(), &inverseFFTInfo, sizeof(InverseFFTInfo));
     infoBuffer.unmap();
 
     etna::set_state(
@@ -244,7 +241,7 @@ void WaterGeneratorModule::executeStart()
         commandBuffer, initialSpectrumGenerationPipeline.getVkPipelineLayout());
     }
 
-    auto bindings = {
+    std::vector<etna::Binding> bindings = {
       etna::Binding{
         0,
         updatedSpectrumSlopeTexture.genBinding(textureSampler.get(), vk::ImageLayout::eGeneral),
@@ -542,8 +539,7 @@ void WaterGeneratorModule::updateSpectrumForFFT(
 
   auto vkSet = set.getVkSet();
 
-  cmd_buf.bindDescriptorSets(
-    vk::PipelineBindPoint::eCompute, pipeline_layout, 0, 1, &vkSet, 0, nullptr);
+  cmd_buf.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipeline_layout, 0, {vkSet}, {});
 
   cmd_buf.pushConstants<float>(pipeline_layout, vk::ShaderStageFlagBits::eCompute, 0, {time});
 
@@ -552,7 +548,6 @@ void WaterGeneratorModule::updateSpectrumForFFT(
 
 void WaterGeneratorModule::inverseFFT(vk::CommandBuffer cmd_buf)
 {
-
   {
     ETNA_PROFILE_GPU(cmd_buf, inverseFFTHorizontalStep);
     cmd_buf.bindPipeline(
@@ -562,7 +557,7 @@ void WaterGeneratorModule::inverseFFT(vk::CommandBuffer cmd_buf)
       horizontalInverseFFTPipeline.getVkPipelineLayout(),
       "water_horizontal_inverse_fft",
       *horizontalInverseFFTDescriptorSet,
-      {1, info.size, 1});
+      {1, inverseFFTInfo.size, 1});
   }
 
   {
@@ -574,7 +569,7 @@ void WaterGeneratorModule::inverseFFT(vk::CommandBuffer cmd_buf)
       verticalInverseFFTPipeline.getVkPipelineLayout(),
       "water_vertical_inverse_fft",
       *verticalIInverseFFTDescriptorSet,
-      {1, info.size, 1});
+      {1, inverseFFTInfo.size, 1});
   }
 }
 

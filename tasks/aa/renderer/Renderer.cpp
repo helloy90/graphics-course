@@ -34,7 +34,8 @@ void Renderer::initVulkan(std::span<const char*> instance_extensions)
       .deviceExtensions = deviceExtensions,
       .features =
         {.features =
-           {.tessellationShader = vk::True,
+           {.independentBlend = vk::True,
+            .tessellationShader = vk::True,
             .multiDrawIndirect = vk::True,
             .fillModeNonSolid = vk::True /*debug*/,
             .fragmentStoresAndAtomics = vk::True}},

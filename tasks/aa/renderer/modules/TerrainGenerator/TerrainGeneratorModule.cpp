@@ -19,7 +19,7 @@ TerrainGeneratorModule::TerrainGeneratorModule()
        .noiseRotation = 0.0f,
        .scale = 300.0f,
        .heightAmplifier = 165.0f,
-       .heightOffset = 200.0f,
+       .heightOffset = -200.0f,
        .angleVariance = shader_vec2(0.0f, 0.0f),
        .frequencyVariance = shader_vec2(0.0f),
        .offset = shader_vec2(0.0f, 0.0f)})
@@ -27,7 +27,7 @@ TerrainGeneratorModule::TerrainGeneratorModule()
 {
 }
 
-TerrainGeneratorModule::TerrainGeneratorModule(TerrainGeneratorModule::CreateInfo info)
+TerrainGeneratorModule::TerrainGeneratorModule(const TerrainGeneratorModule::CreateInfo& info)
   : params(info.params)
   , maxNumberOfSamples(info.maxNumberOfSamples)
 {

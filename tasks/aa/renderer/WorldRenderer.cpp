@@ -10,7 +10,6 @@
 #include <etna/RenderTargetStates.hpp>
 #include <etna/Assert.hpp>
 
-#include "etna/Etna.hpp"
 #include "render_utils/Utilities.hpp"
 
 
@@ -102,7 +101,8 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
       .mapFormat = vk::Format::eR32Sfloat, .extent = {4096, 4096, 1}});
   terrainRenderModule.allocateResources();
   tonemappingModule.allocateResources();
-  waterGeneratorModule.allocateResources();
+  waterGeneratorModule.allocateResources(
+    WaterGeneratorModule::AllocationInfo{.texturesExtent = 1024});
   waterRenderModule.allocateResources();
 }
 
@@ -162,7 +162,7 @@ void WorldRenderer::loadInfo()
   terrainRenderModule.loadMaps(
     terrainGeneratorModule.getBindings(vk::ImageLayout::eShaderReadOnlyOptimal));
 
-  // waterGeneratorModule.executeStart();
+  waterGeneratorModule.executeStart();
 }
 
 void WorldRenderer::loadShaders()
@@ -205,7 +205,10 @@ void WorldRenderer::setupRenderPipelines()
     gBuffer->getShadowTextureFormat());
   tonemappingModule.setupPipelines();
   waterGeneratorModule.setupPipelines();
-  waterRenderModule.setupPipelines(wireframeEnabled, renderTargetFormat);
+  waterRenderModule.setupPipelines(
+    wireframeEnabled,
+    {renderTargetFormat, gBuffer->getVelocityTexture().getFormat()},
+    gBuffer->getDepthTexture().getFormat());
 
   auto& pipelineManager = etna::get_context().getPipelineManager();
 
@@ -385,10 +388,10 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
 
     lightModule.prepareForDraw();
 
-    // if (!timeStopped)
-    // {
-    //   waterGeneratorModule.executeProgress(cmd_buf, renderPacket.time);
-    // }
+    if (!timeStopped)
+    {
+      waterGeneratorModule.executeProgress(cmd_buf, renderPacket.time);
+    }
 
     etna::set_state(
       cmd_buf,
@@ -475,19 +478,25 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
 
     etna::flush_barriers(cmd_buf);
 
-    // waterRenderModule.executeRender(
-    //   cmd_buf,
-    //   renderPacket,
-    //   {{.image = renderTarget.get(),
-    //     .view = renderTarget.getView({}),
-    //     .loadOp = vk::AttachmentLoadOp::eLoad}},
-    //   gBuffer->genDepthAttachmentParams(vk::AttachmentLoadOp::eLoad),
-    //   waterGeneratorModule.getHeightMap(),
-    //   waterGeneratorModule.getNormalMap(),
-    //   gBuffer->genShadowBindings(4), // change later
-    //   waterGeneratorModule.getSampler(),
-    //   lightModule.getShadowCastingDirLightInfoBuffer(),
-    //   cubemapTexture);
+    waterRenderModule.executeRender(
+      cmd_buf,
+      renderPacket,
+      currentHeavyRenderInfo,
+      params.view,
+      {{.image = renderTarget.get(),
+        .view = renderTarget.getView({}),
+        .loadOp = vk::AttachmentLoadOp::eLoad},
+       {.image = gBuffer->getVelocityTexture().get(),
+        .view = gBuffer->getVelocityTexture().getView({}),
+        .loadOp = vk::AttachmentLoadOp::eLoad}},
+      gBuffer->genDepthAttachmentParams(vk::AttachmentLoadOp::eLoad),
+      waterGeneratorModule.getHeightMap(),
+      waterGeneratorModule.getNormalMap(),
+      waterGeneratorModule.getSampler(),
+      gBuffer->getShadowTextures(),
+      gBuffer->getDepthSampler(),
+      lightModule.getShadowCastingDirLightInfoBuffer(),
+      cubemapTexture);
 
     if (taaEnabled)
     {

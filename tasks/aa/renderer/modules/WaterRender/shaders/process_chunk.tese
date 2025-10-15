@@ -11,7 +11,9 @@ layout (location = 0) in vec2 heightMapTextureCoord[];
 layout (location = 1) in vec3 worldPosition[];
 
 layout (location = 0) out VS_OUT {
-  vec3 pos;
+  vec4 currentPos;
+  vec4 previousPos;
+  vec3 worldPos;
   vec3 normal;
   vec2 texCoord;
 };
@@ -23,9 +25,13 @@ layout (binding = 0) uniform params_t {
 layout (binding = 2) uniform sampler2D heightMap;
 layout (binding = 3) uniform sampler2D normalMap;
 
-layout(push_constant) uniform push_constant_t {
-    mat4 projView;
-    vec4 cameraWorldPosition;
+layout(binding = 7) uniform render_params_t
+{
+  mat4 projView;
+  mat4 previousProjView;
+  vec2 currentJitter;
+  vec2 previousJitter;
+  vec3 cameraWorldPosition;
 };
 
 void main() {
@@ -46,14 +52,18 @@ void main() {
   vec3 currentVertex = interpolate4Vert2D(leftLower, leftUpper, rightLower, rightUpper, u, v);
   vec2 currentTexCoord = interpolate4Vert2D(texLeftLower, texLeftUpper, texRightLower, texRightUpper, u, v);
 
-  currentVertex.y -= params.heightOffset;
   vec3 displacement = texture(heightMap, currentTexCoord).xyz;
   
   currentVertex += displacement;
 
-  pos = currentVertex;
+  currentVertex.y += params.heightOffset;
+  
+  currentPos = projView * vec4(currentVertex, 1.0);
+  previousPos = previousProjView * vec4(currentVertex, 1.0);
+
+  worldPos = currentVertex;
   normal = texture(normalMap, currentTexCoord).xyz;
   texCoord = currentTexCoord;
 
-  gl_Position = projView * vec4(currentVertex, 1.0);
+  gl_Position = currentPos;
 }

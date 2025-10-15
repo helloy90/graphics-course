@@ -78,7 +78,6 @@ void AntialiasingModule::setupPipelines()
   aaPipeline = pipelineManager.createComputePipeline("taa", {});
 }
 
-
 void AntialiasingModule::setBarriersForCopy(vk::CommandBuffer cmd_buf)
 {
   etna::set_state(

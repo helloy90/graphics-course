@@ -5,8 +5,8 @@
 #include <etna/Image.hpp>
 #include <etna/OneShotCmdMgr.hpp>
 #include <etna/Sampler.hpp>
+#include <etna/BlockingTransferHelper.hpp>
 
-#include "etna/BlockingTransferHelper.hpp"
 #include "shaders/DisplaySpectrumParams.h"
 #include "shaders/GeneralSpectrumParams.h"
 #include "shaders/SpectrumGenerationParams.h"
@@ -16,9 +16,19 @@
 class WaterGeneratorModule
 {
 public:
+  struct CreateInfo
+  {
+  };
+
+  struct AllocationInfo
+  {
+    uint32_t texturesExtent;
+  };
+
+public:
   WaterGeneratorModule();
 
-  void allocateResources(uint32_t textures_extent = 1024);
+  void allocateResources(const AllocationInfo& info);
   void loadShaders();
   void setupPipelines();
   void executeStart();
@@ -68,7 +78,7 @@ private:
   etna::Buffer generalParamsBuffer;
   etna::Buffer updateParamsBuffer;
 
-  InverseFFTInfo info;
+  InverseFFTInfo inverseFFTInfo;
   etna::Buffer infoBuffer;
 
   etna::Image initialSpectrumTexture;

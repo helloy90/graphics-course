@@ -6,44 +6,58 @@
 
 #include "DirectionalLight.h"
 
+// NOTE - for now set here
+#define SHADOW_CASCADES 4
 
 layout(location = 0) in VS_OUT
 {
-  vec3 pos;
+  vec4 currentPos;
+  vec4 previousPos;
+  vec3 worldPos;
   vec3 normal;
   vec2 texCoord;
 };
 
 layout(location = 0) out vec4 fragColor;
+layout(location = 1) out vec2 gVelocity;
 
-layout(binding = 1) uniform render_params_t
+layout(binding = 1) uniform water_render_params_t
 {
   WaterRenderParams params;
 };
-
-// for now
-#define SHADOW_CASCADES 3
 
 layout(binding = 2) uniform sampler2D heightMap;
 layout(binding = 3) uniform sampler2D normalMap;
 layout(binding = 4) uniform sampler2D gShadow[SHADOW_CASCADES];
 layout(binding = 5) uniform samplerCube skybox;
 
-layout(binding = 6) readonly buffer light_info_t
+// fighting alignment rules here
+layout(binding = 6) readonly buffer shadow_casting_dir_lights_t
 {
-  DirectionalLight shadowCastingDirLight;
+  vec3 shadowCastingDirLightDirection;
+  float shadowCastingDirLightIntensity;
+  vec3 shadowCastingDirLightColor;
   uint cascadesAmount;
-  // float _padding;
+  float nearPlanesBackwardOffset;
+  float _padding[7];
   mat4 lightProjViews[SHADOW_CASCADES];
   float planes[SHADOW_CASCADES + 1];
 };
 
-layout(push_constant) uniform push_constant_t
+layout(binding = 7) uniform render_params_t
 {
   mat4 projView;
-  vec4 cameraWorldPosition;
+  mat4 previousProjView;
+  vec2 currentJitter;
+  vec2 previousJitter;
+  vec3 cameraWorldPosition;
 };
 
+layout(push_constant) uniform push_constant_t
+{
+  mat4 viewMatrix;
+};
+// -----------------------------------------------
 
 const float kPi = 3.1415926535897932384626433832795;
 
@@ -97,19 +111,117 @@ vec3 diffuseBrdf(vec3 color)
 {
   return color / kPi;
 }
+// -----------------------------------------------
+
+vec3 debugGetShadowCascadeColor(uint cascade)
+{
+  vec3 shadowColor = vec3(0);
+  if (true)
+  {
+    return vec3(0);
+  }
+
+  switch (cascade)
+  {
+  case 0:
+    shadowColor.rgb = vec3(1.0f, 0.25f, 0.25f);
+    break;
+  case 1:
+    shadowColor.rgb = vec3(0.25f, 1.0f, 0.25f);
+    break;
+  case 2:
+    shadowColor.rgb = vec3(0.25f, 0.25f, 1.0f);
+    break;
+  case 3:
+    shadowColor.rgb = vec3(1.0f, 0.25f, 1.0f);
+    break;
+  }
+  return shadowColor;
+}
+
+uint getShadowCascade(float depth, float offset)
+{
+  uint cascade = 0;
+  for (; cascade < cascadesAmount - 1; cascade++)
+  {
+    if (depth < planes[cascade + 1] - offset)
+    {
+      break;
+    }
+  }
+
+  return cascade;
+}
+
+float getCurrentCascadeInterpolator(float depth, uint currentCascade)
+{
+  return clamp(
+    (depth - planes[currentCascade + 1] + nearPlanesBackwardOffset) / nearPlanesBackwardOffset,
+    0.0,
+    1.0);
+}
+
+vec3 getShadowCoordsAndDepth(uint cascade, vec4 position)
+{
+  const vec4 lightSpacePos = (lightProjViews[cascade]) * position;
+  const vec3 lightSpaceNDCPos = lightSpacePos.xyz / lightSpacePos.w;
+
+  const vec2 shadowTexCoord = lightSpaceNDCPos.xy * 0.5 + vec2(0.5);
+  return vec3(shadowTexCoord, lightSpaceNDCPos.z);
+}
+
+float getShadowFromTexture(
+  vec2 shadowTexCoord, vec2 offset, float depth, float bias, uint currentCascade)
+{
+  const vec2 currentTexCoord = shadowTexCoord + offset;
+  const float lightDepth = texture(gShadow[currentCascade], currentTexCoord).x;
+  float shadow = (depth < lightDepth + bias) ? 0.0 : 1.0;
+
+  return shadow;
+}
+
+float computeShadow(
+  vec2 shadowTexCoord, float depth, float bias, uint currentCascade, vec2 texelSize)
+{
+  if (depth > 1.0)
+  {
+    return 0.0;
+  }
+
+  float shadow = 0.0;
+
+  int count = 0;
+  // for now forget about pcf range
+  for (int x = -1; x <= 1; x++)
+  {
+    for (int y = -1; y <= 1; y++)
+    {
+      shadow +=
+        getShadowFromTexture(shadowTexCoord, vec2(x, y) * texelSize, depth, bias, currentCascade);
+      count++;
+    }
+  }
+
+  shadow /= float(count);
+
+  return shadow;
+}
 
 void main()
 {
+  DirectionalLight shadowCastingDirLight = {
+    shadowCastingDirLightDirection, shadowCastingDirLightIntensity, shadowCastingDirLightColor};
+
   const float roughness = params.roughness;
 
   const float alphaRoughness = roughness * roughness;
 
   const vec3 pointToLight = -normalize(shadowCastingDirLight.direction);
 
-  const vec3 fromPosToCamera = normalize(cameraWorldPosition.xyz - pos); // V
-  const vec3 fromPosToLight = normalize(pointToLight);                   // L
-  const vec3 surfaceNormal = normalize(normal);                          // N
-  const vec3 halfVector = normalize(fromPosToLight + fromPosToCamera);   // H
+  const vec3 fromPosToCamera = normalize(cameraWorldPosition.xyz - worldPos); // V
+  const vec3 fromPosToLight = normalize(pointToLight);                        // L
+  const vec3 surfaceNormal = normalize(normal);                               // N
+  const vec3 halfVector = normalize(fromPosToLight + fromPosToCamera);        // H
 
   const float VdotH = clampedDot(fromPosToCamera, halfVector);
   const float HdotL = clampedDot(halfVector, fromPosToLight);
@@ -120,18 +232,60 @@ void main()
   const vec3 reflectedDir = reflect(-fromPosToCamera, normal);
   vec3 reflection = texture(skybox, reflectedDir).rgb * params.reflectionStrength;
 
-  const vec4 lightSpacePos = lightProjViews[0] * vec4(pos, 1.0);
-  const vec3 lightSpaceNDCPos = lightSpacePos.xyz / lightSpacePos.w;
+  const vec4 worldSpacePosition = vec4(worldPos, 1.0);
 
-  const vec2 shadowTexCoord = lightSpaceNDCPos.xy * 0.5 + vec2(0.5);
+  vec4 viewSpacePosition = viewMatrix * worldSpacePosition;
+  viewSpacePosition /= viewSpacePosition.w;
 
-  const bool outOfView =
-    (shadowTexCoord.x < 0.0001 || shadowTexCoord.x > 0.9999 || shadowTexCoord.y < 0.0001 ||
-     shadowTexCoord.y > 0.9999);
+  uint currentCascade = getShadowCascade(viewSpacePosition.z, 0.0);
+  uint overlappingCascade = getShadowCascade(viewSpacePosition.z, nearPlanesBackwardOffset);
 
-  const float lightDepth = textureLod(gShadow[0], shadowTexCoord, 0).x + 0.0005;
+  float interpolator = (overlappingCascade == currentCascade)
+    ? 0.0
+    : getCurrentCascadeInterpolator(viewSpacePosition.z, currentCascade);
 
-  const float shadow = ((lightSpaceNDCPos.z < lightDepth) || outOfView) ? 0.0 : 1.0;
+  vec3 shadowColor = debugGetShadowCascadeColor(currentCascade);
+  vec3 nextShadowColor = debugGetShadowCascadeColor(overlappingCascade);
+
+  float shadowBias = 0.005;
+  vec2 texelSize = 1.0 / vec2(textureSize(gShadow[0], 0));
+
+  vec3 currentShadowTexCoordAndDepth = getShadowCoordsAndDepth(currentCascade, worldSpacePosition);
+  vec3 nextShadowTexCoordAndDepth = getShadowCoordsAndDepth(overlappingCascade, worldSpacePosition);
+
+  const float shadow =
+    // (params.usePCF) ?
+    computeShadow(
+      currentShadowTexCoordAndDepth.xy,
+      currentShadowTexCoordAndDepth.z,
+      shadowBias,
+      currentCascade,
+      texelSize);
+  //  :
+  // getShadowFromTexture(
+  //   currentShadowTexCoordAndDepth.xy,
+  //   vec2(0, 0),
+  //   currentShadowTexCoordAndDepth.z,
+  //   shadowBias,
+  //   currentCascade);
+  const float nextShadow = (interpolator < 0.00001) ? 0.0 :
+                                                    // ((params.usePCF) ?
+    computeShadow(
+      nextShadowTexCoordAndDepth.xy,
+      nextShadowTexCoordAndDepth.z,
+      shadowBias,
+      overlappingCascade,
+      texelSize);
+  //  :
+  // getShadowFromTexture(
+  //   nextShadowTexCoordAndDepth.xy,
+  //   vec2(0, 0),
+  //   nextShadowTexCoordAndDepth.z,
+  //   shadowBias,
+  //   overlappingCascade));
+
+  const float finalShadow = mix(shadow, nextShadow, interpolator);
+  const vec3 finalShadowColor = mix(shadowColor, nextShadowColor, interpolator);
 
   const vec3 sunIrradiance = shadowCastingDirLight.intensity * shadowCastingDirLight.color;
 
@@ -161,10 +315,18 @@ void main()
   scatter +=
     k3 * params.scatterColor.xyz * sunIrradiance + k4 * params.bubbleColor.xyz * sunIrradiance;
 
-  vec3 brdf = max(vec3(0.0), mix(scatter, diffuse, frensel) + specular * (1.0 - shadow));
+  vec3 brdf = max(vec3(0.0), mix(scatter, diffuse, frensel) + specular * (1.0 - finalShadow));
 
   float foam = clamp(displacementAndFoam.w, 0.0, 1.0);
 
-  fragColor = vec4(mix(brdf, params.foamColor.xyz, foam) * (1.0 - 0.7 * shadow), 1.0);
+  fragColor = vec4(
+    mix(brdf, params.foamColor.xyz, foam) * (1.0 - 0.7 * finalShadow) +
+      finalShadowColor * finalShadow,
+    1.0);
   // fragColor = vec4(params.scatterColor.xyz, 1);
+
+  const vec3 currentPosNDC = currentPos.xyz / currentPos.w;
+  const vec3 previousPosNDC = previousPos.xyz / previousPos.w;
+
+  gVelocity = (currentPosNDC.xy - currentJitter) - (previousPosNDC.xy - previousJitter);
 }

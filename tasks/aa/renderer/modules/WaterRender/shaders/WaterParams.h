@@ -10,8 +10,7 @@ struct WaterParams
   shader_uvec2 chunk;
   shader_uvec2 waterInChunks;
   shader_vec2 waterOffset;
-  // extrude the center for terrain
-  shader_uvec2 extrusionInChunks;
+  // NOTE - maybe add extrusion of the center here to make an island surrounded by the ocean
   shader_float heightOffset;
 };
 

@@ -6,9 +6,8 @@
 #include "Light.h"
 #include "DirectionalLight.h"
 
-// for now set in shader
+// NOTE - for now set here
 #define SHADOW_CASCADES 4
-
 
 layout(location = 0) out vec4 fragColor;
 
