@@ -17,8 +17,8 @@ AntialiasingModule::AntialiasingModule()
        .currentInvProjView = glm::identity<glm::mat4>(),
        .previousProjView = glm::identity<glm::mat4>(),
        .previousFrameUsage = 0.95f,
-       .catmullRomBParam = 0.3,
-       .catmullRomCParam = 0.3})
+       .catmullRomBParam = 0.3f,
+       .catmullRomCParam = 0.3f})
   , jitterIndex(0)
   , jitterDamping(1.0f)
   , currentJitter(0.0f, 0.0f)
