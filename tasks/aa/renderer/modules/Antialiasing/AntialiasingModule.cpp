@@ -1,5 +1,4 @@
 #include "AntialiasingModule.hpp"
-#include "etna/DescriptorSet.hpp"
 
 #include <glm/ext/matrix_transform.hpp>
 #include <tracy/Tracy.hpp>
@@ -18,10 +17,10 @@ AntialiasingModule::AntialiasingModule()
        .currentInvProjView = glm::identity<glm::mat4>(),
        .previousProjView = glm::identity<glm::mat4>(),
        .previousFrameUsage = 0.95f,
-       .jitterDamping = 2.0f,
        .catmullRomBParam = 0.3,
        .catmullRomCParam = 0.3})
   , jitterIndex(0)
+  , jitterDamping(1.0f)
   , currentJitter(0.0f, 0.0f)
   , previousJitter(0.0f, 0.0f)
 {
@@ -217,7 +216,7 @@ void AntialiasingModule::drawGui()
   if (ImGui::CollapsingHeader("Temporal Antialiasing"))
   {
     ImGui::DragFloat("Previous frame usage", &params.previousFrameUsage, 0.001f, 0.0f, 1.0f);
-    ImGui::DragFloat("Jitter damping", &params.jitterDamping, 0.01f, 1.0f, 10.0f);
+    ImGui::DragFloat("Jitter damping", &jitterDamping, 0.01f, 1.0f, 10.0f);
     ImGui::DragFloat(
       "Catmull-Rom sampling B parameter", &params.catmullRomBParam, 0.001f, 0.0f, 1.0f);
     ImGui::DragFloat(
@@ -240,8 +239,7 @@ void AntialiasingModule::updateJitter()
   auto extent = previousTargetImage.getExtent();
 
   glm::vec2 resolution = glm::vec2(extent.width, extent.height);
-  currentJitter =
-    glm::vec2(haltonX / params.jitterDamping, haltonY / params.jitterDamping) / resolution;
+  currentJitter = glm::vec2(haltonX / jitterDamping, haltonY / jitterDamping) / resolution;
 }
 
 float AntialiasingModule::haltonJitter(uint32_t index, uint32_t base)

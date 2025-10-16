@@ -17,7 +17,8 @@ layout(binding = 5) readonly uniform params_t
   AntialiasingParams params;
 };
 
-layout(push_constant) uniform push_constant_t {
+layout(push_constant) uniform push_constant_t
+{
   vec2 currentJitter;
 };
 
@@ -29,8 +30,8 @@ float maxUnit(vec3 value)
 // Mitchell-Netravali filter
 float mitchell(float x)
 {
-  float B = 0.0;
-  float C = 0.2;
+  float B = params.catmullRomBParam;
+  float C = params.catmullRomCParam;
   // float B = 1.0 / 3.0;
   // float C = 1.0 / 3.0;
 
@@ -124,31 +125,6 @@ void main()
   {
     return;
   }
-
-  // const float currentDepth = texture(currentDepthImage, currentUVTexCoord).x;
-
-  // const vec2 velocityUVCorrection = imageLoad(velocityImage, currentTexCoord).xy; // * 0.5 + 0.5;
-  // const vec2 previousUVTexCoord =
-  //   currentUVTexCoord + velocityUVCorrection; // 0.5 * previousProjectedCoords.xy + 0.5;
-
-  // const ivec2 previousTexCoord = ivec2(previousUVTexCoord * vec2(resolution));
-
-  // if (previousUVTexCoord.x != clamp(previousUVTexCoord.x, 0.0, 1.0))
-  // {
-  //   return;
-  // }
-
-  // if (previousUVTexCoord.y != clamp(previousUVTexCoord.y, 0.0, 1.0))
-  // {
-  //   return;
-  // }
-
-  // const float previousDepth = texture(previousDepthImage, previousUVTexCoord).x;
-
-  // if (abs(previousDepth - currentDepth) > params.depthCutoff)
-  // {
-  //   return;
-  // }
 
   vec3 minNeightbourhood = vec3(10000.0);
   vec3 maxNeightbourhood = vec3(-10000.0);

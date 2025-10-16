@@ -72,6 +72,7 @@ private:
   etna::ComputePipeline aaPipeline;
 
   uint32_t jitterIndex;
+  float jitterDamping;
 
   glm::vec2 currentJitter;
   glm::vec2 previousJitter;
