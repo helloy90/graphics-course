@@ -7,10 +7,11 @@
 
 layout(quads, fractional_even_spacing, ccw) in;
 
-layout (location = 0) in vec2 heightMapTextureCoord[];
-layout (location = 1) in vec3 worldPosition[];
+layout(location = 0) in vec2 heightMapTextureCoord[];
+layout(location = 1) in vec3 worldPosition[];
 
-layout (location = 0) out VS_OUT {
+layout(location = 0) out VS_OUT
+{
   vec4 currentPos;
   vec4 previousPos;
   vec3 worldPos;
@@ -18,12 +19,13 @@ layout (location = 0) out VS_OUT {
   vec2 texCoord;
 };
 
-layout (binding = 0) uniform params_t {
+layout(binding = 0) uniform params_t
+{
   WaterParams params;
 };
 
-layout (binding = 2) uniform sampler2D heightMap;
-layout (binding = 3) uniform sampler2D normalMap;
+layout(binding = 2) uniform sampler2D heightMap;
+layout(binding = 3) uniform sampler2D normalMap;
 
 layout(binding = 7) uniform render_params_t
 {
@@ -34,7 +36,8 @@ layout(binding = 7) uniform render_params_t
   vec3 cameraWorldPosition;
 };
 
-void main() {
+void main()
+{
 
   float u = gl_TessCoord.x;
   float v = gl_TessCoord.y;
@@ -50,14 +53,15 @@ void main() {
   vec2 texRightUpper = heightMapTextureCoord[3];
 
   vec3 currentVertex = interpolate4Vert2D(leftLower, leftUpper, rightLower, rightUpper, u, v);
-  vec2 currentTexCoord = interpolate4Vert2D(texLeftLower, texLeftUpper, texRightLower, texRightUpper, u, v);
+  vec2 currentTexCoord =
+    interpolate4Vert2D(texLeftLower, texLeftUpper, texRightLower, texRightUpper, u, v);
 
   vec3 displacement = texture(heightMap, currentTexCoord).xyz;
-  
+
   currentVertex += displacement;
 
   currentVertex.y += params.heightOffset;
-  
+
   currentPos = projView * vec4(currentVertex, 1.0);
   previousPos = previousProjView * vec4(currentVertex, 1.0);
 

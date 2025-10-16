@@ -11,7 +11,8 @@ layout(location = 0) in VS_OUT
   vec3 wNorm;
   vec3 wTangent;
   vec2 texCoord;
-} surf;
+}
+surf;
 
 void main()
 {
@@ -20,7 +21,7 @@ void main()
 
   const vec3 lightColor = vec3(1.0f, 1.0f, 1.0f);
 
-  const vec3 lightDir   = normalize(wLightPos - surf.wPos);
+  const vec3 lightDir = normalize(wLightPos - surf.wPos);
   const vec3 diffuse = max(dot(surf.wNorm, lightDir), 0.0f) * lightColor;
   const float ambient = 0.05;
   out_fragColor.rgb = (diffuse + ambient) * surfaceColor;

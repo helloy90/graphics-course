@@ -57,7 +57,7 @@ void main()
 
   currentPos = projView * vec4(currentVertex, 1.0);
   previousPos = previousProjView * vec4(currentVertex, 1.0);
-  
+
   texCoord = currentTexCoord;
 
   gl_Position = currentPos;
