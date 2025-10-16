@@ -17,6 +17,10 @@ layout(binding = 5) readonly uniform params_t
   AntialiasingParams params;
 };
 
+layout(push_constant) uniform push_constant_t {
+  vec2 currentJitter;
+};
+
 float maxUnit(vec3 value)
 {
   return max(value.x, max(value.y, value.z));
@@ -25,8 +29,10 @@ float maxUnit(vec3 value)
 // Mitchell-Netravali filter
 float mitchell(float x)
 {
-  float B = 1.0 / 3.0;
-  float C = 1.0 / 3.0;
+  float B = 0.0;
+  float C = 0.2;
+  // float B = 1.0 / 3.0;
+  // float C = 1.0 / 3.0;
 
   float y = 0.0;
   float x2 = x * x;
@@ -150,7 +156,7 @@ void main()
   vec3 totalCurrentFrameSample = vec3(0);
   float currentFrameSampleWeight = 0.0;
 
-  float closestDepth = 1.0;
+  float closestDepth = 100.0;
   ivec2 closestDepthPixelPosition = ivec2(0);
 
   vec3 colorMoment = vec3(0);
@@ -168,7 +174,7 @@ void main()
 
       vec3 color = max(vec3(0), imageLoad(currentTarget, pos).xyz);
 
-      float subSampleDistance = length(ivec2(x, y));
+      float subSampleDistance = length(vec2(x, y) + currentJitter);
       float subSampleWeight = mitchell(subSampleDistance);
 
       totalCurrentFrameSample += color * subSampleWeight;
@@ -191,7 +197,7 @@ void main()
   }
 
   const vec2 velocityVector = imageLoad(velocityImage, closestDepthPixelPosition).xy *
-    vec2(0.5, -0.5); // NOTE - maybe wrong y coord
+    vec2(0.5, 0.5); // NOTE - maybe wrong y coord
   const vec2 previousUVTexCoord = currentUVTexCoord - velocityVector;
 
   const vec3 currentFrame = totalCurrentFrameSample / currentFrameSampleWeight;

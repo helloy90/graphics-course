@@ -10,7 +10,6 @@
 #include <etna/Profiling.hpp>
 
 #include <render_utils/Utilities.hpp>
-#include <vulkan/vulkan_enums.hpp>
 
 
 AntialiasingModule::AntialiasingModule()
@@ -18,9 +17,10 @@ AntialiasingModule::AntialiasingModule()
       {.currentProjView = glm::identity<glm::mat4>(),
        .currentInvProjView = glm::identity<glm::mat4>(),
        .previousProjView = glm::identity<glm::mat4>(),
-       .depthCutoff = 0.0f,
-       .previousFrameUsage = 0.9f,
-       .useLogColorAdjustment = shader_bool(false)})
+       .previousFrameUsage = 0.95f,
+       .jitterDamping = 2.0f,
+       .catmullRomBParam = 0.3,
+       .catmullRomCParam = 0.3})
   , jitterIndex(0)
   , currentJitter(0.0f, 0.0f)
   , previousJitter(0.0f, 0.0f)
@@ -175,6 +175,9 @@ void AntialiasingModule::execute(
     cmd_buf.bindDescriptorSets(
       vk::PipelineBindPoint::eCompute, aaPipeline.getVkPipelineLayout(), 0, {set.getVkSet()}, {});
 
+    cmd_buf.pushConstants<glm::vec2>(
+      aaPipeline.getVkPipelineLayout(), vk::ShaderStageFlagBits::eCompute, 0, {currentJitter});
+
     cmd_buf.dispatch(
       (static_cast<uint32_t>(extent.width) + 31) / 32,
       (static_cast<uint32_t>(extent.height) + 31) / 32,
@@ -209,19 +212,16 @@ void AntialiasingModule::copyPreviousProjView(const glm::mat4& previous_proj_vie
 
 void AntialiasingModule::drawGui()
 {
-
   ImGui::Begin("Application Settings");
-
-  static bool useLogColorAdjustment = false;
 
   if (ImGui::CollapsingHeader("Temporal Antialiasing"))
   {
-    ImGui::DragFloat("Depth delta cutoff", &params.depthCutoff, 0.001f, 0.0f, 1.0f);
     ImGui::DragFloat("Previous frame usage", &params.previousFrameUsage, 0.001f, 0.0f, 1.0f);
-    if (ImGui::Checkbox("Use Logarithmic color adjustment", &useLogColorAdjustment))
-    {
-      params.useLogColorAdjustment = static_cast<shader_bool>(useLogColorAdjustment);
-    }
+    ImGui::DragFloat("Jitter damping", &params.jitterDamping, 0.01f, 1.0f, 10.0f);
+    ImGui::DragFloat(
+      "Catmull-Rom sampling B parameter", &params.catmullRomBParam, 0.001f, 0.0f, 1.0f);
+    ImGui::DragFloat(
+      "Catmull-Rom sampling C parameter", &params.catmullRomCParam, 0.001f, 0.0f, 1.0f);
   }
 
   ImGui::End();
@@ -240,7 +240,8 @@ void AntialiasingModule::updateJitter()
   auto extent = previousTargetImage.getExtent();
 
   glm::vec2 resolution = glm::vec2(extent.width, extent.height);
-  currentJitter = glm::vec2(haltonX, haltonY) / resolution;
+  currentJitter =
+    glm::vec2(haltonX / params.jitterDamping, haltonY / params.jitterDamping) / resolution;
 }
 
 float AntialiasingModule::haltonJitter(uint32_t index, uint32_t base)

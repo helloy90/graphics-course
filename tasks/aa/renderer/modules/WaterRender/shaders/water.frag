@@ -295,6 +295,8 @@ void main()
 
   vec3 specular = sunIrradiance * NdotL * BRDFSpecular_GGX(alphaRoughness, NdotL, NdotV, NdotH);
 
+  specular = clamp(specular, 0, 1);
+
   vec4 displacementAndFoam = texture(heightMap, texCoord);
   float height = max(0.0, displacementAndFoam.y);
 
@@ -320,7 +322,7 @@ void main()
   float foam = clamp(displacementAndFoam.w, 0.0, 1.0);
 
   fragColor = vec4(
-    mix(brdf, params.foamColor.xyz, foam) * (1.0 - 0.7 * finalShadow) +
+    mix(brdf, params.foamColor.xyz, foam) * (1.0 - 0.4 * finalShadow) +
       finalShadowColor * finalShadow,
     1.0);
   // fragColor = vec4(params.scatterColor.xyz, 1);

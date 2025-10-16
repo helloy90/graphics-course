@@ -9,9 +9,10 @@ struct AntialiasingParams
   shader_mat4 currentProjView;
   shader_mat4 currentInvProjView;
   shader_mat4 previousProjView;
-  shader_float depthCutoff;
   shader_float previousFrameUsage;
-  shader_bool useLogColorAdjustment;
+  shader_float jitterDamping;
+  shader_float catmullRomBParam;
+  shader_float catmullRomCParam;
 };
 
 
