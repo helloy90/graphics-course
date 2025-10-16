@@ -64,6 +64,7 @@ private:
   etna::Image previousDepthImage;
 
   etna::Sampler depthSampler;
+  etna::Sampler linearClampSampler;
 
   AntialiasingParams params;
   std::optional<etna::GpuSharedResource<etna::Buffer>> paramsBuffer;

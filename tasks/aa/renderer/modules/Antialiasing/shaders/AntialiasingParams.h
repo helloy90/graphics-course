@@ -11,6 +11,7 @@ struct AntialiasingParams
   shader_mat4 previousProjView;
   shader_float depthCutoff;
   shader_float previousFrameUsage;
+  shader_bool useLogColorAdjustment;
 };
 
 

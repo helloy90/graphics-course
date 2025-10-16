@@ -10,6 +10,7 @@
 #include <etna/Profiling.hpp>
 
 #include <render_utils/Utilities.hpp>
+#include <vulkan/vulkan_enums.hpp>
 
 
 AntialiasingModule::AntialiasingModule()
@@ -18,7 +19,8 @@ AntialiasingModule::AntialiasingModule()
        .currentInvProjView = glm::identity<glm::mat4>(),
        .previousProjView = glm::identity<glm::mat4>(),
        .depthCutoff = 0.0f,
-       .previousFrameUsage = 0.9f})
+       .previousFrameUsage = 0.9f,
+       .useLogColorAdjustment = shader_bool(false)})
   , jitterIndex(0)
   , currentJitter(0.0f, 0.0f)
   , previousJitter(0.0f, 0.0f)
@@ -64,6 +66,11 @@ void AntialiasingModule::allocateResources(const AllocationInfo& info)
 
   depthSampler = etna::Sampler(
     etna::Sampler::CreateInfo{.filter = vk::Filter::eLinear, .name = "taaDepthSampler"});
+  linearClampSampler = etna::Sampler(
+    etna::Sampler::CreateInfo{
+      .filter = vk::Filter::eLinear,
+      .addressMode = vk::SamplerAddressMode::eClampToBorder,
+      .name = "taaLineaarClampSampler"});
 }
 
 void AntialiasingModule::loadShaders()
@@ -103,7 +110,7 @@ void AntialiasingModule::setBarriersForExecute(vk::CommandBuffer cmd_buf)
     cmd_buf,
     previousTargetImage.get(),
     vk::PipelineStageFlagBits2::eComputeShader,
-    vk::AccessFlagBits2::eShaderStorageRead,
+    vk::AccessFlagBits2::eShaderSampledRead,
     vk::ImageLayout::eGeneral,
     vk::ImageAspectFlagBits::eColor);
 
@@ -153,7 +160,8 @@ void AntialiasingModule::execute(
     auto set = etna::create_descriptor_set(
       shaderInfo.getDescriptorLayoutId(0),
       cmd_buf,
-      {etna::Binding{0, previousTargetImage.genBinding({}, vk::ImageLayout::eGeneral)},
+      {etna::Binding{
+         0, previousTargetImage.genBinding(linearClampSampler.get(), vk::ImageLayout::eGeneral)},
        etna::Binding{
          1,
          previousDepthImage.genBinding(
@@ -199,16 +207,21 @@ void AntialiasingModule::copyPreviousProjView(const glm::mat4& previous_proj_vie
   params.previousProjView = previous_proj_view;
 }
 
-
 void AntialiasingModule::drawGui()
 {
 
   ImGui::Begin("Application Settings");
 
+  static bool useLogColorAdjustment = false;
+
   if (ImGui::CollapsingHeader("Temporal Antialiasing"))
   {
     ImGui::DragFloat("Depth delta cutoff", &params.depthCutoff, 0.001f, 0.0f, 1.0f);
     ImGui::DragFloat("Previous frame usage", &params.previousFrameUsage, 0.001f, 0.0f, 1.0f);
+    if (ImGui::Checkbox("Use Logarithmic color adjustment", &useLogColorAdjustment))
+    {
+      params.useLogColorAdjustment = static_cast<shader_bool>(useLogColorAdjustment);
+    }
   }
 
   ImGui::End();
