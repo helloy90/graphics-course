@@ -1,10 +1,10 @@
 #include "Utilities.hpp"
-#include "etna/BlockingTransferHelper.hpp"
-#include "etna/OneShotCmdMgr.hpp"
 
 #include <tracy/Tracy.hpp>
 #include <stb_image.h>
-#include <vulkan/vulkan_enums.hpp>
+
+#include <etna/Profiling.hpp>
+
 
 namespace render_utility
 {
@@ -57,6 +57,8 @@ void generate_mipmaps_vk_style(
   uint32_t mip_levels,
   uint32_t layer_count)
 {
+  ZoneScoped;
+
   auto extent = image.getExtent();
 
   auto commandBuffer = one_shot_cmd_mgr.start();
@@ -172,26 +174,22 @@ void generate_mipmaps_vk_style(
   one_shot_cmd_mgr.submitAndWait(commandBuffer);
 }
 
-// assume images have the same resolution
 void blit_image(
   vk::CommandBuffer cmd_buf,
   vk::Image source_image,
   vk::Image target_image,
+  vk::ImageAspectFlagBits aspect_mask,
   vk::Offset3D offset_size)
 {
+  ETNA_PROFILE_GPU(cmd_buf, blitImage);
+
   std::array srcOffset = {vk::Offset3D{}, offset_size};
   auto srdImageSubrecourceLayers = vk::ImageSubresourceLayers{
-    .aspectMask = vk::ImageAspectFlagBits::eColor,
-    .mipLevel = 0,
-    .baseArrayLayer = 0,
-    .layerCount = 1};
+    .aspectMask = aspect_mask, .mipLevel = 0, .baseArrayLayer = 0, .layerCount = 1};
 
   std::array dstOffset = {vk::Offset3D{}, offset_size};
   auto dstImageSubrecourceLayers = vk::ImageSubresourceLayers{
-    .aspectMask = vk::ImageAspectFlagBits::eColor,
-    .mipLevel = 0,
-    .baseArrayLayer = 0,
-    .layerCount = 1};
+    .aspectMask = aspect_mask, .mipLevel = 0, .baseArrayLayer = 0, .layerCount = 1};
 
   auto imageBlit = vk::ImageBlit2{
     .sType = vk::StructureType::eImageBlit2,
@@ -210,7 +208,8 @@ void blit_image(
     .dstImageLayout = vk::ImageLayout::eTransferDstOptimal,
     .regionCount = 1,
     .pRegions = &imageBlit,
-    .filter = vk::Filter::eLinear};
+    .filter = (aspect_mask == vk::ImageAspectFlagBits::eColor) ? vk::Filter::eLinear
+                                                               : vk::Filter::eNearest};
 
   cmd_buf.blitImage2(&blitInfo);
 }
