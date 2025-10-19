@@ -11,10 +11,9 @@ add_subdirectory(modules)
 
 target_link_libraries(project_renderer
   PRIVATE glfw etna glm::glm wsi gui scene render_utils 
-  antialiasing_module lights_module static_meshes_module
-  terrain_generator_module terrain_render_module 
-  water_generator_module water_render_module
-  tonemapping_module)
+  ambient_occlusion_module antialiasing_module lights_module 
+  static_meshes_module terrain_generator_module terrain_render_module 
+  water_generator_module water_render_module tonemapping_module)
 
 target_add_shaders(project_renderer
   shaders/decoy.vert

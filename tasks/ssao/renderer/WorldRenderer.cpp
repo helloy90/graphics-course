@@ -14,7 +14,8 @@
 
 
 WorldRenderer::WorldRenderer(const InitInfo& info)
-  : antialiasingModule()
+  : ssaoModule()
+  , antialiasingModule()
   , lightModule()
   , staticMeshesRenderModule()
   , terrainGeneratorModule()
@@ -58,6 +59,7 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
       .renderTargetFormat = renderTargetFormat,
       .normalsFormat = vk::Format::eR16G16B16A16Snorm,
       .velocityBufferFormat = vk::Format::eR16G16Sfloat,
+      .occlusionFormat = vk::Format::eR32Sfloat,
       .depthFormat = vk::Format::eD32Sfloat,
       .shadowsFormat = vk::Format::eD16Unorm,
       .shadowCascadesAmount = shadowCascadesAmount});
@@ -89,6 +91,8 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
   transferHelper = std::make_unique<etna::BlockingTransferHelper>(
     etna::BlockingTransferHelper::CreateInfo{.stagingSize = 4096 * 4096 * 6});
 
+  ssaoModule.allocateResources(
+    SSAOModule::AllocationInfo{.noiseTextureSize = {8, 8}, .kernelSize = 16, .seed = 81528719});
   antialiasingModule.allocateResources(
     AntialiasingModule::AllocationInfo{
       .resolution = resolution,
@@ -102,7 +106,8 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
   terrainRenderModule.allocateResources();
   tonemappingModule.allocateResources();
   waterGeneratorModule.allocateResources(
-    WaterGeneratorModule::AllocationInfo{.texturesExtent = 1024});
+    WaterGeneratorModule::AllocationInfo{
+      .texturesExtent = 1024, .texturesFormat = vk::Format::eR32G32B32A32Sfloat});
   waterRenderModule.allocateResources();
 }
 
@@ -167,6 +172,7 @@ void WorldRenderer::loadInfo()
 
 void WorldRenderer::loadShaders()
 {
+  ssaoModule.loadShaders();
   antialiasingModule.loadShaders();
   lightModule.loadShaders();
   staticMeshesRenderModule.loadShaders();
@@ -184,6 +190,7 @@ void WorldRenderer::loadShaders()
 
 void WorldRenderer::setupRenderPipelines()
 {
+  ssaoModule.setupPipelines();
   antialiasingModule.setupPipelines();
   lightModule.setupPipelines();
   staticMeshesRenderModule.setupPipelines(
@@ -448,6 +455,17 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
       gBuffer->genColorAttachmentParams(vk::AttachmentLoadOp::eLoad),
       gBuffer->genDepthAttachmentParams(vk::AttachmentLoadOp::eLoad));
 
+    gBuffer->prepareForOcclusionExecute(cmd_buf);
+
+    etna::flush_barriers(cmd_buf);
+
+    ssaoModule.execute(
+      cmd_buf,
+      gBuffer->getNormalTexture(),
+      gBuffer->getDepthTexture(),
+      gBuffer->getDepthSampler(),
+      gBuffer->getOcclusionTexture());
+
     etna::set_state(
       cmd_buf,
       renderTarget.get(),
@@ -457,7 +475,6 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
       vk::ImageAspectFlagBits::eColor);
 
     gBuffer->prepareForRead(cmd_buf);
-    gBuffer->prepareForDepthRead(cmd_buf, vk::PipelineStageFlagBits2::eFragmentShader);
 
     etna::flush_barriers(cmd_buf);
 

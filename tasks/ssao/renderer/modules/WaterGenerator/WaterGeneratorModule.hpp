@@ -23,6 +23,8 @@ public:
   struct AllocationInfo
   {
     uint32_t texturesExtent;
+    // Only RGBA formats
+    vk::Format texturesFormat;
   };
 
 public:

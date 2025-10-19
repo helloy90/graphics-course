@@ -13,6 +13,7 @@
 
 #include "wsi/Keyboard.hpp"
 
+#include "modules/AmbientOcclusion/SSAOModule.hpp"
 #include "modules/Antialiasing/AntialiasingModule.hpp"
 #include "modules/Light/LightModule.hpp"
 #include "modules/StaticMeshesRender/MeshesRenderModule.hpp"
@@ -71,6 +72,7 @@ private:
   void getPlanesForShadowCascades(float near_plane, float far_plane, float weight);
 
 private:
+  SSAOModule ssaoModule;
   AntialiasingModule antialiasingModule;
   LightModule lightModule;
   MeshesRenderModule staticMeshesRenderModule;

@@ -56,6 +56,16 @@ GBuffer::GBuffer(const CreateInfo& info)
       .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
       .allocationCreate = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT});
 
+  occlusion = ctx.createImage(
+    etna::Image::CreateInfo{
+      .extent = renderImagesExtent,
+      .name = "gOcclusion",
+      .format = info.occlusionFormat,
+      .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled |
+        vk::ImageUsageFlagBits::eStorage,
+      .memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+      .allocationCreate = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT});
+
   depth = ctx.createImage(
     etna::Image::CreateInfo{
       .extent = renderImagesExtent,
@@ -162,6 +172,27 @@ void GBuffer::prepareForDepthRead(
     vk::ImageAspectFlagBits::eDepth);
 }
 
+void GBuffer::prepareForOcclusionExecute(vk::CommandBuffer cmd_buf)
+{
+  prepareForDepthRead(cmd_buf, vk::PipelineStageFlagBits2::eComputeShader);
+
+  etna::set_state(
+    cmd_buf,
+    normal.get(),
+    vk::PipelineStageFlagBits2::eComputeShader,
+    vk::AccessFlagBits2::eShaderStorageRead,
+    vk::ImageLayout::eGeneral,
+    vk::ImageAspectFlagBits::eColor);
+
+  etna::set_state(
+    cmd_buf,
+    occlusion.get(),
+    vk::PipelineStageFlagBits2::eComputeShader,
+    vk::AccessFlagBits2::eShaderStorageWrite,
+    vk::ImageLayout::eGeneral,
+    vk::ImageAspectFlagBits::eColor);
+}
+
 void GBuffer::prepareForRead(vk::CommandBuffer cmd_buf)
 {
   etna::set_state(
@@ -185,6 +216,15 @@ void GBuffer::prepareForRead(vk::CommandBuffer cmd_buf)
     vk::AccessFlagBits2::eShaderStorageRead,
     vk::ImageLayout::eGeneral,
     vk::ImageAspectFlagBits::eColor);
+  etna::set_state(
+    cmd_buf,
+    occlusion.get(),
+    vk::PipelineStageFlagBits2::eFragmentShader,
+    vk::AccessFlagBits2::eShaderStorageRead,
+    vk::ImageLayout::eGeneral,
+    vk::ImageAspectFlagBits::eColor);
+
+  prepareForDepthRead(cmd_buf, vk::PipelineStageFlagBits2::eFragmentShader);
 
   for (const auto& shadowMap : shadows)
   {

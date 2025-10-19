@@ -80,33 +80,33 @@ void WaterGeneratorModule::allocateResources(const AllocationInfo& info)
     etna::Image::CreateInfo{
       .extent = textureExtent,
       .name = "initial_spectrum_tex",
-      .format = vk::Format::eR32G32B32A32Sfloat,
+      .format = info.texturesFormat,
       .imageUsage = vk::ImageUsageFlagBits::eStorage});
 
   updatedSpectrumSlopeTexture = ctx.createImage(
     etna::Image::CreateInfo{
       .extent = textureExtent,
       .name = "updated_spectrum_slope_tex",
-      .format = vk::Format::eR32G32B32A32Sfloat,
+      .format = info.texturesFormat,
       .imageUsage = vk::ImageUsageFlagBits::eStorage});
   updatedSpectrumDisplacementTexture = ctx.createImage(
     etna::Image::CreateInfo{
       .extent = textureExtent,
       .name = "updated_spectrum_displacement_tex",
-      .format = vk::Format::eR32G32B32A32Sfloat,
+      .format = info.texturesFormat,
       .imageUsage = vk::ImageUsageFlagBits::eStorage});
 
   heightMap = ctx.createImage(
     etna::Image::CreateInfo{
       .extent = textureExtent,
       .name = "water_height_map",
-      .format = vk::Format::eR32G32B32A32Sfloat,
+      .format = info.texturesFormat,
       .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage});
   normalMap = ctx.createImage(
     etna::Image::CreateInfo{
       .extent = textureExtent,
       .name = "water_normal_map",
-      .format = vk::Format::eR32G32B32A32Sfloat,
+      .format = info.texturesFormat,
       .imageUsage = vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage});
 
   paramsBuffer = etna::get_context().createBuffer(

@@ -18,6 +18,7 @@ public:
     vk::Format renderTargetFormat;
     vk::Format normalsFormat;
     vk::Format velocityBufferFormat;
+    vk::Format occlusionFormat;
     vk::Format depthFormat;
     vk::Format shadowsFormat;
     uint32_t shadowCascadesAmount;
@@ -35,6 +36,9 @@ public:
 
   void prepareForDepthRead(vk::CommandBuffer cmd_buf, vk::PipelineStageFlagBits2 pipeline_stage);
 
+  // NOTE - maybe specific function should be (re-)moved
+  void prepareForOcclusionExecute(vk::CommandBuffer cmd_buf);
+
   // no flush
   void prepareForRead(vk::CommandBuffer cmd_buf);
 
@@ -43,6 +47,7 @@ public:
   void prepareForDepthCopy(vk::CommandBuffer cmd_buf);
 
   void prepareForTaaExecute(vk::CommandBuffer cmd_buf);
+
 
   // no flush
   void prepareForVelocityReset(vk::CommandBuffer cmd_buf);
@@ -79,6 +84,7 @@ public:
   const etna::Image& getNormalTexture() const { return normal; }
   const etna::Image& getMaterialTexture() const { return material; }
   const etna::Image& getVelocityTexture() const { return velocity; }
+  const etna::Image& getOcclusionTexture() const { return occlusion; }
   const etna::Image& getDepthTexture() const { return depth; }
   const std::vector<etna::Image>& getShadowTextures() const { return shadows; }
   const etna::Sampler& getDepthSampler() const { return depthSampler; }
@@ -88,6 +94,7 @@ private:
   etna::Image normal;
   etna::Image material;
   etna::Image velocity;
+  etna::Image occlusion;
   etna::Image depth;
   std::vector<etna::Image> shadows;
 
