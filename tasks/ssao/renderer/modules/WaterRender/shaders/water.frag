@@ -3,6 +3,7 @@
 #extension GL_GOOGLE_include_directive : require
 
 #include "WaterRenderParams.h"
+#include "WaterParams.h"
 
 #include "DirectionalLight.h"
 
@@ -20,6 +21,11 @@ layout(location = 0) in VS_OUT
 
 layout(location = 0) out vec4 fragColor;
 layout(location = 1) out vec2 gVelocity;
+
+layout(binding = 0) uniform params_t
+{
+  WaterParams waterParams;
+};
 
 layout(binding = 1) uniform water_render_params_t
 {
@@ -325,7 +331,7 @@ void main()
   fragColor = vec4(
     mix(brdf, params.foamColor.xyz, foam) * (1.0 - 0.3 * finalShadow) +
       finalShadowColor * finalShadow,
-    1.0);
+    clamp(mix(0.0, 1.0, 1.0 - NdotV * 0.5), 0.0, 1.0));
   // fragColor = vec4(params.scatterColor.xyz, 1);
 
   const vec3 currentPosNDC = currentPos.xyz / currentPos.w;
