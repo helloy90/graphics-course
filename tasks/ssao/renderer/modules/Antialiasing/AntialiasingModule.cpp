@@ -10,6 +10,9 @@
 
 #include <render_utils/Utilities.hpp>
 
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/string_cast.hpp>
+
 
 AntialiasingModule::AntialiasingModule()
   : params(
@@ -20,7 +23,8 @@ AntialiasingModule::AntialiasingModule()
        .catmullRomBParam = 0.3f,
        .catmullRomCParam = 0.3f})
   , jitterIndex(0)
-  , jitterDamping(1.0f)
+  , jitterDamping(2.0f)
+  , jitterCutoffIndex(16)
   , currentJitter(0.0f, 0.0f)
   , previousJitter(0.0f, 0.0f)
 {
@@ -174,7 +178,10 @@ void AntialiasingModule::execute(
       vk::PipelineBindPoint::eCompute, aaPipeline.getVkPipelineLayout(), 0, {set.getVkSet()}, {});
 
     cmd_buf.pushConstants<glm::vec2>(
-      aaPipeline.getVkPipelineLayout(), vk::ShaderStageFlagBits::eCompute, 0, {currentJitter});
+      aaPipeline.getVkPipelineLayout(),
+      vk::ShaderStageFlagBits::eCompute,
+      0,
+      {currentJitter * glm::vec2(extent.width, extent.height)});
 
     cmd_buf.dispatch(
       (static_cast<uint32_t>(extent.width) + 31) / 32,
@@ -216,6 +223,7 @@ void AntialiasingModule::drawGui()
   {
     ImGui::DragFloat("Previous frame usage", &params.previousFrameUsage, 0.001f, 0.0f, 1.0f);
     ImGui::DragFloat("Jitter damping", &jitterDamping, 0.01f, 1.0f, 10.0f);
+    ImGui::DragInt("Jitter cutoff index", &jitterCutoffIndex, 1.0f, 1, 256);
     ImGui::DragFloat(
       "Catmull-Rom sampling B parameter", &params.catmullRomBParam, 0.001f, 0.0f, 1.0f);
     ImGui::DragFloat(
@@ -233,7 +241,7 @@ void AntialiasingModule::updateJitter()
   float haltonY = 2.0f * haltonJitter(jitterIndex + 1, 3) - 1.0f;
 
   jitterIndex++;
-  jitterIndex = jitterIndex % 8; // maybe change 8 to some parameter
+  jitterIndex = jitterIndex % jitterCutoffIndex;
 
   auto extent = previousTargetImage.getExtent();
 

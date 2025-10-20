@@ -475,7 +475,7 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
       vk::ImageAspectFlagBits::eColor);
 
     gBuffer->prepareForRead(cmd_buf);
-
+   
     etna::flush_barriers(cmd_buf);
 
     {

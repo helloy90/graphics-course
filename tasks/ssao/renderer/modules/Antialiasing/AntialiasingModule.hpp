@@ -73,6 +73,7 @@ private:
 
   uint32_t jitterIndex;
   float jitterDamping;
+  int jitterCutoffIndex;
 
   glm::vec2 currentJitter;
   glm::vec2 previousJitter;
