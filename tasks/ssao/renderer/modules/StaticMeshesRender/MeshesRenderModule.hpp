@@ -41,7 +41,7 @@ public:
   void executeShadowMapping(
     vk::CommandBuffer cmd_buf,
     vk::Extent2D extent,
-    etna::Binding light_info_binding,
+    etna::BufferBinding light_info_binding,
     etna::RenderTargetState::AttachmentParams shadow_mapping_attachment_params);
 
   void drawGui();
@@ -55,7 +55,7 @@ private:
   void cullMeshes(
     vk::CommandBuffer cmd_buf,
     vk::PipelineLayout pipeline_layout,
-    const etna::Binding& proj_view_binding);
+    const etna::BufferBinding& proj_view_binding);
 
   void renderScene(
     vk::CommandBuffer cmd_buf,

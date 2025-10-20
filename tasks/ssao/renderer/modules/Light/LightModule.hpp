@@ -43,13 +43,12 @@ public:
     return shadowCastingDirLights->getInfoBuffer();
   }
 
-  etna::Binding getShadowCastingDirLightMatrixBinding(uint32_t index, uint32_t cascade_index) const
+  etna::BufferBinding getShadowCastingDirLightMatrixBinding(uint32_t cascade_index) const
   {
-    return etna::Binding{
-      index,
+    return 
       getShadowCastingDirLightInfoBuffer().genBinding(
         sizeof(ShadowCastingDirectionalLight::ShaderInfo) + sizeof(glm::mat4x4) * cascade_index,
-        sizeof(glm::mat4x4))};
+        sizeof(glm::mat4x4));
   }
 
 private:

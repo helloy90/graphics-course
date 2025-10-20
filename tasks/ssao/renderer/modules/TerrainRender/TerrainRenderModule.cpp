@@ -172,7 +172,7 @@ void TerrainRenderModule::executeShadowMapping(
   vk::CommandBuffer cmd_buf,
   const RenderPacket& packet,
   vk::Extent2D extent,
-  etna::Binding light_info_binding,
+  etna::BufferBinding light_info_binding,
   etna::RenderTargetState::AttachmentParams shadow_mapping_attachment_params)
 {
   {
@@ -185,7 +185,7 @@ void TerrainRenderModule::executeShadowMapping(
     auto set = etna::create_descriptor_set(
       shaderInfo.getDescriptorLayoutId(1),
       cmd_buf,
-      {etna::Binding{0, paramsBuffer.genBinding()}, light_info_binding});
+      {etna::Binding{0, paramsBuffer.genBinding()}, etna::Binding{1, light_info_binding}});
 
     auto vkSet = set.getVkSet();
 

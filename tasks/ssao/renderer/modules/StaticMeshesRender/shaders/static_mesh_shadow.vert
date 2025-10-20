@@ -18,7 +18,7 @@ layout(binding = 1) readonly buffer draw_instance_indices_t
   uint drawInstanceIndices[];
 };
 
-layout(binding = 9) readonly buffer light_info_t
+layout(binding = 2) readonly buffer light_info_t
 {
   mat4 lightProjView;
 };

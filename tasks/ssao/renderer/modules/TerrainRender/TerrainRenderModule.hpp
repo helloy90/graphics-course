@@ -40,7 +40,7 @@ public:
     vk::CommandBuffer cmd_buf,
     const RenderPacket& packet,
     vk::Extent2D extent,
-    etna::Binding light_info_binding,
+    etna::BufferBinding light_info_binding,
     etna::RenderTargetState::AttachmentParams shadow_mapping_attachment_params);
 
   void drawGui();

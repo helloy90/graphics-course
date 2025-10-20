@@ -173,7 +173,7 @@ void MeshesRenderModule::executeRender(
 void MeshesRenderModule::executeShadowMapping(
   vk::CommandBuffer cmd_buf,
   vk::Extent2D extent,
-  etna::Binding light_info_binding,
+  etna::BufferBinding light_info_binding,
   etna::RenderTargetState::AttachmentParams shadow_mapping_attachment_params)
 {
   cmd_buf.bindPipeline(vk::PipelineBindPoint::eCompute, cullingShadowPipeline.getVkPipeline());
@@ -197,7 +197,7 @@ void MeshesRenderModule::executeShadowMapping(
       cmd_buf,
       {etna::Binding{0, sceneMgr->getInstanceMatricesBuffer().genBinding()},
        etna::Binding{1, sceneMgr->getDrawInstanceIndicesBuffer().genBinding()},
-       light_info_binding});
+       etna::Binding{2, light_info_binding}});
 
     cmd_buf.bindDescriptorSets(
       vk::PipelineBindPoint::eGraphics,
@@ -297,7 +297,7 @@ void MeshesRenderModule::cullMeshes(
 void MeshesRenderModule::cullMeshes(
   vk::CommandBuffer cmd_buf,
   vk::PipelineLayout pipeline_layout,
-  const etna::Binding& proj_view_binding)
+  const etna::BufferBinding& proj_view_binding)
 {
   ETNA_PROFILE_GPU(cmd_buf, cullMeshesShadow);
   {
@@ -338,7 +338,7 @@ void MeshesRenderModule::cullMeshes(
      etna::Binding{6, sceneMgr->getDrawInstanceIndicesBuffer().genBinding()},
      etna::Binding{7, sceneMgr->getDrawCommandsBuffer().genBinding()},
      etna::Binding{8, paramsBuffer.genBinding()},
-     proj_view_binding});
+     etna::Binding{9, proj_view_binding}});
   auto vkSet = set.getVkSet();
 
   cmd_buf.bindDescriptorSets(

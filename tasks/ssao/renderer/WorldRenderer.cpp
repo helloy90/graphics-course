@@ -429,14 +429,14 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
         staticMeshesRenderModule.executeShadowMapping(
           cmd_buf,
           gBuffer->getShadowTextureExtent(),
-          lightModule.getShadowCastingDirLightMatrixBinding(9, i),
+          lightModule.getShadowCastingDirLightMatrixBinding(i),
           gBuffer->genShadowMappingAttachmentParams(i));
 
         terrainRenderModule.executeShadowMapping(
           cmd_buf,
           renderPacket,
           gBuffer->getShadowTextureExtent(),
-          lightModule.getShadowCastingDirLightMatrixBinding(1, i),
+          lightModule.getShadowCastingDirLightMatrixBinding(i),
           gBuffer->genShadowMappingAttachmentParams(i, vk::AttachmentLoadOp::eLoad));
       }
     }
