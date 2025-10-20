@@ -56,6 +56,7 @@ layout(binding = 7) uniform render_params_t
 layout(push_constant) uniform push_constant_t
 {
   mat4 viewMatrix;
+  mat4 invViewMatrix;
 };
 // -----------------------------------------------
 
@@ -212,16 +213,21 @@ void main()
   DirectionalLight shadowCastingDirLight = {
     shadowCastingDirLightDirection, shadowCastingDirLightIntensity, shadowCastingDirLightColor};
 
+  const vec4 worldSpacePosition = vec4(worldPos, 1.0);
+
+  vec4 viewSpacePosition = viewMatrix * worldSpacePosition;
+  viewSpacePosition /= viewSpacePosition.w;
+
   const float roughness = params.roughness;
 
   const float alphaRoughness = roughness * roughness;
 
-  const vec3 pointToLight = -normalize(shadowCastingDirLight.direction);
+  const vec3 pointToLight = normalize((viewMatrix * vec4(-shadowCastingDirLight.direction, 0)).xyz);
 
-  const vec3 fromPosToCamera = normalize(cameraWorldPosition.xyz - worldPos); // V
-  const vec3 fromPosToLight = normalize(pointToLight);                        // L
-  const vec3 surfaceNormal = normalize(normal);                               // N
-  const vec3 halfVector = normalize(fromPosToLight + fromPosToCamera);        // H
+  const vec3 fromPosToCamera = normalize(-viewSpacePosition.xyz);                           // V
+  const vec3 fromPosToLight = normalize(pointToLight);                                      // L
+  const vec3 surfaceNormal = normalize((transpose(invViewMatrix) * vec4(normal, 0.0)).xyz); // N
+  const vec3 halfVector = normalize(fromPosToLight + fromPosToCamera);                      // H
 
   const float VdotH = clampedDot(fromPosToCamera, halfVector);
   const float HdotL = clampedDot(halfVector, fromPosToLight);
@@ -231,11 +237,6 @@ void main()
 
   const vec3 reflectedDir = reflect(-fromPosToCamera, normal);
   vec3 reflection = texture(skybox, reflectedDir).rgb * params.reflectionStrength;
-
-  const vec4 worldSpacePosition = vec4(worldPos, 1.0);
-
-  vec4 viewSpacePosition = viewMatrix * worldSpacePosition;
-  viewSpacePosition /= viewSpacePosition.w;
 
   uint currentCascade = getShadowCascade(viewSpacePosition.z, 0.0);
   uint overlappingCascade = getShadowCascade(viewSpacePosition.z, nearPlanesBackwardOffset);

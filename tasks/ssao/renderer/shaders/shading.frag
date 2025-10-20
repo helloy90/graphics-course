@@ -342,20 +342,15 @@ float computeShadow(
 
 void main()
 {
-  // const vec2 texCoord = gl_FragCoord.xy / resolution;
   const ivec2 texCoord = ivec2(gl_FragCoord.xy);
-
   const vec2 uvTexCoord = vec2(texCoord) / resolution;
 
-  // const vec3 albedo = texture(gAlbedo, texCoord).rgb;
   const vec3 albedo = imageLoad(gAlbedo, texCoord).rgb;
 
-  // const vec3 normal = normalize(texture(gNormal, texCoord).xyz);
   const vec3 normal = normalize(imageLoad(gNormal, texCoord).xyz);
   const vec3 viewSpaceNormal = normalize((transpose(params.invView) * vec4(normal, 0.0)).xyz);
 
   const vec4 material = imageLoad(gMaterial, texCoord);
-  // const vec4 material = texture(gMaterial, texCoord);
   const float depth = texture(gDepth, uvTexCoord).x;
 
   const vec4 screenSpacePosition = vec4(uvTexCoord * 2.0 - 1.0, depth, 1.0);
@@ -366,7 +361,7 @@ void main()
   vec4 worldSpacePosition = (params.invProjView * screenSpacePosition);
   worldSpacePosition /= worldSpacePosition.w;
 
-  const vec3 cameraViewPosition = vec3(0); // maybe just 0, 0, 0
+  const vec3 cameraViewPosition = vec3(0);
 
   // const vec3 viewDirection = (worldSpacePosition.xyz - params.cameraWorldPosition);
   // const vec3 reflection = texture(cubemap, reflect(viewDirection, normal)).rgb;

@@ -137,6 +137,7 @@ void WaterRenderModule::executeRender(
   const RenderPacket& packet,
   const etna::Buffer& heavy_packet_info,
   const glm::mat4& view_matrix,
+  const glm::mat4& inv_view_matrix,
   std::vector<etna::RenderTargetState::AttachmentParams> color_attachment_params,
   etna::RenderTargetState::AttachmentParams depth_attachment_params,
   const etna::Image& water_map,
@@ -161,6 +162,7 @@ void WaterRenderModule::executeRender(
       waterRenderPipeline.getVkPipelineLayout(),
       heavy_packet_info,
       view_matrix,
+      inv_view_matrix,
       water_map,
       water_normal_map,
       water_sampler,
@@ -270,6 +272,7 @@ void WaterRenderModule::renderWater(
   vk::PipelineLayout pipeline_layout,
   const etna::Buffer& heavy_packet_info,
   const glm::mat4& view_matrix,
+  const glm::mat4& inv_view_matrix,
   const etna::Image& water_map,
   const etna::Image& water_normal_map,
   const etna::Sampler& water_sampler,
@@ -322,7 +325,7 @@ void WaterRenderModule::renderWater(
   cmd_buf.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline_layout, 0, {vkSet}, {});
 
   cmd_buf.pushConstants<glm::mat4>(
-    pipeline_layout, vk::ShaderStageFlagBits::eFragment, 0, {view_matrix});
+    pipeline_layout, vk::ShaderStageFlagBits::eFragment, 0, {view_matrix, inv_view_matrix});
 
   cmd_buf.draw(4, params.waterInChunks.x * params.waterInChunks.y, 0, 0);
 }

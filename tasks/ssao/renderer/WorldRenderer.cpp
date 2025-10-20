@@ -475,7 +475,7 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
       vk::ImageAspectFlagBits::eColor);
 
     gBuffer->prepareForRead(cmd_buf);
-   
+
     etna::flush_barriers(cmd_buf);
 
     {
@@ -500,6 +500,7 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
       renderPacket,
       currentHeavyRenderInfo,
       params.view,
+      params.invView,
       {{.image = renderTarget.get(),
         .view = renderTarget.getView({}),
         .loadOp = vk::AttachmentLoadOp::eLoad},
