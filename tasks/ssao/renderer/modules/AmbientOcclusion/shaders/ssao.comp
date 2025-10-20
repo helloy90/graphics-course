@@ -19,4 +19,14 @@ layout(push_constant) uniform push_constant_t
   uint kernelSize;
 };
 
-void main() {}
+void main() {
+  const ivec2 resolution = imageSize(gOcclusion);
+
+  const ivec2 currentTexCoord = ivec2(gl_GlobalInvocationID.xy);
+  const vec2 currentUVTexCoord = vec2(currentTexCoord) / vec2(resolution);
+
+  if (currentTexCoord.x >= resolution.x || currentTexCoord.y >= resolution.y)
+  {
+    return;
+  }
+}

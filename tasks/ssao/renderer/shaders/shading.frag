@@ -151,21 +151,29 @@ vec3 diffuseBrdf(vec3 color)
   return color / PI;
 }
 
-// for now is in world space
+// everything, except light, should be in the same space
 vec3 computeLightPBR(
-  vec3 baseColor, vec3 pos, Light light, vec3 normal, vec3 reflection, vec4 material)
+  vec3 base_color,
+  vec3 pos,
+  Light light,
+  vec3 normal,
+  vec3 camera_position,
+  vec3 reflection,
+  vec4 material,
+  bool view_space)
 {
   const float roughness = material.g;
   const float metallic = material.b;
 
   const float alphaRoughness = roughness * roughness;
 
-  const vec3 pointToLight = light.pos - pos;
+  const vec3 pointToLight =
+    view_space ? ((params.view * vec4(light.pos, 1.0)).xyz - pos) : (light.pos - pos);
 
-  const vec3 fromPosToCamera = normalize(params.cameraWorldPosition - pos); // V
-  const vec3 fromPosToLight = normalize(pointToLight);                      // L
-  const vec3 surfaceNormal = normalize(normal);                             // N
-  const vec3 halfVector = normalize(fromPosToLight + fromPosToCamera);      // H
+  const vec3 fromPosToCamera = normalize(camera_position - pos);       // V
+  const vec3 fromPosToLight = normalize(pointToLight);                 // L
+  const vec3 surfaceNormal = normalize(normal);                        // N
+  const vec3 halfVector = normalize(fromPosToLight + fromPosToCamera); // H
 
   const float VdotH = clampedDot(fromPosToCamera, halfVector);
   const float HdotL = clampedDot(halfVector, fromPosToLight);
@@ -177,8 +185,8 @@ vec3 computeLightPBR(
 
   vec3 f0 = vec3(0.04);
   vec3 dielectricFrensel = frenselSchlick(f0, VdotH);
-  vec3 metalFrensel = frenselSchlick(baseColor * reflection, VdotH);
-  vec3 diffuse = lightIntensity * NdotL * diffuseBrdf(baseColor);
+  vec3 metalFrensel = frenselSchlick(base_color * reflection, VdotH);
+  vec3 diffuse = lightIntensity * NdotL * diffuseBrdf(base_color);
 
   vec3 specularMetal =
     lightIntensity * NdotL * BRDFSpecular_GGX(alphaRoughness, NdotL, NdotV, NdotH);
@@ -190,21 +198,29 @@ vec3 computeLightPBR(
   return mix(dielectricBrdf, metalBrdf, metallic);
 }
 
-// for now is in world space
+// everything, except light, should be in the same space
 vec3 computeLightPBR(
-  vec3 baseColor, vec3 pos, DirectionalLight light, vec3 normal, vec3 reflection, vec4 material)
+  vec3 base_color,
+  vec3 pos,
+  DirectionalLight light,
+  vec3 normal,
+  vec3 camera_position,
+  vec3 reflection,
+  vec4 material,
+  bool view_space)
 {
   const float roughness = material.g;
   const float metallic = material.b;
 
   const float alphaRoughness = roughness * roughness;
 
-  const vec3 pointToLight = -light.direction;
+  const vec3 pointToLight =
+    view_space ? (params.view * vec4(-light.direction, 0)).xyz : (-light.direction);
 
-  const vec3 fromPosToCamera = normalize(params.cameraWorldPosition - pos); // V
-  const vec3 fromPosToLight = normalize(pointToLight);                      // L
-  const vec3 surfaceNormal = normalize(normal);                             // N
-  const vec3 halfVector = normalize(fromPosToLight + fromPosToCamera);      // H
+  const vec3 fromPosToCamera = normalize(camera_position - pos);       // V
+  const vec3 fromPosToLight = normalize(pointToLight);                 // L
+  const vec3 surfaceNormal = normalize(normal);                        // N
+  const vec3 halfVector = normalize(fromPosToLight + fromPosToCamera); // H
 
   const float VdotH = clampedDot(fromPosToCamera, halfVector);
   const float HdotL = clampedDot(halfVector, fromPosToLight);
@@ -216,8 +232,8 @@ vec3 computeLightPBR(
 
   vec3 f0 = vec3(0.04);
   vec3 dielectricFrensel = frenselSchlick(f0, VdotH);
-  vec3 metalFrensel = frenselSchlick(baseColor * reflection, VdotH);
-  vec3 diffuse = lightIntensity * NdotL * diffuseBrdf(baseColor);
+  vec3 metalFrensel = frenselSchlick(base_color * reflection, VdotH);
+  vec3 diffuse = lightIntensity * NdotL * diffuseBrdf(base_color);
 
   vec3 specularMetal =
     lightIntensity * NdotL * BRDFSpecular_GGX(alphaRoughness, NdotL, NdotV, NdotH);
@@ -350,8 +366,14 @@ void main()
   vec4 worldSpacePosition = (params.invProjView * screenSpacePosition);
   worldSpacePosition /= worldSpacePosition.w;
 
-  const vec3 viewDirection = (worldSpacePosition.xyz - params.cameraWorldPosition);
-  const vec3 reflection = texture(cubemap, reflect(viewDirection, normal)).rgb;
+  const vec3 cameraViewPosition = vec3(0); // maybe just 0, 0, 0
+
+  // const vec3 viewDirection = (worldSpacePosition.xyz - params.cameraWorldPosition);
+  // const vec3 reflection = texture(cubemap, reflect(viewDirection, normal)).rgb;
+  const vec3 viewDirection = (viewSpacePosition.xyz - cameraViewPosition);
+  const vec3 reflection = texture(cubemap, reflect(viewDirection, viewSpaceNormal)).rgb;
+
+  const bool calcLightInViewSpace = true;
 
   // change to IBL later
   vec3 color = vec3(albedo * 0.3);
@@ -363,7 +385,12 @@ void main()
     shadowCastingDirLightDirection, shadowCastingDirLightIntensity, shadowCastingDirLightColor};
 
   vec3 point = shadowCastingDirLight.color *
-    pow(clampedDot(normalize(-viewDirection), normalize(shadowCastingDirLight.direction)), 3500.0);
+    pow(clampedDot(
+          normalize(-viewDirection),
+          normalize(
+            calcLightInViewSpace ? (params.view * vec4(shadowCastingDirLight.direction, 0)).xyz
+                                 : shadowCastingDirLight.direction)),
+        3500.0);
   skyboxColor += point;
 
   if (depth >= 1.0)
@@ -421,20 +448,32 @@ void main()
   const vec3 finalShadowColor = mix(shadowColor, nextShadowColor, interpolator);
 
   vec3 pbrColor = computeLightPBR(
-    albedo, worldSpacePosition.xyz, shadowCastingDirLight, normal, reflection, material);
+    albedo,
+    viewSpacePosition.xyz,
+    shadowCastingDirLight,
+    viewSpaceNormal,
+    cameraViewPosition,
+    reflection,
+    material,
+    calcLightInViewSpace);
 
   color += pbrColor * (1.0 - finalShadow) + finalShadowColor * finalShadow;
 
   for (uint i = 0; i < directionalLightsAmount; i++)
   {
     DirectionalLight currentLight = directionalLightsBuffer[i];
-
-    // sun
-    vec3 point = currentLight.color *
-      pow(clampedDot(normalize(-viewDirection), normalize(currentLight.direction)), 3500.0);
-
-    vec3 pbrColor =
-      computeLightPBR(albedo, worldSpacePosition.xyz, currentLight, normal, reflection, material);
+    // // sun
+    // vec3 point = currentLight.color *
+    //   pow(clampedDot(normalize(-viewDirection), normalize(currentLight.direction)), 3500.0);
+    vec3 pbrColor = computeLightPBR(
+      albedo,
+      viewSpacePosition.xyz,
+      currentLight,
+      viewSpaceNormal,
+      cameraViewPosition,
+      reflection,
+      material,
+      calcLightInViewSpace);
     skyboxColor += point;
     color += pbrColor;
   }
@@ -449,8 +488,15 @@ void main()
       continue;
     }
 
-    vec3 pbrColor =
-      computeLightPBR(albedo, worldSpacePosition.xyz, currentLight, normal, reflection, material);
+    vec3 pbrColor = computeLightPBR(
+      albedo,
+      viewSpacePosition.xyz,
+      currentLight,
+      viewSpaceNormal,
+      cameraViewPosition,
+      reflection,
+      material,
+      calcLightInViewSpace);
     color += pbrColor;
   }
 

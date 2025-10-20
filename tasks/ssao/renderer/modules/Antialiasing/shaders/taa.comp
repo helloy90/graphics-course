@@ -121,7 +121,7 @@ void main()
   const ivec2 currentTexCoord = ivec2(gl_GlobalInvocationID.xy);
   const vec2 currentUVTexCoord = vec2(currentTexCoord) / vec2(resolution);
 
-  if (currentTexCoord.x >= resolution.x && currentTexCoord.y >= resolution.y)
+  if (currentTexCoord.x >= resolution.x || currentTexCoord.y >= resolution.y)
   {
     return;
   }
@@ -173,7 +173,7 @@ void main()
   }
 
   const vec2 velocityVector = imageLoad(velocityImage, closestDepthPixelPosition).xy *
-    vec2(0.5, 0.5); // NOTE - maybe wrong y coord
+    vec2(0.5, -0.5); // NOTE - maybe wrong y coord
   const vec2 previousUVTexCoord = currentUVTexCoord - velocityVector;
 
   const vec3 currentFrame = totalCurrentFrameSample / currentFrameSampleWeight;
