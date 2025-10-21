@@ -25,7 +25,8 @@ WaterRenderModule::WaterRenderModule()
        .wavePeakScatterStrength = shader_float(2.2),
        .scatterStrength = shader_float(1),
        .scatterShadowStrength = shader_float(0.7),
-       .bubbleDensity = shader_float(1.3)})
+       .bubbleDensity = shader_float(1.3),
+       .transparencyStrength = shader_float(0.3)})
 {
 }
 
@@ -41,7 +42,8 @@ WaterRenderModule::WaterRenderModule(WaterParams par)
        .wavePeakScatterStrength = shader_float(1),
        .scatterStrength = shader_float(1),
        .scatterShadowStrength = shader_float(0.5),
-       .bubbleDensity = shader_float(1)})
+       .bubbleDensity = shader_float(1),
+       .transparencyStrength = shader_float(0.3)})
 {
 }
 
@@ -185,8 +187,8 @@ void WaterRenderModule::drawGui()
     ImGui::SeparatorText("Water parameters");
 
     float heightOffset = params.heightOffset;
-    paramsChanged = paramsChanged ||
-      ImGui::DragFloat("Water Height Offset", &heightOffset, 0.1f, -500.0f, 500.0f);
+    paramsChanged =
+      paramsChanged || ImGui::DragFloat("Height Offset", &heightOffset, 0.1f, -500.0f, 500.0f);
     params.heightOffset = heightOffset;
 
     ImGui::SeparatorText("Render parameters");
@@ -216,36 +218,38 @@ void WaterRenderModule::drawGui()
     float scatterStrength = renderParams.scatterStrength;
     float scatterShadowStrength = renderParams.scatterShadowStrength;
     float bubbleDensity = renderParams.bubbleDensity;
+    float transparencyStrength = renderParams.transparencyStrength;
 
     renderParamsChanged =
-      renderParamsChanged || ImGui::ColorEdit3("Water Scatter Color", scatterColor, colorFlags);
+      renderParamsChanged || ImGui::ColorEdit3("Scatter color", scatterColor, colorFlags);
     renderParams.scatterColor = shader_vec4(scatterColor[0], scatterColor[1], scatterColor[2], 1);
     renderParamsChanged =
-      renderParamsChanged || ImGui::ColorEdit3("Water Bubbles Color", bubbleColor, colorFlags);
+      renderParamsChanged || ImGui::ColorEdit3("Bubbles color", bubbleColor, colorFlags);
     renderParams.bubbleColor = shader_vec4(bubbleColor[0], bubbleColor[1], bubbleColor[2], 1);
     renderParamsChanged =
-      renderParamsChanged || ImGui::ColorEdit3("Water Foam Color", foamColor, colorFlags);
+      renderParamsChanged || ImGui::ColorEdit3("Foam color", foamColor, colorFlags);
     renderParams.foamColor = shader_vec4(foamColor[0], foamColor[1], foamColor[2], 1);
     renderParamsChanged =
-      renderParamsChanged || ImGui::DragFloat("Water Roughness", &roughness, 0.001f, 0.0f, 1.0f);
+      renderParamsChanged || ImGui::DragFloat("Roughness", &roughness, 0.001f, 0.0f, 1.0f);
     renderParams.roughness = roughness;
     renderParamsChanged = renderParamsChanged ||
-      ImGui::DragFloat("Water Reflection Strength", &reflectionStrength, 0.1f, 0.0f, 500.0f);
+      ImGui::DragFloat("Reflection strength", &reflectionStrength, 0.1f, 0.0f, 500.0f);
     renderParams.reflectionStrength = reflectionStrength;
-    renderParamsChanged =
-      renderParamsChanged ||
-      ImGui::DragFloat(
-        "Water Wave Peak Scatter Strength", &wavePeakScatterStrength, 0.1f, 0.0f, 500.0f);
+    renderParamsChanged = renderParamsChanged ||
+      ImGui::DragFloat("Wave peak scatter strength", &wavePeakScatterStrength, 0.1f, 0.0f, 500.0f);
     renderParams.wavePeakScatterStrength = wavePeakScatterStrength;
     renderParamsChanged = renderParamsChanged ||
-      ImGui::DragFloat("Water Scatter Strength", &scatterStrength, 0.1f, 0.0f, 500.0f);
+      ImGui::DragFloat("Scatter strength", &scatterStrength, 0.1f, 0.0f, 500.0f);
     renderParams.scatterStrength = scatterStrength;
     renderParamsChanged = renderParamsChanged ||
-      ImGui::DragFloat("Water Scatter Shadow Strength", &scatterShadowStrength, 0.1f, 0.0f, 500.0f);
+      ImGui::DragFloat("Scatter shadow strength", &scatterShadowStrength, 0.1f, 0.0f, 500.0f);
     renderParams.scatterShadowStrength = scatterShadowStrength;
     renderParamsChanged = renderParamsChanged ||
-      ImGui::DragFloat("Water Bubbles Density", &bubbleDensity, 0.1f, 0.0f, 500.0f);
+      ImGui::DragFloat("Bubbles density", &bubbleDensity, 0.1f, 0.0f, 500.0f);
     renderParams.bubbleDensity = bubbleDensity;
+    renderParamsChanged = renderParamsChanged ||
+      ImGui::DragFloat("Transparency strength", &transparencyStrength, 0.001f, 0.0f, 1.0f);
+    renderParams.transparencyStrength = transparencyStrength;
   }
 
   if (paramsChanged)

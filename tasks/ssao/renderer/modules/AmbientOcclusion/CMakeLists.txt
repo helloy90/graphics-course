@@ -12,4 +12,5 @@ target_link_libraries(ambient_occlusion_module PUBLIC etna render_utils gui scen
 
 target_add_shaders(ambient_occlusion_module
     shaders/ssao.comp
+    shaders/blur.comp
 )

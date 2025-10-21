@@ -28,6 +28,7 @@ WorldRenderer::WorldRenderer(const InitInfo& info)
   , tonemappingEnabled(info.tonemappingEnabled)
   , timeStopped(info.timeStopped)
   , taaEnabled(info.taaEnabled)
+  , ssaoEnabled(info.ssaoEnabled)
   , shadowCascadesAmount(info.shadowCascadesAmount)
 {
   ETNA_VERIFYF(shadowCascadesAmount > 0, "Shadow cascades amount should be greater than 0");
@@ -40,6 +41,7 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
   params.colorShadows = 0;
   params.usePCF = 1;
   params.pcfRange = 1;
+  params.useOcclusion = static_cast<shader_bool>(ssaoEnabled);
 
   auto& ctx = etna::get_context();
 
@@ -92,7 +94,7 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
     etna::BlockingTransferHelper::CreateInfo{.stagingSize = 4096 * 4096 * 6});
 
   ssaoModule.allocateResources(
-    SSAOModule::AllocationInfo{.noiseTextureSize = {8, 8}, .kernelSize = 16, .seed = 81528719});
+    SSAOModule::AllocationInfo{.noiseTextureSize = {8, 8}, .kernelSize = 64, .seed = 81528719});
   antialiasingModule.allocateResources(
     AntialiasingModule::AllocationInfo{
       .resolution = resolution,
@@ -395,6 +397,8 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
 
     lightModule.prepareForDraw();
 
+    ssaoModule.prepareForExecute(params.proj, params.invProj, params.invView);
+
     if (!timeStopped)
     {
       waterGeneratorModule.executeProgress(cmd_buf, renderPacket.time);
@@ -422,22 +426,23 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
 
     etna::flush_barriers(cmd_buf);
 
+    staticMeshesRenderModule.executeShadowMapping(
+      cmd_buf,
+      gBuffer->getShadowTextureExtent(),
+      lightModule.getShadowCastingDirLightMatrixBinding(0),
+      gBuffer->genShadowMappingAttachmentParams(0));
+
     if (!timeStopped)
     {
       for (uint32_t i = 0; i < shadowCascadesAmount; i++)
       {
-        staticMeshesRenderModule.executeShadowMapping(
-          cmd_buf,
-          gBuffer->getShadowTextureExtent(),
-          lightModule.getShadowCastingDirLightMatrixBinding(i),
-          gBuffer->genShadowMappingAttachmentParams(i));
-
         terrainRenderModule.executeShadowMapping(
           cmd_buf,
           renderPacket,
           gBuffer->getShadowTextureExtent(),
           lightModule.getShadowCastingDirLightMatrixBinding(i),
-          gBuffer->genShadowMappingAttachmentParams(i, vk::AttachmentLoadOp::eLoad));
+          gBuffer->genShadowMappingAttachmentParams(
+            i, i == 0 ? vk::AttachmentLoadOp::eLoad : vk::AttachmentLoadOp::eClear));
       }
     }
 
@@ -455,16 +460,19 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
       gBuffer->genColorAttachmentParams(vk::AttachmentLoadOp::eLoad),
       gBuffer->genDepthAttachmentParams(vk::AttachmentLoadOp::eLoad));
 
-    gBuffer->prepareForOcclusionExecute(cmd_buf);
+    if (ssaoEnabled)
+    {
+      gBuffer->prepareForOcclusionExecute(cmd_buf);
 
-    etna::flush_barriers(cmd_buf);
+      etna::flush_barriers(cmd_buf);
 
-    ssaoModule.execute(
-      cmd_buf,
-      gBuffer->getNormalTexture(),
-      gBuffer->getDepthTexture(),
-      gBuffer->getDepthSampler(),
-      gBuffer->getOcclusionTexture());
+      ssaoModule.execute(
+        cmd_buf,
+        gBuffer->getNormalTexture(),
+        gBuffer->getDepthTexture(),
+        gBuffer->getDepthSampler(),
+        gBuffer->getOcclusionTexture());
+    }
 
     etna::set_state(
       cmd_buf,
@@ -608,8 +616,19 @@ void WorldRenderer::drawGui()
     params.cameraWorldPosition.y,
     params.cameraWorldPosition.z);
 
+  ImGui::SeparatorText("Configuration");
+
+  ImGui::Checkbox("Enable Tonemapping", &tonemappingEnabled);
+  ImGui::Checkbox("Enable TAA", &taaEnabled);
+
+  if (ImGui::Checkbox("Enable SSAO", &ssaoEnabled))
+  {
+    params.useOcclusion = static_cast<shader_bool>(ssaoEnabled);
+  }
+
   ImGui::SeparatorText("Specific Settings");
 
+  ssaoModule.drawGui();
   antialiasingModule.drawGui();
   lightModule.drawGui();
   staticMeshesRenderModule.drawGui();
@@ -634,14 +653,11 @@ void WorldRenderer::drawGui()
 
   ImGui::SeparatorText("General Settings");
 
-
   if (ImGui::Checkbox("Enable Wireframe Mode", &wireframeEnabled))
   {
     rebuildRenderPipelines();
   }
-  ImGui::Checkbox("Enable Tonemapping", &tonemappingEnabled);
   ImGui::Checkbox("Stop Time", &timeStopped);
-  ImGui::Checkbox("Enable TAA", &taaEnabled);
 
   ImGui::End();
 }
@@ -654,7 +670,7 @@ void WorldRenderer::deferredShading(
   auto shaderInfo = etna::get_shader_program("deferred_shading");
 
   std::vector<etna::Binding> bindings;
-  bindings.reserve(4 + shadowCascadesAmount);
+  bindings.reserve(5 + shadowCascadesAmount);
 
   bindings.emplace_back(
     etna::Binding{0, gBuffer->getAlbedoTexture().genBinding({}, vk::ImageLayout::eGeneral)});
@@ -663,8 +679,10 @@ void WorldRenderer::deferredShading(
   bindings.emplace_back(
     etna::Binding{2, gBuffer->getMaterialTexture().genBinding({}, vk::ImageLayout::eGeneral)});
   bindings.emplace_back(
+    etna::Binding{3, gBuffer->getOcclusionTexture().genBinding({}, vk::ImageLayout::eGeneral)});
+  bindings.emplace_back(
     etna::Binding{
-      3,
+      4,
       gBuffer->getDepthTexture().genBinding(
         gBuffer->getDepthSampler().get(), vk::ImageLayout::eShaderReadOnlyOptimal)});
 
@@ -674,7 +692,7 @@ void WorldRenderer::deferredShading(
   {
     bindings.emplace_back(
       etna::Binding{
-        4,
+        5,
         shadowImages[i].genBinding(
           gBuffer->getDepthSampler().get(), vk::ImageLayout::eShaderReadOnlyOptimal),
         i});

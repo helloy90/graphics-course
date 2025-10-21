@@ -43,6 +43,7 @@ public:
     bool tonemappingEnabled;
     bool timeStopped;
     bool taaEnabled;
+    bool ssaoEnabled;
   };
 
 public:
@@ -104,6 +105,7 @@ private:
   bool tonemappingEnabled;
   bool timeStopped;
   bool taaEnabled;
+  bool ssaoEnabled;
 
   std::unique_ptr<etna::OneShotCmdMgr> oneShotCommands;
   std::unique_ptr<etna::BlockingTransferHelper> transferHelper;

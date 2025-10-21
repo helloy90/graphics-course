@@ -15,6 +15,7 @@ struct WaterRenderParams
   shader_float scatterStrength;
   shader_float scatterShadowStrength;
   shader_float bubbleDensity;
+  shader_float transparencyStrength;
 };
 
 #endif // WATERRENDERPARAMS_H_INCLUDED

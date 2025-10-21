@@ -14,8 +14,9 @@ layout(location = 0) out vec4 fragColor;
 layout(set = 0, binding = 0, r11f_g11f_b10f) uniform image2D gAlbedo;
 layout(set = 0, binding = 1, rgba16_snorm) uniform image2D gNormal;
 layout(set = 0, binding = 2, rgba8) uniform image2D gMaterial;
-layout(set = 0, binding = 3) uniform sampler2D gDepth;
-layout(set = 0, binding = 4) uniform sampler2D gShadow[SHADOW_CASCADES];
+layout(set = 0, binding = 3, r32f) uniform image2D gOcclusion;
+layout(set = 0, binding = 4) uniform sampler2D gDepth;
+layout(set = 0, binding = 5) uniform sampler2D gShadow[SHADOW_CASCADES];
 
 layout(set = 1, binding = 0) uniform params_t
 {
@@ -351,6 +352,8 @@ void main()
   const vec3 viewSpaceNormal = normalize((transpose(params.invView) * vec4(normal, 0.0)).xyz);
 
   const vec4 material = imageLoad(gMaterial, texCoord);
+  const float occlusion = imageLoad(gOcclusion, texCoord).r;
+
   const float depth = texture(gDepth, uvTexCoord).x;
 
   const vec4 screenSpacePosition = vec4(uvTexCoord * 2.0 - 1.0, depth, 1.0);
@@ -371,7 +374,7 @@ void main()
   const bool calcLightInViewSpace = true;
 
   // change to IBL later
-  vec3 color = vec3(albedo * 0.3);
+  vec3 color = vec3(albedo * 0.3 * (params.useOcclusion ? occlusion : 1.0));
 
   vec3 skyboxTexCoord = (params.invProjViewMat3 * screenSpacePosition).xyz;
   vec3 skyboxColor = texture(cubemap, normalize(skyboxTexCoord)).rgb;

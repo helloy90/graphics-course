@@ -396,19 +396,19 @@ void WaterGeneratorModule::drawGui()
     ImGui::SeparatorText("Water update parameters");
 
     updateParamsChanged = updateParamsChanged ||
-      ImGui::DragFloat("Foam Decay Rate", &foamDecayRate, 0.01f, 0.0f, 100.0f);
+      ImGui::DragFloat("Foam decay rate", &foamDecayRate, 0.01f, 0.0f, 100.0f);
     updateParams.foamDecayRate = foamDecayRate;
     updateParamsChanged =
-      updateParamsChanged || ImGui::DragFloat("Foam Bias", &foamBias, 0.01f, -1.0f, 1.0f);
+      updateParamsChanged || ImGui::DragFloat("Foam bias", &foamBias, 0.01f, -1.0f, 1.0f);
     updateParams.foamBias = foamBias;
     updateParamsChanged =
-      updateParamsChanged || ImGui::DragFloat("Foam Threshold", &foamThreshold, 0.01f, -5.0f, 5.0f);
+      updateParamsChanged || ImGui::DragFloat("Foam threshold", &foamThreshold, 0.01f, -5.0f, 5.0f);
     updateParams.foamThreshold = foamThreshold;
     updateParamsChanged = updateParamsChanged ||
-      ImGui::DragFloat("Foam Multiplier", &foamMultiplier, 0.01f, 0.0f, 100.0f);
+      ImGui::DragFloat("Foam multiplier", &foamMultiplier, 0.01f, 0.0f, 100.0f);
     updateParams.foamMultiplier = foamMultiplier;
     updateParamsChanged =
-      updateParamsChanged || ImGui::DragFloat("Wave Period", &wavePeriod, 1.0f, 0.00001f, 5000.0f);
+      updateParamsChanged || ImGui::DragFloat("Wave period", &wavePeriod, 1.0f, 0.00001f, 5000.0f);
     updateParams.wavePeriod = wavePeriod;
 
     ImGui::SeparatorText(
@@ -421,16 +421,16 @@ void WaterGeneratorModule::drawGui()
       generalParamsChanged || ImGui::DragFloat("Depth", &depth, 0.01f, 0.0f, 200.0f);
     generalParams.depth = depth;
     generalParamsChanged =
-      generalParamsChanged || ImGui::DragFloat("Low Cutoff", &lowCutoff, 0.01f, 0.0f, 200.0f);
+      generalParamsChanged || ImGui::DragFloat("Low cutoff", &lowCutoff, 0.01f, 0.0f, 200.0f);
     generalParams.lowCutoff = lowCutoff;
     generalParamsChanged =
-      generalParamsChanged || ImGui::DragFloat("High Cutoff", &highCutoff, 0.1f, 200.0f, 10000.0f);
+      generalParamsChanged || ImGui::DragFloat("High cutoff", &highCutoff, 0.1f, 200.0f, 10000.0f);
     generalParams.highCutoff = highCutoff;
     generalParamsChanged = generalParamsChanged || ImGui::DragInt("Seed", &seed, 1.0f, 0, 5000000);
     generalParams.seed = seed;
 
 
-    if (ImGui::Button("Regenerate Water"))
+    if (ImGui::Button("Regenerate water"))
     {
       executeStart();
     }

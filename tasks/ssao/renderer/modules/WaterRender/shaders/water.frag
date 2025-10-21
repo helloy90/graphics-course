@@ -331,8 +331,7 @@ void main()
   fragColor = vec4(
     mix(brdf, params.foamColor.xyz, foam) * (1.0 - 0.3 * finalShadow) +
       finalShadowColor * finalShadow,
-    clamp(mix(0.0, 1.0, 1.0 - NdotV * 0.5), 0.0, 1.0));
-  // fragColor = vec4(params.scatterColor.xyz, 1);
+    clamp(mix(0.0, 1.0, 1.0 - NdotV * params.transparencyStrength), 0.0, 1.0));
 
   const vec3 currentPosNDC = currentPos.xyz / currentPos.w;
   const vec3 previousPosNDC = previousPos.xyz / previousPos.w;
