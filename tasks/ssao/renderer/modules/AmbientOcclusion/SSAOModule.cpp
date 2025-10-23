@@ -30,7 +30,7 @@ void SSAOModule::allocateResources(const AllocationInfo& info)
     noise.emplace_back(range(generator) * 2.0f - 1.0f, range(generator) * 2.0f - 1.0f);
   }
 
-  pushConstants = {.kernelSize = info.kernelSize, .radius = 3.0f, .occlusionPower = 2.0f};
+  pushConstants = {.kernelSize = info.kernelSize, .radius = 10.0f, .occlusionPower = 2.0f};
 
   std::vector<glm::vec4> kernel;
   kernel.reserve(pushConstants.kernelSize);
