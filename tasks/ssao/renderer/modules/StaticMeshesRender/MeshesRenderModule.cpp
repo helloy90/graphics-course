@@ -228,7 +228,7 @@ void MeshesRenderModule::drawGui()
   {
     float currentTranslation[] = {translation.x, translation.y, translation.z};
     translationChanged = translationChanged ||
-      ImGui::DragFloat3("Meshes translation", currentTranslation, 0.1, -5000.0f, 5000.0f);
+      ImGui::DragFloat3("Meshes translation", currentTranslation, 0.1f, -5000.0f, 5000.0f);
     translation = glm::vec3(currentTranslation[0], currentTranslation[1], currentTranslation[2]);
     info.translation = glm::translate(glm::identity<glm::mat4>(), translation);
   }
