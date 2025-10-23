@@ -94,7 +94,7 @@ void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
     etna::BlockingTransferHelper::CreateInfo{.stagingSize = 4096 * 4096 * 6});
 
   ssaoModule.allocateResources(
-    SSAOModule::AllocationInfo{.noiseTextureSize = {8, 8}, .kernelSize = 64, .seed = 81528719});
+    SSAOModule::AllocationInfo{.noiseTextureSize = {8, 8}, .kernelSize = 32, .seed = 81528719});
   antialiasingModule.allocateResources(
     AntialiasingModule::AllocationInfo{
       .resolution = resolution,
@@ -426,23 +426,23 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
 
     etna::flush_barriers(cmd_buf);
 
-    staticMeshesRenderModule.executeShadowMapping(
-      cmd_buf,
-      gBuffer->getShadowTextureExtent(),
-      lightModule.getShadowCastingDirLightMatrixBinding(0),
-      gBuffer->genShadowMappingAttachmentParams(0));
 
     if (!timeStopped)
     {
       for (uint32_t i = 0; i < shadowCascadesAmount; i++)
       {
+        staticMeshesRenderModule.executeShadowMapping(
+          cmd_buf,
+          gBuffer->getShadowTextureExtent(),
+          lightModule.getShadowCastingDirLightMatrixBinding(i),
+          gBuffer->genShadowMappingAttachmentParams(i));
+
         terrainRenderModule.executeShadowMapping(
           cmd_buf,
           renderPacket,
           gBuffer->getShadowTextureExtent(),
           lightModule.getShadowCastingDirLightMatrixBinding(i),
-          gBuffer->genShadowMappingAttachmentParams(
-            i, i == 0 ? vk::AttachmentLoadOp::eLoad : vk::AttachmentLoadOp::eClear));
+          gBuffer->genShadowMappingAttachmentParams(i, vk::AttachmentLoadOp::eLoad));
       }
     }
 

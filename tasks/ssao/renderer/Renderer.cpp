@@ -37,6 +37,7 @@ void Renderer::initVulkan(std::span<const char*> instance_extensions)
            {.independentBlend = vk::True,
             .tessellationShader = vk::True,
             .multiDrawIndirect = vk::True,
+            .drawIndirectFirstInstance = vk::True,
             .fillModeNonSolid = vk::True /*debug*/,
             .fragmentStoresAndAtomics = vk::True}},
       .descriptorIndexingFeatures =

@@ -19,7 +19,7 @@ void main()
 
   float result = 0.0;
 
-  int range = 2;
+  int range = 5;
   int count = 0;
 
   for (int x = -range; x < range; x++)

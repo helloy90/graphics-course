@@ -1,7 +1,9 @@
 #include "MeshesRenderModule.hpp"
 #include "RenderPacket.hpp"
 
+#include <glm/ext/matrix_transform.hpp>
 #include <tracy/Tracy.hpp>
+#include <imgui.h>
 
 #include <etna/GlobalContext.hpp>
 #include <etna/PipelineManager.hpp>
@@ -10,7 +12,8 @@
 
 
 MeshesRenderModule::MeshesRenderModule()
-  : sceneMgr{std::make_unique<SceneManager>()}
+  : info{.translation = glm::translate(glm::identity<glm::mat4>(), glm::vec3(45, -20, -100))}
+  , sceneMgr{std::make_unique<SceneManager>()}
 {
 }
 
@@ -111,7 +114,7 @@ void MeshesRenderModule::setupPipelines(
       .rasterizationConfig =
         vk::PipelineRasterizationStateCreateInfo{
           .polygonMode = vk::PolygonMode::eFill,
-          .cullMode = vk::CullModeFlagBits::eFront,
+          .cullMode = vk::CullModeFlagBits::eNone,
           .frontFace = vk::FrontFace::eCounterClockwise,
           .lineWidth = 1.f,
         },
@@ -214,7 +217,31 @@ void MeshesRenderModule::executeShadowMapping(
   }
 }
 
-void MeshesRenderModule::drawGui() {}
+void MeshesRenderModule::drawGui()
+{
+  ImGui::Begin("Application Settings");
+
+  static glm::vec3 translation = glm::vec3(45, -20, -100);
+  static bool translationChanged = false;
+
+  if (ImGui::CollapsingHeader("Meshes"))
+  {
+    float currentTranslation[] = {translation.x, translation.y, translation.z};
+    translationChanged = translationChanged ||
+      ImGui::DragFloat3("Meshes translation", currentTranslation, 0.1, -5000.0f, 5000.0f);
+    translation = glm::vec3(currentTranslation[0], currentTranslation[1], currentTranslation[2]);
+    info.translation = glm::translate(glm::identity<glm::mat4>(), translation);
+  }
+
+  if (translationChanged)
+  {
+    ETNA_CHECK_VK_RESULT(etna::get_context().getDevice().waitIdle());
+    sceneMgr->updateMatrices(info.translation);
+    translationChanged = false;
+  }
+
+  ImGui::End();
+}
 
 void MeshesRenderModule::cullMeshes(
   vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout, const glm::mat4x4& proj_view)
@@ -263,6 +290,8 @@ void MeshesRenderModule::cullMeshes(
   cmd_buf.bindDescriptorSets(
     vk::PipelineBindPoint::eCompute, pipeline_layout, 0, 1, &vkSet, 0, nullptr);
 
+  // cmd_buf.pushConstants<glm::mat4x4>(
+  //   pipeline_layout, vk::ShaderStageFlagBits::eCompute, 0, {proj_view, info.translation});
   cmd_buf.pushConstants<glm::mat4x4>(
     pipeline_layout, vk::ShaderStageFlagBits::eCompute, 0, {proj_view});
 
@@ -344,6 +373,9 @@ void MeshesRenderModule::cullMeshes(
   cmd_buf.bindDescriptorSets(
     vk::PipelineBindPoint::eCompute, pipeline_layout, 0, 1, &vkSet, 0, nullptr);
 
+  // cmd_buf.pushConstants<glm::mat4>(
+  //   pipeline_layout, vk::ShaderStageFlagBits::eCompute, 0, {info.translation});
+
   cmd_buf.dispatch((static_cast<uint32_t>(sceneMgr->getInstanceMeshes().size()) + 127) / 128, 1, 1);
 
   {
@@ -401,6 +433,9 @@ void MeshesRenderModule::renderScene(
     0,
     {meshesDescriptorSet->getVkSet(), set.getVkSet()},
     {});
+
+  // cmd_buf.pushConstants<glm::mat4>(
+  //   pipeline_layout, vk::ShaderStageFlagBits::eVertex, 0, {info.translation});
 
   cmd_buf.drawIndexedIndirect(
     sceneMgr->getDrawCommandsBuffer().get(),

@@ -22,6 +22,11 @@ layout(binding = 2) readonly buffer light_info_t
   mat4 lightProjView;
 };
 
+// layout(push_constant) uniform push_constant_t
+// {
+//   mat4 translation;
+// };
+
 out gl_PerVertex
 {
   vec4 gl_Position;

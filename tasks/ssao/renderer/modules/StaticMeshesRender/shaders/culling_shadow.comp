@@ -79,6 +79,11 @@ layout(binding = 9) readonly buffer proj_view_t
   mat4 projView;
 };
 
+// layout(push_constant) uniform push_constant_t
+// {
+//   mat4 translation;
+// };
+
 
 bool within(float left, float value, float right)
 {

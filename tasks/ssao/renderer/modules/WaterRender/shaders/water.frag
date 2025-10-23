@@ -260,36 +260,19 @@ void main()
   vec3 currentShadowTexCoordAndDepth = getShadowCoordsAndDepth(currentCascade, worldSpacePosition);
   vec3 nextShadowTexCoordAndDepth = getShadowCoordsAndDepth(overlappingCascade, worldSpacePosition);
 
-  const float shadow =
-    // (params.usePCF) ?
-    computeShadow(
-      currentShadowTexCoordAndDepth.xy,
-      currentShadowTexCoordAndDepth.z,
-      shadowBias,
-      currentCascade,
-      texelSize);
-  //  :
-  // getShadowFromTexture(
-  //   currentShadowTexCoordAndDepth.xy,
-  //   vec2(0, 0),
-  //   currentShadowTexCoordAndDepth.z,
-  //   shadowBias,
-  //   currentCascade);
-  const float nextShadow = (interpolator < 0.00001) ? 0.0 :
-                                                    // ((params.usePCF) ?
-    computeShadow(
-      nextShadowTexCoordAndDepth.xy,
-      nextShadowTexCoordAndDepth.z,
-      shadowBias,
-      overlappingCascade,
-      texelSize);
-  //  :
-  // getShadowFromTexture(
-  //   nextShadowTexCoordAndDepth.xy,
-  //   vec2(0, 0),
-  //   nextShadowTexCoordAndDepth.z,
-  //   shadowBias,
-  //   overlappingCascade));
+  const float shadow = getShadowFromTexture(
+    currentShadowTexCoordAndDepth.xy,
+    vec2(0, 0),
+    currentShadowTexCoordAndDepth.z,
+    shadowBias,
+    currentCascade);
+  const float nextShadow = (interpolator < 0.00001) ? 0.0
+                                                    : getShadowFromTexture(
+                                                        nextShadowTexCoordAndDepth.xy,
+                                                        vec2(0, 0),
+                                                        nextShadowTexCoordAndDepth.z,
+                                                        shadowBias,
+                                                        overlappingCascade);
 
   const float finalShadow = mix(shadow, nextShadow, interpolator);
   const vec3 finalShadowColor = mix(shadowColor, nextShadowColor, interpolator);

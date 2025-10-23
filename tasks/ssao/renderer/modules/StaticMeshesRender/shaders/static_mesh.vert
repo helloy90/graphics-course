@@ -59,6 +59,11 @@ layout(set = 1, binding = 3) uniform render_params_t
   vec3 cameraWorldPosition;
 };
 
+// layout(push_constant) uniform push_constant_t
+// {
+//   mat4 translation;
+// };
+
 layout(location = 0) out VS_OUT
 {
   vec4 currentPos;
@@ -70,7 +75,6 @@ layout(location = 0) out VS_OUT
   vec2 texCoord;
   flat uint relemIdx;
 };
-
 
 out gl_PerVertex
 {

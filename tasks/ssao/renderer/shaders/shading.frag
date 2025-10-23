@@ -374,7 +374,7 @@ void main()
   const bool calcLightInViewSpace = true;
 
   // change to IBL later
-  vec3 color = vec3(albedo * 0.3 * (params.useOcclusion ? occlusion : 1.0));
+  vec3 color = vec3(albedo * 0.4 * (params.useOcclusion ? occlusion : 1.0));
 
   vec3 skyboxTexCoord = (params.invProjViewMat3 * screenSpacePosition).xyz;
   vec3 skyboxColor = texture(cubemap, normalize(skyboxTexCoord)).rgb;

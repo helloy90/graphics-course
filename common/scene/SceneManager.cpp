@@ -40,8 +40,12 @@ SceneManager::SceneManager()
   , normalPlaceholder(Texture2D::Id::Invalid)
   , oneShotCommands{etna::get_context().createOneShotCmdMgr()}
   , transferHelper{etna::BlockingTransferHelper::CreateInfo{.stagingSize = 4096 * 4096 * 4}}
+  // TODO - add sampler construction from gltf file
   , defaultSampler(
-      etna::Sampler::CreateInfo{.filter = vk::Filter::eLinear, .name = "default_sampler"})
+      etna::Sampler::CreateInfo{
+        .filter = vk::Filter::eLinear,
+        .addressMode = vk::SamplerAddressMode::eRepeat,
+        .name = "default_sampler"})
 {
 }
 
@@ -250,12 +254,16 @@ void SceneManager::processMaterials(const tinygltf::Model& model)
       }
       material.metallicRoughnessTexture = metallicRoughnessPlaceholder;
 
-      if (normalPlaceholder == Texture2D::Id::Invalid)
+      auto normalTextureInfo = modelMaterial.normalTexture;
       {
-        normalPlaceholder = generatePlaceholderTexture(
-          "normal_placeholder", vk::Format::eR8G8B8A8Snorm, {0.0f, 0.0f, 0.5f, 0.0f});
+        if (normalPlaceholder == Texture2D::Id::Invalid)
+        {
+          normalPlaceholder = generatePlaceholderTexture(
+            "normal_placeholder", vk::Format::eR8G8B8A8Snorm, {0.0f, 0.0f, 0.5f, 0.0f});
+        }
+        material.normalTexture = normalPlaceholder;
       }
-      material.normalTexture = normalPlaceholder;
+
 
       auto id = materialManager.loadResource(
         ("material_" + modelMaterial.name).c_str(), std::move(material));
@@ -929,8 +937,10 @@ void SceneManager::uploadData(
   transferHelper.uploadBuffer<Bounds>(
     *oneShotCommands, unifiedBoundsbuf, 0, std::span(renderElementsBounds));
   transferHelper.uploadBuffer<Mesh>(*oneShotCommands, unifiedMeshesbuf, 0, std::span(meshes));
-  transferHelper.uploadBuffer<glm::mat4x4>(
-    *oneShotCommands, unifiedInstanceMatricesbuf, 0, std::span(instanceMatrices));
+
+  // TODO - fix hardcode in matrices init
+  updateMatrices(glm::translate(glm::identity<glm::mat4>(), glm::vec3(45, -20, -100)));
+
   transferHelper.uploadBuffer<std::uint32_t>(
     *oneShotCommands, unifiedInstanceMeshesbuf, 0, std::span(instanceMeshes));
 
@@ -1051,6 +1061,16 @@ void SceneManager::selectBakedScene(std::filesystem::path path)
 
   auto [instMats, instMeshes] = processInstances(model);
   instanceMatrices = std::move(instMats);
+
+  // TODO - fix hardcode for lighthouse model
+  float scale = 0.5f;
+  for (auto& matrix : instanceMatrices)
+  {
+    matrix[0][0] *= scale;
+    matrix[1][1] *= scale;
+    matrix[2][2] *= scale;
+  }
+
   instanceMeshes = std::move(instMeshes);
 
   auto [verts, inds, relems, meshs, bounds] = processBakedMeshes(model);
@@ -1097,4 +1117,17 @@ etna::VertexByteStreamFormatDescription SceneManager::getVertexFormatDescription
         .offset = sizeof(glm::vec4),
       },
     }};
+}
+
+void SceneManager::updateMatrices(const glm::mat4& transform)
+{
+  for (auto& matrix : instanceMatrices)
+  {
+    matrix[3][0] = transform[3][0];
+    matrix[3][1] = transform[3][1];
+    matrix[3][2] = transform[3][2];
+  }
+
+  transferHelper.uploadBuffer<glm::mat4x4>(
+    *oneShotCommands, unifiedInstanceMatricesbuf, 0, std::span(instanceMatrices));
 }

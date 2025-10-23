@@ -42,7 +42,7 @@ App::App()
   ImGuiRenderer::enableImGuiForWindow(mainWindow->native());
 
   renderer->loadScene(
-    GRAPHICS_COURSE_RESOURCES_ROOT "/scenes/Avocado/Avocado_baked.gltf",
+    GRAPHICS_COURSE_RESOURCES_ROOT "/scenes/lighthouse/scene_baked.gltf",
     mainCam.zNear,
     mainCam.zFar);
 }

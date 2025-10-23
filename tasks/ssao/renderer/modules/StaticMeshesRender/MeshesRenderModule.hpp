@@ -49,6 +49,13 @@ public:
   const etna::Sampler& getStaticMeshSampler() const { return staticMeshSampler; }
 
 private:
+  // TODO - rename
+  struct Info
+  {
+    glm::mat4 translation;
+  };
+
+private:
   void cullMeshes(
     vk::CommandBuffer cmd_buf, vk::PipelineLayout pipeline_layout, const glm::mat4x4& proj_view);
 
@@ -65,6 +72,8 @@ private:
 private:
   MeshesParams params;
   etna::Buffer paramsBuffer;
+
+  Info info;
 
   std::unique_ptr<SceneManager> sceneMgr;
 
