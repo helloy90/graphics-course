@@ -26,7 +26,8 @@ void main()
   {
     for (int y = -range; y < range; y++)
     {
-      result += imageLoad(gOcclusion, currentTexCoord + ivec2(x, y)).x;
+      ivec2 texCoord = clamp(ivec2(0), resolution - ivec2(1), currentTexCoord + ivec2(x, y));
+      result += imageLoad(gOcclusion, texCoord).x;
       count++;
     }
   }
