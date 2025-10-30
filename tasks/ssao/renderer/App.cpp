@@ -15,6 +15,11 @@ App::App()
       .refreshCb =
         [this]() {
           // NOTE: this is only called when the window is being resized.
+          if (!renderer) [[unlikely]]
+          {
+            return;
+          }
+
           drawFrame(0);
           FrameMark;
         },
@@ -22,6 +27,11 @@ App::App()
         [this](glm::uvec2 res) {
           if (res.x == 0 || res.y == 0)
             return;
+
+          if (!renderer) [[unlikely]]
+          {
+            return;
+          }
 
           renderer->recreateSwapchain(res);
         },

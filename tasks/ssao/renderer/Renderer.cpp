@@ -98,6 +98,11 @@ void Renderer::loadScene(std::filesystem::path path, float near_plane, float far
 
 void Renderer::recreateSwapchain(glm::uvec2 res)
 {
+  if (!worldRenderer) [[unlikely]]
+  {
+    return;
+  }
+
   auto& ctx = etna::get_context();
 
   spdlog::info("recreating swapchain");
@@ -128,6 +133,11 @@ void Renderer::debugInput(const Keyboard& kb)
 
 void Renderer::update(const FramePacket& packet)
 {
+  if (!worldRenderer) [[unlikely]]
+  {
+    return;
+  }
+
   worldRenderer->update(packet);
 }
 
@@ -153,6 +163,11 @@ void Renderer::drawGui()
 void Renderer::drawFrame()
 {
   ZoneScoped;
+
+  if (!worldRenderer) [[unlikely]]
+  {
+    return;
+  }
 
   {
     ZoneScopedN("drawGui");
