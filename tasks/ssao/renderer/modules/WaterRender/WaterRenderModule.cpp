@@ -101,7 +101,7 @@ void WaterRenderModule::setupPipelines(
         .rasterizationConfig =
           vk::PipelineRasterizationStateCreateInfo{
             .polygonMode = (wireframe_enabled ? vk::PolygonMode::eLine : vk::PolygonMode::eFill),
-            .cullMode = vk::CullModeFlagBits::eBack,
+            .cullMode = vk::CullModeFlagBits::eNone,
             .frontFace = vk::FrontFace::eCounterClockwise,
             .lineWidth = 1.f,
           },
