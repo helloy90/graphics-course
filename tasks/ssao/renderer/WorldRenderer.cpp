@@ -24,6 +24,7 @@ WorldRenderer::WorldRenderer(const InitInfo& info)
   , waterGeneratorModule()
   , waterRenderModule()
   , renderTargetFormat(info.renderTargetFormat)
+  , params({})
   , wireframeEnabled(info.wireframeEnabled)
   , tonemappingEnabled(info.tonemappingEnabled)
   , timeStopped(info.timeStopped)
@@ -32,16 +33,15 @@ WorldRenderer::WorldRenderer(const InitInfo& info)
   , shadowCascadesAmount(info.shadowCascadesAmount)
 {
   ETNA_VERIFYF(shadowCascadesAmount > 0, "Shadow cascades amount should be greater than 0");
+  params.colorShadows = 0;
+  params.usePCF = 1;
+  params.pcfRange = 1;
+  params.useOcclusion = static_cast<shader_bool>(ssaoEnabled);
 }
 
 void WorldRenderer::allocateResources(glm::uvec2 swapchain_resolution)
 {
   resolution = swapchain_resolution;
-  params = {};
-  params.colorShadows = 0;
-  params.usePCF = 1;
-  params.pcfRange = 1;
-  params.useOcclusion = static_cast<shader_bool>(ssaoEnabled);
 
   auto& ctx = etna::get_context();
 
@@ -123,6 +123,9 @@ void WorldRenderer::loadScene(std::filesystem::path path, float near_plane, floa
   {
     spdlog::info("plane {} - {}", i, planes[i]);
   }
+
+  params.nearPlane = near_plane;
+  params.farPlane = far_plane;
 
   loadInfo();
 }
@@ -234,7 +237,6 @@ void WorldRenderer::setupRenderPipelines()
       .fragmentShaderOutput =
         {
           .colorAttachmentFormats = {renderTargetFormat},
-          .depthAttachmentFormat = vk::Format::eD32Sfloat,
         },
     });
 }
@@ -345,7 +347,7 @@ void WorldRenderer::update(const FramePacket& packet)
     params.view = packet.mainCam.viewTm();
     params.invView = glm::inverse(params.view);
 
-    glm::mat4 projRegular = packet.mainCam.projTm(aspect);
+    glm::mat4 projRegular = packet.mainCam.projTmZRev(aspect);
     glm::mat4 jitter = glm::translate(
       glm::identity<glm::mat4>(), glm::vec3(antialiasingModule.getCurrentCameraJitter(), 0));
 
@@ -355,7 +357,8 @@ void WorldRenderer::update(const FramePacket& packet)
     params.projView = params.proj * params.view;
     params.invProjView = glm::inverse(params.projView);
 
-    params.invProjViewMat3 = glm::mat4x4(glm::inverse(glm::mat3x3(params.projView)));
+    params.cubemapTexCoordProj =
+      glm::mat4x4(glm::inverse(glm::mat3x3(packet.mainCam.projTm(aspect) * params.view)));
     params.cameraWorldPosition = packet.mainCam.position;
     renderPacket = {
       .heavyInfo =
@@ -367,7 +370,11 @@ void WorldRenderer::update(const FramePacket& packet)
           .cameraWorldPosition = params.cameraWorldPosition,
         },
       .time = packet.currentTime,
-      .resolution = resolution};
+      .resolution = resolution,
+      // NOTE - suboptimal i think
+      .nearPlane = packet.mainCam.zNear,
+      .farPlane = packet.mainCam.zFar,
+    };
 
     if (!timeStopped)
     {
@@ -425,7 +432,6 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
     gBuffer->prepareForRender(cmd_buf);
 
     etna::flush_barriers(cmd_buf);
-
 
     if (!timeStopped)
     {
@@ -546,7 +552,7 @@ void WorldRenderer::renderWorld(vk::CommandBuffer cmd_buf, vk::Image target_imag
         renderTarget,
         gBuffer->getDepthTexture(),
         gBuffer->getVelocityTexture(),
-        params.projView,
+        renderPacket,
         params.invProjView);
     }
 

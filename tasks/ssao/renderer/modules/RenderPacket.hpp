@@ -21,4 +21,6 @@ struct RenderPacket
   HeavyInfo heavyInfo;
   float time;
   glm::uvec2 resolution;
+  float nearPlane;
+  float farPlane;
 };

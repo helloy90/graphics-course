@@ -44,21 +44,21 @@ vec3 getPosition(uint vertex)
   uvec2 coordsOfVertexInChunk = uvec2(vertex / 2, vertex % 2);
   vec2 worldCoords =
     params.terrainOffset + vec2((coordsOfChunkInGrid + coordsOfVertexInChunk) * params.chunk);
-  return toTerrainCoords(vec3(worldCoords, 0));
+  return to_terrain_coords(vec3(worldCoords, 0));
 }
 
 float getNearestDistanceFromCamera(vec3 first, vec3 second)
 {
   float firstDistance =
-    distance(getHorizontalCoords(first), getHorizontalCoords(cameraWorldPosition.xyz));
+    distance(get_horizontal_coords(first), get_horizontal_coords(cameraWorldPosition.xyz));
   float secondDistance =
-    distance(getHorizontalCoords(second), getHorizontalCoords(cameraWorldPosition.xyz));
+    distance(get_horizontal_coords(second), get_horizontal_coords(cameraWorldPosition.xyz));
   return min(firstDistance, secondDistance);
 }
 
 vec2 getPositionInHeightMap(vec3 position)
 {
-  return 0.5 * vec2(getHorizontalCoords(position)) / params.extent + 0.5;
+  return 0.5 * vec2(get_horizontal_coords(position)) / params.extent + 0.5;
 }
 
 float getTesselationLevel(float dist)

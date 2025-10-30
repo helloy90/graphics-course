@@ -6,8 +6,10 @@
 #include <etna/Buffer.hpp>
 #include <etna/GpuSharedResource.hpp>
 #include <etna/ComputePipeline.hpp>
+#include <etna/Sampler.hpp>
 
-#include "etna/Sampler.hpp"
+#include "RenderPacket.hpp"
+
 #include "shaders/AntialiasingParams.h"
 
 
@@ -38,7 +40,7 @@ public:
     const etna::Image& render_target,
     const etna::Image& depth_image,
     const etna::Image& velocity_image,
-    const glm::mat4& proj_view,
+    const RenderPacket& packet,
     const glm::mat4& inv_proj_view);
 
   // Should be the last operation before copying to swapchain in render function.

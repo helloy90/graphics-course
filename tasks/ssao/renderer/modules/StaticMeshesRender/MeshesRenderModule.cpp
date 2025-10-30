@@ -100,6 +100,13 @@ void MeshesRenderModule::setupPipelines(
           .logicOpEnable = false,
           .logicOp = {},
         },
+      .depthConfig =
+        {
+          .depthTestEnable = vk::True,
+          .depthWriteEnable = vk::True,
+          .depthCompareOp = vk::CompareOp::eGreaterOrEqual,
+          .maxDepthBounds = 1.f,
+        },
       .fragmentShaderOutput =
         {
           .colorAttachmentFormats = color_attachent_formats,

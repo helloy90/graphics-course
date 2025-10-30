@@ -19,11 +19,12 @@ AntialiasingModule::AntialiasingModule()
       {.currentProjView = glm::identity<glm::mat4>(),
        .currentInvProjView = glm::identity<glm::mat4>(),
        .previousProjView = glm::identity<glm::mat4>(),
-       .previousFrameUsage = 0.95f,
+       .previousFrameUsage = 0.9f,
+       .maxDepthDelta = 0.01f,
        .catmullRomBParam = 0.3f,
        .catmullRomCParam = 0.3f})
   , jitterIndex(0)
-  , jitterDamping(2.0f)
+  , jitterDamping(4.0f)
   , jitterCutoffIndex(16)
   , currentJitter(0.0f, 0.0f)
   , previousJitter(0.0f, 0.0f)
@@ -130,7 +131,7 @@ void AntialiasingModule::execute(
   const etna::Image& render_target,
   const etna::Image& depth_image,
   const etna::Image& velocity_image,
-  const glm::mat4& proj_view,
+  const RenderPacket& packet,
   const glm::mat4& inv_proj_view)
 {
   ZoneScoped;
@@ -142,7 +143,8 @@ void AntialiasingModule::execute(
     return;
   }
 
-  params.currentProjView = proj_view;
+  // NOTE - maybe suboptiomal
+  params.currentProjView = packet.heavyInfo.projView;
   params.currentInvProjView = inv_proj_view;
 
   auto& currentConstants = paramsBuffer->get();
@@ -181,7 +183,8 @@ void AntialiasingModule::execute(
       aaPipeline.getVkPipelineLayout(),
       vk::ShaderStageFlagBits::eCompute,
       0,
-      {currentJitter * glm::vec2(extent.width, extent.height)});
+      {currentJitter * glm::vec2(extent.width, extent.height),
+       glm::vec2(packet.nearPlane, packet.farPlane)});
 
     cmd_buf.dispatch(
       (static_cast<uint32_t>(extent.width) + 31) / 32,
@@ -224,6 +227,8 @@ void AntialiasingModule::drawGui()
     ImGui::DragFloat("Previous frame usage", &params.previousFrameUsage, 0.001f, 0.0f, 1.0f);
     ImGui::DragFloat("Jitter damping", &jitterDamping, 0.01f, 1.0f, 10.0f);
     ImGui::DragInt("Jitter cutoff index", &jitterCutoffIndex, 1.0f, 1, 256);
+    ImGui::DragFloat(
+      "Maximum depth difference", &params.maxDepthDelta, 0.0001f, 0.0f, 1.0f, "%.10f");
     ImGui::DragFloat(
       "Catmull-Rom sampling B parameter", &params.catmullRomBParam, 0.001f, 0.0f, 1.0f);
     ImGui::DragFloat(

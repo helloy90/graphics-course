@@ -49,9 +49,9 @@ void main()
   vec2 texRightLower = heightMapTextureCoord[2];
   vec2 texRightUpper = heightMapTextureCoord[3];
 
-  vec3 currentVertex = interpolate4Vert2D(leftLower, leftUpper, rightLower, rightUpper, u, v);
+  vec3 currentVertex = interpolate_in_plane(leftLower, leftUpper, rightLower, rightUpper, u, v);
   vec2 currentTexCoord =
-    interpolate4Vert2D(texLeftLower, texLeftUpper, texRightLower, texRightUpper, u, v);
+    interpolate_in_plane(texLeftLower, texLeftUpper, texRightLower, texRightUpper, u, v);
 
   currentVertex.y = texture(heightMap, currentTexCoord).x;
 

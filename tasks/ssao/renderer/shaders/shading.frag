@@ -366,8 +366,6 @@ void main()
 
   const vec3 cameraViewPosition = vec3(0);
 
-  // const vec3 viewDirection = (worldSpacePosition.xyz - params.cameraWorldPosition);
-  // const vec3 reflection = texture(cubemap, reflect(viewDirection, normal)).rgb;
   const vec3 viewDirection = (viewSpacePosition.xyz - cameraViewPosition);
   const vec3 reflection = texture(cubemap, reflect(viewDirection, viewSpaceNormal)).rgb;
 
@@ -376,7 +374,7 @@ void main()
   // change to IBL later
   vec3 color = vec3(albedo * 0.4 * (params.useOcclusion ? occlusion : 1.0));
 
-  vec3 skyboxTexCoord = (params.invProjViewMat3 * screenSpacePosition).xyz;
+  vec3 skyboxTexCoord = (params.cubemapTexCoordProj * vec4(screenSpacePosition.xy, 1.0, 1.0)).xyz;
   vec3 skyboxColor = texture(cubemap, normalize(skyboxTexCoord)).rgb;
 
   DirectionalLight shadowCastingDirLight = {
@@ -391,7 +389,8 @@ void main()
         3500.0);
   skyboxColor += point;
 
-  if (depth >= 1.0)
+  // if (depth >= 1.0)
+  if (depth <= 0.0)
   {
     fragColor = vec4(skyboxColor, 1.0);
     return;
@@ -460,9 +459,7 @@ void main()
   for (uint i = 0; i < directionalLightsAmount; i++)
   {
     DirectionalLight currentLight = directionalLightsBuffer[i];
-    // // sun
-    // vec3 point = currentLight.color *
-    //   pow(clampedDot(normalize(-viewDirection), normalize(currentLight.direction)), 3500.0);
+
     vec3 pbrColor = computeLightPBR(
       albedo,
       viewSpacePosition.xyz,

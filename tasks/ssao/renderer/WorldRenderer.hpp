@@ -54,10 +54,9 @@ public:
   void setupRenderPipelines();
   void rebuildRenderPipelines();
 
-  // call only after loadShaders(...)
+  // call only after loadShaders(...), and only once
   void loadScene(std::filesystem::path path, float near_plane, float far_plane);
   void loadInfo();
-
   void loadCubemap();
 
   void debugInput(const Keyboard& kb);

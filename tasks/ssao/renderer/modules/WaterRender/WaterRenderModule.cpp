@@ -93,45 +93,53 @@ void WaterRenderModule::setupPipelines(
 {
   auto& pipelineManager = etna::get_context().getPipelineManager();
 
-  waterRenderPipeline = pipelineManager.createGraphicsPipeline(
-    "water_render",
-    etna::GraphicsPipeline::CreateInfo{
-      .inputAssemblyConfig = {.topology = vk::PrimitiveTopology::ePatchList},
-      .rasterizationConfig =
-        vk::PipelineRasterizationStateCreateInfo{
-          .polygonMode = (wireframe_enabled ? vk::PolygonMode::eLine : vk::PolygonMode::eFill),
-          .cullMode = vk::CullModeFlagBits::eBack,
-          .frontFace = vk::FrontFace::eCounterClockwise,
-          .lineWidth = 1.f,
-        },
-      .blendingConfig =
-        {
-          .attachments =
-            {{
-               .blendEnable = vk::True,
-               .srcColorBlendFactor = vk::BlendFactor::eSrcAlpha,
-               .dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha,
-               .colorBlendOp = vk::BlendOp::eAdd,
-               .srcAlphaBlendFactor = vk::BlendFactor::eOne,
-               .dstAlphaBlendFactor = vk::BlendFactor::eZero,
-               .alphaBlendOp = vk::BlendOp::eAdd,
-               .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
-                 vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
-             },
-             {
-               .blendEnable = vk::False,
-               .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
-                 vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
-             }},
-          .logicOpEnable = false,
-          .logicOp = {},
-        },
-      .fragmentShaderOutput =
-        {
-          .colorAttachmentFormats = color_attachent_formats,
-          .depthAttachmentFormat = depth_attachment_format,
-        },
-    });
+  waterRenderPipeline =
+    pipelineManager.createGraphicsPipeline(
+      "water_render",
+      etna::GraphicsPipeline::CreateInfo{
+        .inputAssemblyConfig = {.topology = vk::PrimitiveTopology::ePatchList},
+        .rasterizationConfig =
+          vk::PipelineRasterizationStateCreateInfo{
+            .polygonMode = (wireframe_enabled ? vk::PolygonMode::eLine : vk::PolygonMode::eFill),
+            .cullMode = vk::CullModeFlagBits::eBack,
+            .frontFace = vk::FrontFace::eCounterClockwise,
+            .lineWidth = 1.f,
+          },
+        .blendingConfig =
+          {
+            .attachments =
+              {{
+                 .blendEnable = vk::True,
+                 .srcColorBlendFactor = vk::BlendFactor::eSrcAlpha,
+                 .dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha,
+                 .colorBlendOp = vk::BlendOp::eAdd,
+                 .srcAlphaBlendFactor = vk::BlendFactor::eOne,
+                 .dstAlphaBlendFactor = vk::BlendFactor::eZero,
+                 .alphaBlendOp = vk::BlendOp::eAdd,
+                 .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+                   vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
+               },
+               {
+                 .blendEnable = vk::False,
+                 .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+                   vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
+               }},
+            .logicOpEnable = false,
+            .logicOp = {},
+          },
+        .depthConfig =
+          {
+            .depthTestEnable = vk::True,
+            .depthWriteEnable = vk::True,
+            .depthCompareOp = vk::CompareOp::eGreaterOrEqual,
+            .maxDepthBounds = 1.f,
+          },
+        .fragmentShaderOutput =
+          {
+            .colorAttachmentFormats = color_attachent_formats,
+            .depthAttachmentFormat = depth_attachment_format,
+          },
+      });
 }
 
 void WaterRenderModule::executeRender(

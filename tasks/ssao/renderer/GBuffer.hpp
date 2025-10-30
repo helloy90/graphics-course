@@ -34,6 +34,7 @@ public:
   // no flush
   void prepareForDepthReadWrite(vk::CommandBuffer cmd_buf);
 
+  // no flush
   void prepareForDepthRead(vk::CommandBuffer cmd_buf, vk::PipelineStageFlagBits2 pipeline_stage);
 
   // NOTE - maybe specific function should be (re-)moved
@@ -46,8 +47,8 @@ public:
   // no flush
   void prepareForDepthCopy(vk::CommandBuffer cmd_buf);
 
+  // no flush
   void prepareForTaaExecute(vk::CommandBuffer cmd_buf);
-
 
   // no flush
   void prepareForVelocityReset(vk::CommandBuffer cmd_buf);
@@ -65,12 +66,6 @@ public:
     uint32_t index,
     vk::AttachmentLoadOp load_op = vk::AttachmentLoadOp::eClear,
     vk::AttachmentStoreOp store_op = vk::AttachmentStoreOp::eStore);
-
-  // etna::Binding genAlbedoBinding(uint32_t index, vk::ImageLayout layout);
-  // etna::Binding genNormalBinding(uint32_t index, vk::ImageLayout layout);
-  // etna::Binding genMaterialBinding(uint32_t index, vk::ImageLayout layout);
-  // etna::Binding genDepthBinding(uint32_t index, vk::ImageLayout layout);
-  // std::vector<etna::Binding> genShadowBindings(uint32_t index, vk::ImageLayout layout);
 
   vk::Extent2D getShadowTextureExtent() const
   {

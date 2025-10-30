@@ -10,6 +10,8 @@ struct AntialiasingParams
   shader_mat4 currentInvProjView;
   shader_mat4 previousProjView;
   shader_float previousFrameUsage;
+  // NOTE - in view space
+  shader_float maxDepthDelta;
   shader_float catmullRomBParam;
   shader_float catmullRomCParam;
 };

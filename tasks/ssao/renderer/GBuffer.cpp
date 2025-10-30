@@ -10,7 +10,6 @@
 
 GBuffer::GBuffer(const CreateInfo& info)
 {
-
   auto& ctx = etna::get_context();
 
   vk::Extent3D renderImagesExtent = {info.resolution.x, info.resolution.y, 1};
@@ -301,7 +300,12 @@ std::vector<etna::RenderTargetState::AttachmentParams> GBuffer::genColorAttachme
 etna::RenderTargetState::AttachmentParams GBuffer::genDepthAttachmentParams(
   vk::AttachmentLoadOp load_op, vk::AttachmentStoreOp store_op)
 {
-  return {.image = depth.get(), .view = depth.getView({}), .loadOp = load_op, .storeOp = store_op};
+  return {
+    .image = depth.get(),
+    .view = depth.getView({}),
+    .loadOp = load_op,
+    .storeOp = store_op,
+    .clearDepthStencilValue = {0.0f, 0}};
 }
 
 etna::RenderTargetState::AttachmentParams GBuffer::genShadowMappingAttachmentParams(
@@ -313,36 +317,3 @@ etna::RenderTargetState::AttachmentParams GBuffer::genShadowMappingAttachmentPar
     .loadOp = load_op,
     .storeOp = store_op};
 }
-
-// etna::Binding GBuffer::genAlbedoBinding(uint32_t index, vk::ImageLayout layout)
-// {
-//   return etna::Binding{index, albedo.genBinding({}, layout)};
-// }
-
-// etna::Binding GBuffer::genNormalBinding(uint32_t index, vk::ImageLayout layout)
-// {
-//   return etna::Binding{index, normal.genBinding({}, layout)};
-// }
-
-// etna::Binding GBuffer::genMaterialBinding(uint32_t index, vk::ImageLayout layout)
-// {
-//   return etna::Binding{index, material.genBinding({}, layout)};
-// }
-
-// etna::Binding GBuffer::genDepthBinding(uint32_t index, vk::ImageLayout layout)
-// {
-//   return etna::Binding{index, depth.genBinding(depthSampler.get(), layout)};
-// }
-
-// std::vector<etna::Binding> GBuffer::genShadowBindings(uint32_t index, vk::ImageLayout layout)
-// {
-//   std::vector<etna::Binding> bindings;
-//   bindings.reserve(shadows.size());
-//   for (uint32_t i = 0; i < static_cast<uint32_t>(shadows.size()); i++)
-//   {
-//     bindings.emplace_back(
-//       etna::Binding{index, shadows[i].genBinding(depthSampler.get(), layout), i});
-//   }
-
-//   return bindings;
-// }
