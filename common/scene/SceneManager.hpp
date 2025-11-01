@@ -99,6 +99,8 @@ public:
 
   etna::VertexByteStreamFormatDescription getVertexFormatDescription();
 
+  void updateMatrices(const glm::mat4& transform);
+
   // for now one placeholder for all materials
   Texture2D::Id baseColorPlaceholder;
   Texture2D::Id metallicRoughnessPlaceholder;

@@ -8,9 +8,9 @@ struct Camera
 {
   glm::vec3 position;
   glm::quat rotation;
-  float fov{60};
+  float fov{60.0f};
   float zNear{0.01f};
-  float zFar{1000};
+  float zFar{2000.0f};
 
   void lookAt(glm::vec3 from, glm::vec3 to, glm::vec3 up)
   {
@@ -43,5 +43,41 @@ struct Camera
   glm::mat4x4 projTm(float aspect) const
   {
     return glm::perspectiveLH_ZO(-glm::radians(fov), aspect, zNear, zFar);
+  }
+
+  glm::mat4x4 projTmZRev(float aspect) const
+  {
+    return glm::perspectiveLH_ZO(-glm::radians(fov), aspect, zFar, zNear);
+  }
+
+  glm::mat4x4 projTmZRevFarInf(float aspect) const
+  {
+    assert(glm::abs(aspect - std::numeric_limits<float>::epsilon()) > 0.0f);
+
+    const float tanHalfFovy = glm::tan(-glm::radians(fov) / 2.0f);
+
+    glm::mat4x4 result(0.0f);
+    result[0][0] = 1.0f / (aspect * tanHalfFovy);
+    result[1][1] = 1.0f / (tanHalfFovy);
+    result[2][2] = 0;
+    result[2][3] = 1.0f;
+    result[3][2] = zNear;
+    return result;
+  }
+
+  glm::mat4x4 projItmZRevFarInf(float aspect) const
+  {
+    assert(glm::abs(aspect - std::numeric_limits<float>::epsilon()) > 0.0f);
+
+    const float tanHalfFovy = glm::tan(-glm::radians(fov) / 2.0f);
+
+    glm::mat4x4 result(0.0f);
+    result[0][0] = (aspect * tanHalfFovy);
+    result[1][1] = (tanHalfFovy);
+    result[2][2] = 0;
+    result[2][3] = 1.0f / zNear;
+    result[3][2] = -1.0f;
+    result[3][3] = 0.0f;
+    return result;
   }
 };
