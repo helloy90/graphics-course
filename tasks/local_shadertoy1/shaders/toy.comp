@@ -4,15 +4,338 @@ layout(local_size_x = 32, local_size_y = 32) in;
 
 layout(binding = 0, rgba8) uniform image2D resultImage;
 
+layout(push_constant) uniform params {
+  uvec2 iResolution;
+  float mouseX;
+  float mouseY;
+} pushConstant;
+
+// --------- Constants ---------
+
+const float kPi = 3.14159265359;
+
+const int kMaxSteps = 256;
+const int kMaxShadowSteps = 32;
+const float kPresicion = 0.001;
+const float kMinDist = 0.0;
+const float kMaxDist = 100.0;
+
+const mat3 kIdentityMat = mat3(
+      vec3(1, 0, 0),
+      vec3(0, 1, 0),
+      vec3(0, 0, 1)
+);
+
+// --------- Structs ---------
+
+struct Material {
+  vec3 ambient_color; // ambient reflection * ambient lighting
+  vec3 diffuse_color; // diffuse reflection * light intensity
+  vec3 specular_color; // specular reflection * specular light
+  float shininess;
+};
+
+struct Surface {
+  int id;
+  float sd;
+  Material material;
+};
+
+struct Light {
+  vec3 pos;
+  float intensity;
+};
+
+// --------- Materials ---------
+
+Material guard() {
+  vec3 aCol = 0.4 * vec3(0.8);
+  vec3 dCol = 0.5 * vec3(0.7);
+  vec3 sCol = 0.6 * vec3(1, 1, 1);
+  float a = 5.;
+
+  return Material(aCol, dCol, sCol, a);
+}
+
+Material handle() {
+  vec3 aCol = 0.9 * vec3(0.1);
+  vec3 dCol = 0.9 * vec3(0.5);
+  vec3 sCol = 0.6 * vec3(0);
+  float a = 1.;
+
+  return Material(aCol, dCol, sCol, a);
+}
+
+Material blade() {
+  vec3 aCol = 0.7 * vec3(0.7, 0, 0);
+  vec3 dCol = 0.6 * vec3(0.7, 0, 0);
+  vec3 sCol = 0.9 * vec3(1, 1, 1);
+  float a = 500.;
+
+  return Material(aCol, dCol, sCol, a);
+}
+
+Material plane(vec3 p) {
+  vec3 aCol = 0.6 * vec3(0.835, 1, 1);
+  vec3 dCol = 0.1 * vec3(1.0);
+  vec3 sCol = 0.1 * vec3(1.0);
+  float a = 15.0;
+
+  return Material(aCol, dCol, sCol, a);
+}
+
+// --------- Utils ---------
+
+// --- Rotations ---
+
+mat3 rotateX(in float angle) {
+  float angle_cos = cos(angle);
+  float angle_sin = sin(angle);
+  return mat3(
+      vec3(1, 0, 0),
+      vec3(0, angle_cos, -angle_sin),
+      vec3(0, angle_sin, angle_cos)
+  );
+}
+
+mat3 rotateY(in float angle) {
+  float angle_cos = cos(angle);
+  float angle_sin = sin(angle);
+  return mat3(
+      vec3(angle_cos, 0, angle_sin),
+      vec3(0, 1, 0),
+      vec3(-angle_sin, 0, angle_cos)
+  );
+}
+
+mat3 rotateZ(in float angle) {
+  float angle_cos = cos(angle);
+  float angle_sin = sin(angle);
+  return mat3(
+      vec3(angle_cos, -angle_sin, 0),
+      vec3(angle_sin, angle_cos, 0),
+      vec3(0, 0, 1)
+  );
+}
+
+mat2 rotate2d(in float angle) {
+  float angle_cos = cos(angle);
+  float angle_sin = sin(angle);
+  return mat2(
+      vec2(angle_cos, angle_sin),
+      vec2(-angle_sin, angle_cos)
+  );
+}
+
+// --- SDF operations ---
+
+Surface opUnion(Surface first_sur, Surface second_sur) {
+  if (second_sur.sd < first_sur.sd) {
+      return second_sur;
+  }
+  return first_sur;
+}
+
+Surface opSmoothUnion(Surface first_sur, Surface second_sur, in float coeff) {
+  float h = clamp( 0.5 + 0.5 * (second_sur.sd - first_sur.sd) / coeff, 0.0, 1.0 );
+  return Surface(second_sur.id, mix(second_sur.sd, first_sur.sd, h) - coeff * h * (1.0 - h), second_sur.material);
+}
+
+// --------- Metrics ---------
+
+float lengthInf(in vec2 vector) {
+  return max(abs(vector.x), abs(vector.y));
+}
+
+float lengthInf(in vec3 vector) {
+  return max(abs(vector.x), max(abs(vector.y), abs(vector.z)));
+}
+
+// --------- Objects ---------
+float sdTriPrism(in vec3 pos, in vec2 h, in vec3 offset, mat3 transform) {
+  vec3 q = abs(pos - offset);
+  return max(q.z - h.y, max(q.x * 0.866025 + pos.y * 0.5, -pos.y) - h.x * 0.5);
+}
+
+float sdPlane(in vec3 pos, in vec3 normal, in float offset) {
+  return dot(pos, normal) + offset;
+}
+
+float sdSphere(in vec3 pos, in vec3 center, in float radius) {
+  return length(pos - center) - radius;
+}
+
+float sdTor(in vec3 p, in vec2 t, mat3 transform) {
+  p = p * transform;
+  vec2 q = vec2(length(p.xz) - t.x, p.y);
+  return lengthInf(q) - t.y;
+}
+
+float sdBox(in vec3 pos, in vec3 size, in vec3 offset, mat3 transform) {
+  vec3 adj_pos = abs((pos - offset) * transform) - size;
+  return length(max(adj_pos, 0.0)) + min(max(adj_pos.x, max(adj_pos.y, adj_pos.z)), 0.0);
+}
+
+// --------- Camera ---------
+
+mat3 camera(in vec3 camera_pos, in vec3 look_at_point) {
+  vec3 camera_dir = normalize(look_at_point - camera_pos);
+  vec3 camera_right = normalize(cross(vec3(0, 1, 0), camera_dir));
+  vec3 camera_up = normalize(cross(camera_dir, camera_right));
+    
+  return mat3(-camera_right, camera_up, -camera_dir);
+}
+
+
+// --------- Render ---------
+
+
+Surface sdScene(in vec3 pos) {
+  Surface outer_shell = Surface(1, sdPlane(pos, vec3(0.0, 0.0, 1.0), 20.0), plane(pos));
+  outer_shell = opSmoothUnion(Surface(1, sdPlane(pos, vec3(0.0, 1.0, 0.0), 1.0), plane(pos)), outer_shell, 0.9); // floor plane
+  outer_shell = opSmoothUnion(Surface(1, sdPlane(pos, vec3(1.0, 0.0, 0.0), 20.0), plane(pos)), outer_shell, 0.9);
+  outer_shell = opSmoothUnion(Surface(1, sdPlane(pos, vec3(0.0, 0.0, -1.0), 20.0), plane(pos)), outer_shell, 0.9);
+  outer_shell = opSmoothUnion(Surface(1, sdPlane(pos, vec3(0.0, -1.0, 0.0), 20.0), plane(pos)), outer_shell, 0.9);
+  outer_shell = opSmoothUnion(Surface(1, sdPlane(pos, vec3(-1.0, 0.0, 0.0), 20.0), plane(pos)), outer_shell, 0.9);
+    
+  Surface guard = Surface(2, sdTor(pos, vec2(0.55, 0.1), rotateX(kPi / 2.0)), guard());
+  Surface upper_blade = Surface(2, sdBox(pos, vec3(0.1, 3, 0.1), vec3(0, 0.2, 3), rotateX(kPi / 2.0)), blade());
+  Surface lower_blade = Surface(2, sdBox(pos, vec3(0.05, 3, 0.1), vec3(0, 0, 3), rotateX(kPi / 2.0)), blade());
+  Surface blade = opSmoothUnion(upper_blade, lower_blade, 0.1);
+  Surface handle = Surface(2, sdBox(pos, vec3(0.2, 1, 0.2), vec3(0, 0, -1), rotateX(kPi / 2.0)), handle());
+  Surface lower = opSmoothUnion(guard, handle, 0.7);
+  Surface res = opUnion(opUnion(lower, blade), outer_shell);
+
+  return res;
+}
+
+Surface trace(in vec3 ray_origin, in vec3 ray_dir) {
+  vec3 pos = ray_origin;
+  float total_depth = kMinDist;
+  Surface closest_object;
+
+  for (int steps = 0; steps < kMaxSteps; steps++) {
+      closest_object = sdScene(pos);
+      if (closest_object.sd < kPresicion) {
+          break;
+      }
+
+      total_depth += closest_object.sd;
+
+      if (total_depth > kMaxDist) {
+          break;
+      }
+
+      pos += closest_object.sd * ray_dir;
+  }
+    
+  closest_object.sd = total_depth;
+
+  return closest_object;
+}
+
+vec3 generateNormal(in vec3 pos, in float offset) {
+  float dx1 = sdScene(pos + vec3(offset, 0, 0)).sd;
+  float dx2 = sdScene(pos - vec3(offset, 0, 0)).sd;
+  float dy1 = sdScene(pos + vec3(0, offset, 0)).sd;
+  float dy2 = sdScene(pos - vec3(0, offset, 0)).sd;
+  float dz1 = sdScene(pos + vec3(0, 0, offset)).sd;
+  float dz2 = sdScene(pos - vec3(0, 0, offset)).sd;
+
+  return normalize(vec3(dx1 - dx2, dy1 - dy2, dz1 - dz2));
+}
+
+float softShadow(vec3 ray_origin, vec3 ray_direction, float mint, float tmax) { //unused rn
+  float result = 1.0;
+  float t = mint;
+
+  for(int i = 0; i < kMaxShadowSteps; i++) {
+    float h = sdScene(ray_origin + ray_direction * t).sd;
+      result = min(result, 8.0 * h / t);
+      t += clamp(h, 0.02, 0.10);
+      if(h < kPresicion || t > tmax) break;
+  }
+
+  return clamp( result, 0.0, 1.0 );
+}
+
+vec3 lightCalc(vec3 light_dir, vec3 pos, vec3 normal, vec3 ray_dir, Light light, Material material) {
+  vec3 ambient = material.ambient_color;
+  
+  vec3 new_ray_origin = pos + normal * kPresicion * 2.0;
+  float shadow_ray_length = trace(new_ray_origin, light_dir).sd; // hard shadows
+
+  float normal_lighting = clamp(dot(light_dir, normal), 0., 1.);
+  
+  vec3 diffuse = material.diffuse_color * normal_lighting;
+  if (shadow_ray_length < length(light.pos - new_ray_origin)) {
+      diffuse *= 0.2;
+  }
+
+  float specular_lighting = clamp(dot(reflect(light_dir, normal), -ray_dir), 0., 1.);
+  vec3 specular = material.specular_color * pow(specular_lighting, material.shininess);
+  if (shadow_ray_length < length(light.pos - new_ray_origin)) {
+      specular *= 0.2;
+  }
+
+  return ambient + diffuse + specular;
+}
+
+
+vec3 render(in vec3 ray_origin, in vec3 ray_dir) {
+  vec3 background_color = vec3(1, .341, .2);
+  vec3 color = background_color; // default color
+    
+  // Set up lights
+  Light light = Light(vec3(2, 2, 5), 1.0);
+    
+  Surface closest_object = trace(ray_origin, ray_dir);
+
+  if(closest_object.sd < kMaxDist) {
+    vec3 pos = ray_origin + ray_dir * closest_object.sd;
+    vec3 normal = generateNormal(pos, kPresicion);
+        
+    vec3 light_dir = normalize(light.pos - pos);
+        
+    color = lightCalc(light_dir, pos, normal, ray_dir, light, closest_object.material);
+    color = mix(color, background_color, 1.0 - exp(-0.0002 * closest_object.sd * closest_object.sd * closest_object.sd));
+  }
+  return color;
+}
+
+vec3 postfx(vec3 color) {
+    //color = pow(color, vec3(1.0/2.2)); //gamma correction
+    return color;
+}
 
 void main()
 {
-  ivec2 uv = ivec2(gl_GlobalInvocationID.xy);
-
   // TODO: Put your shadertoy code here!
   // Simple gradient as a test.
-  vec3 color = vec3(vec2(uv) / vec2(1280, 720), 0);
+  vec2 fragCoord = vec2(gl_GlobalInvocationID.xy);
 
-  if (uv.x < 1280 && uv.y < 720)
-    imageStore(resultImage, uv, vec4(color, 1));
+  vec2 iResolution = pushConstant.iResolution;
+  vec2 iMouse = {pushConstant.mouseX, -pushConstant.mouseY + iResolution.y}; // flipped mouse y coord
+
+  vec3 camera_origin = vec3(0.0, 5.0, 0.0);
+  float camera_radius = 2.0;
+  vec3 look_at_point = vec3(0.0, 0.0, 2.0);
+
+  vec2 uv_coord = (fragCoord - 0.5 * iResolution.xy) / max(iResolution.x, iResolution.y);
+  vec2 mouse = iMouse.xy / iResolution.xy;
+
+  camera_origin.yz = camera_origin.yz * camera_radius * rotate2d(mix(kPi / 2.0, 0.0, mouse.y));
+  camera_origin.xz = camera_origin.xz * rotate2d(mix(-kPi, kPi, mouse.x)) + vec2(look_at_point.x, look_at_point.z);
+    
+  vec3 ray_dir = camera(camera_origin, look_at_point) *  normalize(vec3(uv_coord, -1));
+    
+  //vec3 background_color = mix(vec3(1, .341, .2), vec3(0, 1, 1), uv_coord.y) * 1.6;
+  vec3 color = vec3(1, 1, 1); // default color
+
+  color = render(camera_origin, ray_dir);
+  color = postfx(color);
+  fragCoord.y = iResolution.y - fragCoord.y; // flipped image on y axis
+  if (fragCoord.x < iResolution.x && fragCoord.y < iResolution.y) {
+    imageStore(resultImage, ivec2(fragCoord), vec4(color, 1));
+  }
 }
